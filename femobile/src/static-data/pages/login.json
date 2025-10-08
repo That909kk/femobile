@@ -1,0 +1,122 @@
+{
+  "vi": {
+    "title": "Đăng nhập",
+    "subtitle": "Chào mừng bạn quay trở lại",
+    "form": {
+      "role": {
+        "label": "Vai trò",
+        "options": {
+          "customer": "Khách hàng",
+          "employee": "Nhân viên",
+          "admin": "Quản trị viên"
+        }
+      },
+      "username": {
+        "label": "Tên đăng nhập",
+        "placeholder": "Nhập tên đăng nhập"
+      },
+      "password": {
+        "label": "Mật khẩu",
+        "placeholder": "Nhập mật khẩu"
+      }
+    },
+    "actions": {
+      "login": "Đăng nhập",
+      "logging_in": "Đang đăng nhập...",
+      "forgot_password": "Quên mật khẩu?",
+      "remember_me": "Ghi nhớ đăng nhập"
+    },
+    "messages": {
+      "validation": {
+        "username_required": "Tên đăng nhập là bắt buộc",
+        "username_min_length": "Tên đăng nhập phải có ít nhất 3 ký tự",
+        "password_required": "Mật khẩu là bắt buộc",
+        "password_min_length": "Mật khẩu phải có ít nhất 6 ký tự",
+        "role_required": "Vai trò là bắt buộc"
+      },
+      "no_account": "Chưa có tài khoản?",
+      "register_link": "Đăng ký ngay",
+      "login_success": "Đăng nhập thành công!",
+      "login_error": "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.",
+      "invalid_credentials": "Tên đăng nhập hoặc mật khẩu không chính xác",
+      "account_inactive": "Tài khoản chưa được kích hoạt hoặc đã bị khóa",
+      "account_locked": "Tài khoản đã bị khóa do đăng nhập sai quá nhiều lần. Vui lòng thử lại sau.",
+      "admin_not_supported": "Ứng dụng di động không hỗ trợ vai trò ADMIN. Vui lòng sử dụng trang web.",
+      "loading": "Đang tải...",
+      "alert_success": "Thành công",
+      "alert_error": "Lỗi",
+      "alert_info": "Thông báo",
+      "alert_ok": "OK",
+      "back": "Quay lại"
+    },
+    "brand": {
+      "name": "CleanHome",
+      "tagline": "Dịch vụ giúp việc gia đình chuyên nghiệp"
+    },
+    "features": {
+      "trusted": "Tin cậy & An toàn",
+      "on_time": "Đúng giờ",
+      "quality": "Chất lượng cao"
+    }
+  },
+  "en": {
+    "title": "Login",
+    "subtitle": "Welcome back",
+    "form": {
+      "role": {
+        "label": "Role",
+        "options": {
+          "customer": "Customer",
+          "employee": "Employee",
+          "admin": "Admin"
+        }
+      },
+      "username": {
+        "label": "Username",
+        "placeholder": "Enter your username"
+      },
+      "password": {
+        "label": "Password",
+        "placeholder": "Enter your password"
+      }
+    },
+    "actions": {
+      "login": "Login",
+      "logging_in": "Logging in...",
+      "forgot_password": "Forgot password?",
+      "remember_me": "Remember me"
+    },
+    "messages": {
+      "validation": {
+        "username_required": "Username is required",
+        "username_min_length": "Username must be at least 3 characters",
+        "password_required": "Password is required",
+        "password_min_length": "Password must be at least 6 characters",
+        "role_required": "Role is required"
+      },
+      "no_account": "Don't have an account?",
+      "register_link": "Sign up",
+      "login_success": "Login successful!",
+      "login_error": "Login failed. Please check your credentials.",
+      "invalid_credentials": "Username or password is incorrect",
+      "account_inactive": "Account is not activated or has been locked",
+      "account_locked": "Account has been locked due to too many failed login attempts. Please try again later.",
+      "admin_not_supported": "Mobile app does not support ADMIN role. Please use the web application.",
+      "loading": "Loading...",
+      "alert_success": "Success",
+      "alert_error": "Error",
+      "alert_info": "Information",
+      "alert_ok": "OK",
+      "back": "Back"
+    },
+    "brand": {
+      "name": "CleanHome",
+      "tagline": "Professional housekeeping service"
+    },
+    "features": {
+      "trusted": "Trusted & Safe",
+      "on_time": "On Time",
+      "quality": "High Quality"
+    }
+  }
+}

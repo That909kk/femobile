@@ -1,0 +1,86 @@
+{
+  "vi": {
+    "title": "Điều khoản và Điều kiện",
+    "lastUpdated": "18/08/2025",
+    "sections": [
+      {
+        "title": "1. Chấp nhận điều khoản",
+        "content": "Bằng việc sử dụng ứng dụng dịch vụ dọn dẹp nhà cửa của chúng tôi, bạn đồng ý tuân thủ và bị ràng buộc bởi các điều khoản và điều kiện sau đây."
+      },
+      {
+        "title": "2. Mô tả dịch vụ",
+        "content": "Ứng dụng của chúng tôi cung cấp nền tảng kết nối khách hàng với các nhà cung cấp dịch vụ dọn dẹp nhà cửa chuyên nghiệp. Chúng tôi không trực tiếp cung cấp dịch vụ dọn dẹp mà chỉ đóng vai trò là trung gian."
+      },
+      {
+        "title": "3. Đăng ký tài khoản",
+        "content": "Khi đăng ký tài khoản, bạn cam kết cung cấp thông tin chính xác, đầy đủ và cập nhật. Bạn có trách nhiệm bảo mật thông tin đăng nhập của mình."
+      },
+      {
+        "title": "4. Quyền riêng tư",
+        "content": "Chúng tôi cam kết bảo vệ thông tin cá nhân của bạn theo chính sách quyền riêng tư. Thông tin của bạn sẽ được sử dụng để cung cấp dịch vụ và cải thiện trải nghiệm người dùng."
+      },
+      {
+        "title": "5. Trách nhiệm người dùng",
+        "content": "Bạn cam kết sử dụng ứng dụng một cách hợp pháp, không gây thiệt hại cho hệ thống hoặc người dùng khác. Mọi hành vi vi phạm sẽ bị xử lý theo quy định của pháp luật."
+      },
+      {
+        "title": "6. Thanh toán và hoàn tiền",
+        "content": "Các giao dịch thanh toán được thực hiện thông qua các cổng thanh toán an toàn. Chính sách hoàn tiền sẽ được áp dụng theo từng trường hợp cụ thể."
+      },
+      {
+        "title": "7. Giới hạn trách nhiệm",
+        "content": "Chúng tôi không chịu trách nhiệm về chất lượng dịch vụ do các nhà cung cấp bên thứ ba thực hiện. Tuy nhiên, chúng tôi sẽ hỗ trợ giải quyết tranh chấp khi cần thiết."
+      },
+      {
+        "title": "8. Thay đổi điều khoản",
+        "content": "Chúng tôi có quyền thay đổi các điều khoản này bất cứ lúc nào. Người dùng sẽ được thông báo về những thay đổi quan trọng qua email hoặc thông báo trong ứng dụng."
+      },
+      {
+        "title": "9. Liên hệ",
+        "content": "Nếu bạn có bất kỳ câu hỏi nào về các điều khoản này, vui lòng liên hệ với chúng tôi qua email: mthat456@gmail.com hoặc hotline: 082 537 1577."
+      }
+    ]
+  },
+  "en": {
+    "title": "Terms and Conditions",
+    "lastUpdated": "2025/08/18",
+    "sections": [
+      {
+        "title": "1. Acceptance of Terms",
+        "content": "By using our housekeeping service application, you agree to comply with and be bound by the following terms and conditions."
+      },
+      {
+        "title": "2. Service Description",
+        "content": "Our application provides a platform that connects customers with professional housekeeping service providers. We do not directly provide cleaning services but only act as an intermediary."
+      },
+      {
+        "title": "3. Account Registration",
+        "content": "When registering an account, you commit to providing accurate, complete and up-to-date information. You are responsible for securing your login information."
+      },
+      {
+        "title": "4. Privacy",
+        "content": "We are committed to protecting your personal information according to our privacy policy. Your information will be used to provide services and improve user experience."
+      },
+      {
+        "title": "5. User Responsibilities",
+        "content": "You commit to using the application legally, without causing damage to the system or other users. Any violations will be handled according to legal regulations."
+      },
+      {
+        "title": "6. Payment and Refunds",
+        "content": "Payment transactions are made through secure payment gateways. Refund policies will be applied on a case-by-case basis."
+      },
+      {
+        "title": "7. Limitation of Liability",
+        "content": "We are not responsible for the quality of services provided by third-party providers. However, we will assist in resolving disputes when necessary."
+      },
+      {
+        "title": "8. Changes to Terms",
+        "content": "We reserve the right to change these terms at any time. Users will be notified of important changes via email or in-app notifications."
+      },
+      {
+        "title": "9. Contact",
+        "content": "If you have any questions about these terms, please contact us via email: mthat456@gmail.com or hotline: 082 537 1577."
+      }
+    ]
+  }
+}

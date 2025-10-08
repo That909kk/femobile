@@ -1,0 +1,120 @@
+{
+  "vi": {
+    "title": "Trang chủ khách hàng",
+    "welcome": "Chào mừng",
+    "greeting": "Xin chào",
+    "subtitle": "Khách hàng thân thiết",
+    "sections": {
+      "services": {
+        "title": "Dịch vụ",
+        "subtitle": "Khám phá các dịch vụ của chúng tôi",
+        "book_now": "Đặt ngay"
+      },
+      "my_bookings": {
+        "title": "Lịch hẹn của tôi",
+        "subtitle": "Quản lý các lịch hẹn đã đặt",
+        "view_all": "Xem tất cả"
+      },
+      "profile": {
+        "title": "Hồ sơ cá nhân",
+        "subtitle": "Cập nhật thông tin của bạn",
+        "edit": "Chỉnh sửa"
+      },
+      "support": {
+        "title": "Hỗ trợ",
+        "subtitle": "Liên hệ với chúng tôi",
+        "contact": "Liên hệ"
+      }
+    },
+    "quick_actions": {
+      "title": "Thao tác nhanh",
+      "book_service": "Đặt dịch vụ",
+      "reschedule": "Đổi lịch hẹn",
+      "view_history": "Xem lịch sử",
+      "rate_service": "Đánh giá dịch vụ"
+    },
+    "stats": {
+      "upcoming_appointments": "Lịch hẹn sắp tới",
+      "total_bookings": "Tổng lịch hẹn",
+      "completed_services": "Dịch vụ đã hoàn thành",
+      "loyalty_points": "Điểm tích lũy"
+    },
+    "recent_activity": {
+      "title": "Hoạt động gần đây",
+      "no_activity": "Chưa có hoạt động nào"
+    },
+    "recommendations": {
+      "title": "Dịch vụ đề xuất",
+      "subtitle": "Dành riêng cho bạn"
+    },
+    "actions": {
+      "logout": "Đăng xuất",
+      "refresh": "Làm mới",
+      "book_appointment": "Đặt lịch hẹn"
+    },
+    "messages": {
+      "loading": "Đang tải...",
+      "no_appointments": "Bạn chưa có lịch hẹn nào",
+      "welcome_message": "Cảm ơn bạn đã tin tưởng dịch vụ của chúng tôi!"
+    }
+  },
+  "en": {
+    "title": "Customer Dashboard",
+    "welcome": "Welcome",
+    "greeting": "Hello",
+    "subtitle": "Valued Customer",
+    "sections": {
+      "services": {
+        "title": "Services",
+        "subtitle": "Discover our services",
+        "book_now": "Book Now"
+      },
+      "my_bookings": {
+        "title": "My Appointments",
+        "subtitle": "Manage your bookings",
+        "view_all": "View All"
+      },
+      "profile": {
+        "title": "Personal Profile",
+        "subtitle": "Update your information",
+        "edit": "Edit"
+      },
+      "support": {
+        "title": "Support",
+        "subtitle": "Contact us for help",
+        "contact": "Contact"
+      }
+    },
+    "quick_actions": {
+      "title": "Quick Actions",
+      "book_service": "Book Service",
+      "reschedule": "Reschedule Appointment",
+      "view_history": "View History",
+      "rate_service": "Rate Service"
+    },
+    "stats": {
+      "upcoming_appointments": "Upcoming Appointments",
+      "total_bookings": "Total Bookings",
+      "completed_services": "Completed Services",
+      "loyalty_points": "Loyalty Points"
+    },
+    "recent_activity": {
+      "title": "Recent Activity",
+      "no_activity": "No recent activity"
+    },
+    "recommendations": {
+      "title": "Recommended Services",
+      "subtitle": "Just for you"
+    },
+    "actions": {
+      "logout": "Logout",
+      "refresh": "Refresh",
+      "book_appointment": "Book Appointment"
+    },
+    "messages": {
+      "loading": "Loading...",
+      "no_appointments": "You don't have any appointments yet",
+      "welcome_message": "Thank you for trusting our services!"
+    }
+  }
+}

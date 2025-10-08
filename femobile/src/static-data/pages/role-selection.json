@@ -1,0 +1,48 @@
+{
+  "vi": {
+    "title": "Chọn vai trò",
+    "subtitle": "Tài khoản của bạn có nhiều vai trò. Vui lòng chọn vai trò để đăng nhập.",
+    "actions": {
+      "continue": "Tiếp tục",
+      "back": "Quay lại"
+    },
+    "roles": {
+      "CUSTOMER": "Khách hàng",
+      "EMPLOYEE": "Nhân viên",
+      "ADMIN": "Quản trị viên"
+    },
+    "roleDescriptions": {
+      "CUSTOMER": "Đặt dịch vụ và quản lý đơn hàng của bạn",
+      "EMPLOYEE": "Nhận và thực hiện các công việc được phân công",
+      "ADMIN": "Quản lý hệ thống và giám sát hoạt động"
+    },
+    "messages": {
+      "selectRole": "Vui lòng chọn một vai trò",
+      "loading": "Đang xử lý...",
+      "error": "Đã xảy ra lỗi. Vui lòng thử lại."
+    }
+  },
+  "en": {
+    "title": "Select Role",
+    "subtitle": "Your account has multiple roles. Please select a role to login.",
+    "actions": {
+      "continue": "Continue",
+      "back": "Back"
+    },
+    "roles": {
+      "CUSTOMER": "Customer",
+      "EMPLOYEE": "Employee", 
+      "ADMIN": "Administrator"
+    },
+    "roleDescriptions": {
+      "CUSTOMER": "Book services and manage your orders",
+      "EMPLOYEE": "Receive and perform assigned tasks",
+      "ADMIN": "Manage system and monitor activities"
+    },
+    "messages": {
+      "selectRole": "Please select a role",
+      "loading": "Processing...",
+      "error": "An error occurred. Please try again."
+    }
+  }
+}

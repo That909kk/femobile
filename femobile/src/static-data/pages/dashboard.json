@@ -1,0 +1,82 @@
+{
+  "vi": {
+    "title": "Bảng điều khiển",
+    "welcome": "Chào mừng",
+    "sections": {
+      "services": {
+        "title": "Dịch vụ",
+        "subtitle": "Quản lý và đặt dịch vụ"
+      },
+      "bookings": {
+        "title": "Đặt lịch",
+        "subtitle": "Xem lịch sử đặt lịch"
+      },
+      "profile": {
+        "title": "Hồ sơ",
+        "subtitle": "Quản lý thông tin cá nhân"
+      },
+      "settings": {
+        "title": "Cài đặt",
+        "subtitle": "Cấu hình ứng dụng"
+      }
+    },
+    "quick_actions": {
+      "title": "Thao tác nhanh",
+      "book_service": "Đặt dịch vụ",
+      "view_history": "Xem lịch sử",
+      "update_profile": "Cập nhật hồ sơ"
+    },
+    "stats": {
+      "total_bookings": "Tổng đặt lịch",
+      "active_services": "Dịch vụ hoạt động",
+      "completed": "Đã hoàn thành"
+    },
+    "actions": {
+      "logout": "Đăng xuất",
+      "refresh": "Làm mới"
+    },
+    "messages": {
+      "loading": "Đang tải..."
+    }
+  },
+  "en": {
+    "title": "Dashboard",
+    "welcome": "Welcome",
+    "sections": {
+      "services": {
+        "title": "Services",
+        "subtitle": "Manage and book services"
+      },
+      "bookings": {
+        "title": "Bookings",
+        "subtitle": "View booking history"
+      },
+      "profile": {
+        "title": "Profile",
+        "subtitle": "Manage personal information"
+      },
+      "settings": {
+        "title": "Settings",
+        "subtitle": "Configure application"
+      }
+    },
+    "quick_actions": {
+      "title": "Quick Actions",
+      "book_service": "Book Service",
+      "view_history": "View History",
+      "update_profile": "Update Profile"
+    },
+    "stats": {
+      "total_bookings": "Total Bookings",
+      "active_services": "Active Services",
+      "completed": "Completed"
+    },
+    "actions": {
+      "logout": "Logout",
+      "refresh": "Refresh"
+    },
+    "messages": {
+      "loading": "Loading..."
+    }
+  }
+}

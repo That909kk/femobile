@@ -1,0 +1,66 @@
+{
+  "vi": {
+    "title": "Xác thực OTP",
+    "subtitle": "Nhập mã xác thực đã được gửi đến email của bạn",
+    "form": {
+      "otp": {
+        "label": "Mã xác thực",
+        "placeholder": "Nhập 6 chữ số"
+      }
+    },
+    "actions": {
+      "verify": "Xác thực",
+      "verifying": "Đang xác thực...",
+      "resend": "Gửi lại mã",
+      "resending": "Đang gửi lại...",
+      "back": "Quay lại"
+    },
+    "messages": {
+      "validation": {
+        "otp_required": "Mã OTP là bắt buộc",
+        "otp_invalid": "Mã OTP phải có 6 chữ số"
+      },
+      "verify_success": "Xác thực thành công!",
+      "verify_error": "Mã OTP không chính xác hoặc đã hết hạn",
+      "resend_success": "Mã OTP mới đã được gửi",
+      "resend_error": "Gửi lại mã OTP thất bại",
+      "expires_in": "Mã sẽ hết hạn sau",
+      "seconds": "giây",
+      "alert_success": "Thành công",
+      "alert_error": "Lỗi",
+      "alert_ok": "OK"
+    }
+  },
+  "en": {
+    "title": "Verify OTP",
+    "subtitle": "Enter the verification code sent to your email",
+    "form": {
+      "otp": {
+        "label": "Verification Code",
+        "placeholder": "Enter 6 digits"
+      }
+    },
+    "actions": {
+      "verify": "Verify",
+      "verifying": "Verifying...",
+      "resend": "Resend Code",
+      "resending": "Resending...",
+      "back": "Back"
+    },
+    "messages": {
+      "validation": {
+        "otp_required": "OTP code is required",
+        "otp_invalid": "OTP must be 6 digits"
+      },
+      "verify_success": "Verification successful!",
+      "verify_error": "Invalid or expired OTP code",
+      "resend_success": "New OTP code has been sent",
+      "resend_error": "Failed to resend OTP code",
+      "expires_in": "Code expires in",
+      "seconds": "seconds",
+      "alert_success": "Success",
+      "alert_error": "Error",
+      "alert_ok": "OK"
+    }
+  }
+}
