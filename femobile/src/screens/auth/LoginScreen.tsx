@@ -14,11 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { Button, Input, LanguageSwitcher } from '../../components';
+import { Button, Input } from '../../components';
 import { useAuth } from '../../hooks/useAuth';
 import { useStaticData } from '../../hooks/useStaticData';
 import { authService } from '../../services/authService';
-import { COLORS, UI, VALIDATION } from '../../constants';
+import { COLORS, UI, VALIDATION, RESPONSIVE } from '../../constants';
+import { vietnameseTextStyles } from '../../styles/vietnamese-text';
 import type { RootStackParamList, UserRole } from '../../types/auth';
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
@@ -95,7 +96,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
       // Check number of active roles  
       const rolesData = rolesResponse.data || {};
-      const activeRoles = Object.entries(rolesData)
+      const activeRoles = Object.entries(rolesData || {})
         .filter(([_, status]) => status === 'ACTIVE')
         .map(([role, _]) => role);
 
@@ -179,7 +180,8 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <LinearGradient
-      colors={COLORS.gradient.service as [string, string]}
+      colors={COLORS.gradient.ocean as [string, string, ...string[]]}
+      locations={[0, 0.7, 1]}
       style={styles.container}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -188,21 +190,25 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
           style={styles.keyboardAvoidingView}
         >
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              // Đảm bảo content luôn vừa màn hình
+              RESPONSIVE.isSmallScreen && { justifyContent: 'space-between', minHeight: '100%' }
+            ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            // Chỉ enable scroll khi thực sự cần thiết
+            scrollEnabled={!RESPONSIVE.isSmallScreen}
           >
             {/* Header with Logo and Service Info */}
             <View style={styles.headerContainer}>
-              {/* Language Switcher */}
-              <View style={styles.languageSwitcherContainer}>
-                <LanguageSwitcher size="small" variant="minimal" />
-              </View>
-              
               <View style={styles.logoContainer}>
-                <View style={styles.logoCircle}>
-                  <Ionicons name="home" size={40} color={COLORS.primary} />
-                </View>
+                <LinearGradient
+                  colors={['#FFFFFF', '#F8FCFF']}
+                  style={styles.logoCircle}
+                >
+                  <Ionicons name="home" size={RESPONSIVE.components.logo.iconSize} color={COLORS.primary} />
+                </LinearGradient>
                 <Text style={styles.brandName}>{staticData?.brand?.name || 'CleanHome'}</Text>
                 <Text style={styles.brandTagline}>{staticData?.brand?.tagline || 'Dịch vụ giúp việc gia đình chuyên nghiệp'}</Text>
               </View>
@@ -215,7 +221,11 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
             {/* Login Form */}
             <View style={styles.formContainer}>
-              <View style={styles.formCard}>
+              <LinearGradient
+                colors={['#FFFFFF', '#FFF8FC', '#FFF4F8']}
+                locations={[0, 0.6, 1]}
+                style={styles.formCard}
+              >
 
 
                 <Input
@@ -245,10 +255,14 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 />
 
                 {error && (
-                  <View style={styles.errorContainer}>
+                  <LinearGradient
+                    colors={['#FFE5E5', '#FFEFEF', '#FFF5F5']}
+                    locations={[0, 0.5, 1]}
+                    style={styles.errorContainer}
+                  >
                     <Ionicons name="alert-circle" size={20} color={COLORS.error} />
                     <Text style={styles.errorText}>{error}</Text>
-                  </View>
+                  </LinearGradient>
                 )}
 
                 <View style={styles.buttonContainer}>
@@ -270,7 +284,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
                     fullWidth
                   />
                 </View>
-              </View>
+              </LinearGradient>
             </View>
 
             {/* Footer */}
@@ -278,29 +292,53 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={styles.footerText}>
                 {staticData.messages.no_account}
               </Text>
-              <Button
-                title={staticData.messages.register_link}
-                onPress={() => navigation.navigate('Register')}
-                variant="outline"
-                size="medium"
-              />
+              <LinearGradient
+                colors={COLORS.gradient.primary as [string, string, string]}
+                style={styles.registerButtonGradient}
+              >
+                <View style={styles.registerButtonInner}>
+                  <Button
+                    title={staticData.messages.register_link}
+                    onPress={() => navigation.navigate('Register')}
+                    variant="ghost"
+                    size="medium"
+                  />
+                </View>
+              </LinearGradient>
             </View>
 
-            {/* Service Features */}
-            <View style={styles.featuresContainer}>
-              <View style={styles.featureItem}>
-                <Ionicons name="shield-checkmark" size={24} color={COLORS.primary} />
-                <Text style={styles.featureText}>{staticData?.features?.trusted || 'Tin cậy & An toàn'}</Text>
+            {/* Service Features - Ẩn trên màn hình rất nhỏ để tiết kiệm không gian */}
+            {!RESPONSIVE.isSmallScreen && (
+              <View style={styles.featuresContainer}>
+                <View style={styles.featureItem}>
+                  <LinearGradient
+                    colors={COLORS.gradient.accent as [string, string, string]}
+                    style={styles.featureIconContainer}
+                  >
+                    <Ionicons name="shield-checkmark" size={RESPONSIVE.components.features.iconInnerSize} color="white" />
+                  </LinearGradient>
+                  <Text style={styles.featureText}>{staticData?.features?.trusted || 'Tin cậy & An toàn'}</Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <LinearGradient
+                    colors={COLORS.gradient.secondary as [string, string, string]}
+                    style={styles.featureIconContainer}
+                  >
+                    <Ionicons name="time" size={RESPONSIVE.components.features.iconInnerSize} color="white" />
+                  </LinearGradient>
+                  <Text style={styles.featureText}>{staticData?.features?.on_time || 'Đúng giờ'}</Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <LinearGradient
+                    colors={COLORS.gradient.success as [string, string, string]}
+                    style={styles.featureIconContainer}
+                  >
+                    <Ionicons name="star" size={RESPONSIVE.components.features.iconInnerSize} color="white" />
+                  </LinearGradient>
+                  <Text style={styles.featureText}>{staticData?.features?.quality || 'Chất lượng cao'}</Text>
+                </View>
               </View>
-              <View style={styles.featureItem}>
-                <Ionicons name="time" size={24} color={COLORS.primary} />
-                <Text style={styles.featureText}>{staticData?.features?.on_time || 'Đúng giờ'}</Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Ionicons name="star" size={24} color={COLORS.primary} />
-                <Text style={styles.featureText}>{staticData?.features?.quality || 'Chất lượng cao'}</Text>
-              </View>
-            </View>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -320,7 +358,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    padding: UI.SCREEN_PADDING,
+    padding: RESPONSIVE.spacing.lg, // Adaptive padding
   },
   loadingContainer: {
     flex: 1,
@@ -329,85 +367,94 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     alignItems: 'center',
-    marginBottom: 32,
-    marginTop: 20,
+    marginBottom: RESPONSIVE.spacing.xl, // Adaptive margin
+    marginTop: RESPONSIVE.spacing.md, // Adaptive margin
     position: 'relative',
-  },
-  languageSwitcherContainer: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    zIndex: 1,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: RESPONSIVE.spacing.lg, // Adaptive margin
   },
   logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.surface,
+    width: RESPONSIVE.components.logo.size, // Adaptive size
+    height: RESPONSIVE.components.logo.size, // Adaptive size
+    borderRadius: RESPONSIVE.components.logo.size / 2, // Adaptive radius
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    elevation: 4,
+    marginBottom: RESPONSIVE.spacing.md, // Adaptive margin
+    elevation: 6,
     shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
   },
   brandName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.primary,
+    ...vietnameseTextStyles.heading2,
+    color: COLORS.accent,
     marginBottom: 4,
+    textShadowColor: 'rgba(255, 255, 255, 0.9)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
   },
   brandTagline: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
+    ...vietnameseTextStyles.caption,
+    color: COLORS.text.inverse,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: RESPONSIVE.spacing.xs, // Tối thiểu margin
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   welcomeContainer: {
     alignItems: 'center',
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text.primary,
-    marginBottom: 8,
+    ...vietnameseTextStyles.heading2,
+    color: COLORS.text.inverse,
+    marginBottom: RESPONSIVE.spacing.xs, // Tối thiểu margin
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.4)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
   },
   subtitle: {
-    fontSize: 16,
-    color: COLORS.text.secondary,
+    ...vietnameseTextStyles.body,
+    color: COLORS.text.inverse,
     textAlign: 'center',
-    lineHeight: 22,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   formContainer: {
-    marginBottom: 24,
+    marginBottom: RESPONSIVE.spacing.xl, // Adaptive margin
   },
   formCard: {
-    backgroundColor: COLORS.surface,
     borderRadius: UI.BORDER_RADIUS.large,
-    padding: 24,
-    elevation: 2,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    padding: RESPONSIVE.components.form.padding, // Adaptive padding
+    elevation: 8,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(30, 136, 229, 0.1)',
   },
   buttonContainer: {
-    marginBottom: 16,
+    marginBottom: RESPONSIVE.components.form.spacing, // Adaptive spacing
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFEBEE',
-    padding: 12,
+    padding: 14,
     borderRadius: UI.BORDER_RADIUS.medium,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.error + '20',
+    elevation: 2,
+    shadowColor: COLORS.error,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   errorText: {
     color: COLORS.error,
@@ -417,28 +464,61 @@ const styles = StyleSheet.create({
   },
   footerContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: RESPONSIVE.spacing.xl, // Adaptive margin
   },
   footerText: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
-    marginBottom: 12,
+    ...vietnameseTextStyles.body,
+    color: COLORS.text.inverse,
+    marginBottom: RESPONSIVE.spacing.md, // Adaptive margin
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  registerButtonGradient: {
+    borderRadius: UI.BORDER_RADIUS.medium,
+    padding: 2, // This creates the border effect
+    elevation: 4,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  registerButtonInner: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: UI.BORDER_RADIUS.medium - 2,
+    overflow: 'hidden',
   },
   featuresContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginTop: 20,
-    paddingHorizontal: 20,
+    marginTop: RESPONSIVE.spacing.lg, // Adaptive margin
+    paddingHorizontal: RESPONSIVE.spacing.lg, // Adaptive padding
   },
   featureItem: {
     alignItems: 'center',
     flex: 1,
   },
+  featureIconContainer: {
+    width: RESPONSIVE.components.features.iconSize, // Adaptive size
+    height: RESPONSIVE.components.features.iconSize, // Adaptive size
+    borderRadius: RESPONSIVE.components.features.iconSize / 2, // Adaptive radius
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: 'rgba(0, 0, 0, 0.25)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    marginBottom: RESPONSIVE.spacing.sm, // Adaptive margin
+  },
   featureText: {
-    fontSize: 12,
-    color: COLORS.text.secondary,
-    marginTop: 4,
+    ...vietnameseTextStyles.caption,
+    color: COLORS.text.inverse,
+    marginTop: RESPONSIVE.spacing.xs, // Tối thiểu margin
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });

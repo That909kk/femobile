@@ -181,7 +181,7 @@ export type RootStackParamList = {
     availableRoles: Record<UserRole, RoleStatus>;
   };
   Dashboard: undefined;
-  CustomerDashboard: undefined;
+  CustomerHome: undefined;
   EmployeeDashboard: undefined;
   MainTabs: undefined;
 };

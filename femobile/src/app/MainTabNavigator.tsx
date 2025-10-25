@@ -6,7 +6,7 @@ import { COLORS } from '../constants';
 
 // Import screens
 import {
-  CustomerDashboard,
+  CustomerHomeScreen,
   BookingScreen,
   OrdersScreen,
   EmployeeDashboard,
@@ -26,7 +26,7 @@ export const MainTabNavigator = () => {
   const customerTabs = [
     {
       name: 'CustomerHome',
-      component: CustomerDashboard,
+      component: CustomerHomeScreen,
       title: 'Trang chủ',
       icon: 'home',
       focusedIcon: 'home',
@@ -88,6 +88,11 @@ export const MainTabNavigator = () => {
 
   // Choose tabs based on user role
   const tabs = role === 'EMPLOYEE' ? employeeTabs : customerTabs;
+
+  // Safety check to prevent map errors
+  if (!tabs || !Array.isArray(tabs)) {
+    return null;
+  }
 
   return (
     <Tab.Navigator

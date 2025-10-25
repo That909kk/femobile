@@ -6,8 +6,8 @@ export { serviceService } from './serviceService';
 export { categoryService } from './categoryService';
 export { employeeRequestService } from './employeeRequestService';
 export { employeeScheduleService } from './employeeScheduleService';
-export { employeeDashboardService } from './employeeDashboardService';
-export { customerDashboardService } from './customerDashboardService';
+export { paymentService } from './paymentService';
+export { employeeAssignmentService } from './employeeAssignmentService';
 
 export type { UserInfo, CustomerData, EmployeeData } from './userInfoService';
 
@@ -26,7 +26,8 @@ export type {
 export type { 
   Address, 
   NewAddress, 
-  Assignment
+  Assignment,
+  CustomerBookingsResponse
 } from './bookingService';
 
 // Export booking types from types folder
@@ -58,13 +59,10 @@ export type {
 } from './serviceService';
 
 export type {
-  EmployeeDashboardStats,
-  NextAppointment,
-  RecentActivity
-} from './employeeDashboardService';
-
+  PaymentRecord,
+  PaymentHistoryResponse,
+} from './paymentService';
 export type {
-  CustomerDashboardStats,
-  UpcomingBooking,
-  RecentBooking
-} from './customerDashboardService';
+  EmployeeAssignment,
+  AssignmentStatus,
+} from './employeeAssignmentService';

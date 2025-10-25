@@ -1,9 +1,7 @@
 import { httpClient } from './httpClient';
 
-// Request status types
-export type RequestStatus = 'pending' | 'accepted' | 'completed' | 'cancelled';
+export type RequestStatus = 'PENDING' | 'ACCEPTED' | 'COMPLETED' | 'CANCELLED';
 
-// Employee request interfaces
 export interface EmployeeRequest {
   requestId: string;
   customerId: string;
@@ -33,140 +31,104 @@ export interface RequestActionResponse {
   data?: any;
 }
 
-export interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
-}
-
 class EmployeeRequestService {
-  /**
-   * Get all pending requests for employee
-   */
   async getPendingRequests(): Promise<EmployeeRequest[]> {
     try {
-      const response = await httpClient.get<ApiResponse<EmployeeRequest[]>>('/employee/requests/pending');
-      return response.data?.data || [];
+      const response = await httpClient.get<EmployeeRequest[]>('/employee/requests/pending');
+      if (!response.success) {
+        console.error('Error loading requests:', response.message);
+        return [];
+      }
+      return response.data ?? [];
     } catch (error) {
-      console.error('Error fetching pending requests:', error);
-      throw new Error('Không thể tải danh sách yêu cầu mới');
+      console.error('Error loading requests:', error);
+      return [];
     }
   }
 
-  /**
-   * Get accepted requests for employee
-   */
   async getAcceptedRequests(): Promise<EmployeeRequest[]> {
     try {
-      const response = await httpClient.get<ApiResponse<EmployeeRequest[]>>('/employee/requests/accepted');
-      return response.data?.data || [];
+      const response = await httpClient.get<EmployeeRequest[]>('/employee/requests/accepted');
+      if (!response.success) {
+        console.error('Error loading accepted requests:', response.message);
+        return [];
+      }
+      return response.data ?? [];
     } catch (error) {
-      console.error('Error fetching accepted requests:', error);
-      throw new Error('Không thể tải danh sách yêu cầu đã nhận');
+      console.error('Error loading accepted requests:', error);
+      return [];
     }
   }
 
-  /**
-   * Get completed requests for employee
-   */
   async getCompletedRequests(): Promise<EmployeeRequest[]> {
     try {
-      const response = await httpClient.get<ApiResponse<EmployeeRequest[]>>('/employee/requests/completed');
-      return response.data?.data || [];
-    } catch (error) {
-      console.error('Error fetching completed requests:', error);
-      throw new Error('Không thể tải danh sách công việc đã hoàn thành');
-    }
-  }
-
-  /**
-   * Accept a request
-   */
-  async acceptRequest(requestId: string): Promise<RequestActionResponse> {
-    try {
-      const response = await httpClient.post<ApiResponse<any>>(`/employee/requests/${requestId}/accept`, {});
-      return {
-        success: response.data?.success || false,
-        message: response.data?.message || 'Unknown error',
-        data: response.data?.data
-      };
-    } catch (error) {
-      console.error('Error accepting request:', error);
-      throw new Error('Không thể nhận yêu cầu này');
-    }
-  }
-
-  /**
-   * Decline a request
-   */
-  async declineRequest(requestId: string, reason?: string): Promise<RequestActionResponse> {
-    try {
-      const response = await httpClient.post<ApiResponse<any>>(`/employee/requests/${requestId}/decline`, {
-        reason
-      });
-      return {
-        success: response.data?.success || false,
-        message: response.data?.message || 'Unknown error',
-        data: response.data?.data
-      };
-    } catch (error) {
-      console.error('Error declining request:', error);
-      throw new Error('Không thể từ chối yêu cầu này');
-    }
-  }
-
-  /**
-   * Cancel an accepted request
-   */
-  async cancelRequest(requestId: string, reason?: string): Promise<RequestActionResponse> {
-    try {
-      const response = await httpClient.post<ApiResponse<any>>(`/employee/requests/${requestId}/cancel`, {
-        reason
-      });
-      return {
-        success: response.data?.success || false,
-        message: response.data?.message || 'Unknown error',
-        data: response.data?.data
-      };
-    } catch (error) {
-      console.error('Error cancelling request:', error);
-      throw new Error('Không thể hủy yêu cầu này');
-    }
-  }
-
-  /**
-   * Complete a request
-   */
-  async completeRequest(requestId: string, notes?: string): Promise<RequestActionResponse> {
-    try {
-      const response = await httpClient.post<ApiResponse<any>>(`/employee/requests/${requestId}/complete`, {
-        notes
-      });
-      return {
-        success: response.data?.success || false,
-        message: response.data?.message || 'Unknown error',
-        data: response.data?.data
-      };
-    } catch (error) {
-      console.error('Error completing request:', error);
-      throw new Error('Không thể hoàn thành yêu cầu này');
-    }
-  }
-
-  /**
-   * Get request details by ID
-   */
-  async getRequestDetails(requestId: string): Promise<EmployeeRequest> {
-    try {
-      const response = await httpClient.get<ApiResponse<EmployeeRequest>>(`/employee/requests/${requestId}`);
-      if (!response.data?.data) {
-        throw new Error('No data received from server');
+      const response = await httpClient.get<EmployeeRequest[]>('/employee/requests/completed');
+      if (!response.success) {
+        console.error('Error loading completed requests:', response.message);
+        return [];
       }
-      return response.data.data;
+      return response.data ?? [];
     } catch (error) {
-      console.error('Error fetching request details:', error);
-      throw new Error('Không thể tải chi tiết yêu cầu');
+      console.error('Error loading completed requests:', error);
+      return [];
     }
+  }
+
+  async acceptRequest(requestId: string): Promise<RequestActionResponse> {
+    const response = await httpClient.post<RequestActionResponse>(
+      `/employee/requests/${requestId}/accept`,
+      {},
+    );
+    if (!response.success) {
+      throw new Error(response.message || 'Khong the nhan yeu cau');
+    }
+
+    return response.data ?? { success: response.success, message: response.message };
+  }
+
+  async declineRequest(requestId: string, reason?: string): Promise<RequestActionResponse> {
+    const response = await httpClient.post<RequestActionResponse>(
+      `/employee/requests/${requestId}/decline`,
+      { reason },
+    );
+    if (!response.success) {
+      throw new Error(response.message || 'Khong the tu choi yeu cau');
+    }
+
+    return response.data ?? { success: response.success, message: response.message };
+  }
+
+  async cancelRequest(requestId: string, reason?: string): Promise<RequestActionResponse> {
+    const response = await httpClient.post<RequestActionResponse>(
+      `/employee/requests/${requestId}/cancel`,
+      { reason },
+    );
+    if (!response.success) {
+      throw new Error(response.message || 'Khong the huy yeu cau');
+    }
+
+    return response.data ?? { success: response.success, message: response.message };
+  }
+
+  async completeRequest(requestId: string, notes?: string): Promise<RequestActionResponse> {
+    const response = await httpClient.post<RequestActionResponse>(
+      `/employee/requests/${requestId}/complete`,
+      { notes },
+    );
+    if (!response.success) {
+      throw new Error(response.message || 'Khong the hoan thanh yeu cau');
+    }
+
+    return response.data ?? { success: response.success, message: response.message };
+  }
+
+  async getRequestDetails(requestId: string): Promise<EmployeeRequest> {
+    const response = await httpClient.get<EmployeeRequest>(`/employee/requests/${requestId}`);
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Khong the lay chi tiet yeu cau');
+    }
+
+    return response.data;
   }
 }
 

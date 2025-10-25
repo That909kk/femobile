@@ -16,12 +16,13 @@ import { Button } from '../../../components';
 import { useAuth, useEnsureValidToken, useUserInfo } from '../../../hooks';
 import { bookingService } from '../../../services';
 import { COLORS } from '../../../constants';
+import type { BookingStatus } from '../../../types/booking';
 
 interface Order {
   id: string;
   bookingId: string;
   serviceName: string;
-  status: string;
+  status: BookingStatus;
   date: string;
   time: string;
   employeeName?: string;
@@ -34,13 +35,15 @@ interface Order {
   cancelReason?: string;
 }
 
+type FilterTab = 'all' | 'upcoming' | 'inProgress' | 'completed' | 'cancelled';
+
 export const OrdersScreen = () => {
   const { user } = useAuth();
   const { userInfo } = useUserInfo();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState('all');
+  const [selectedFilter, setSelectedFilter] = useState<FilterTab>('all');
   
   // Ensure token is valid when component mounts
   useEnsureValidToken();
@@ -52,120 +55,143 @@ export const OrdersScreen = () => {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      
-      // Get customer ID from user info
-      const customerId = userInfo?.id || (user && 'customerId' in user ? user.customerId : undefined);
+
+      const customerId =
+        userInfo?.id || (user && 'customerId' in user ? (user as any).customerId : undefined);
+
       if (!customerId) {
-        console.warn('No customer ID available');
+        console.warn('Khong co ma khach hang trong he thong');
         setOrders([]);
         return;
       }
 
-      // Get customer bookings from API
-      const response = await bookingService.getCustomerBookings(customerId);
-      
-      if (response.success && response.data) {
-        // Transform API data to match our Order interface
-        const transformedOrders: Order[] = response.data.bookings.map((booking: any) => ({
+      const response = await bookingService.getCustomerBookings(customerId, {
+        page: 0,
+        size: 20,
+        sort: 'bookingTime,desc',
+      });
+
+      const transformedOrders: Order[] = (response.content || []).map((booking) => {
+        const bookingDate = booking.bookingTime ? new Date(booking.bookingTime) : null;
+        const primaryService = booking.serviceDetails?.[0];
+        const primaryEmployee = booking.assignedEmployees?.[0];
+
+        return {
           id: booking.bookingId,
           bookingId: booking.bookingId,
-          serviceName: booking.serviceDetails?.[0]?.service?.name || 'Dịch vụ',
-          status: booking.status,
-          date: new Date(booking.bookingTime).toLocaleDateString('vi-VN'),
-          time: new Date(booking.bookingTime).toLocaleTimeString('vi-VN', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          }),
-          employeeName: booking.assignedEmployees?.[0]?.fullName,
-          employeePhone: booking.assignedEmployees?.[0]?.phoneNumber,
-          price: booking.formattedTotalAmount || `${booking.totalAmount?.toLocaleString('vi-VN')}đ`,
-          address: booking.customerInfo?.fullAddress || 'Địa chỉ chưa xác định',
-          rating: booking.rating,
-          notes: booking.note,
+          serviceName: primaryService?.service?.name ?? 'Dich vu gia dinh',
+          status: (booking.status as BookingStatus) ?? 'PENDING',
+          date: bookingDate ? bookingDate.toLocaleDateString('vi-VN') : 'Khong ro ngay',
+          time: bookingDate
+            ? bookingDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+            : '',
+          employeeName: primaryEmployee?.fullName,
+          employeePhone: primaryEmployee?.phoneNumber,
+          price:
+            booking.formattedTotalAmount ??
+            `${new Intl.NumberFormat('vi-VN').format(booking.totalAmount ?? 0)} VND`,
+          address: booking.customerInfo?.fullAddress || 'Chua cap nhat dia chi',
+          rating: (booking as any).rating,
+          notes: (booking as any).note,
           estimatedCompletion: booking.estimatedDuration,
-        }));
-        
-        setOrders(transformedOrders);
-      } else {
-        console.warn('Failed to load orders:', response.message);
-        setOrders([]);
-      }
+          cancelReason: (booking as any).cancelReason,
+        };
+      });
+
+      setOrders(transformedOrders);
     } catch (error) {
       console.error('Error loading orders:', error);
-      Alert.alert('Lỗi', 'Không thể tải danh sách đơn hàng. Vui lòng thử lại.');
+      Alert.alert('Loi', 'Khong the tai danh sach don hang. Vui long thu lai.');
       setOrders([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const filterOptions = [
-    { id: 'all', label: 'Tất cả', count: orders.length },
-    { id: 'scheduled', label: 'Đã đặt', count: orders.filter(o => o.status === 'scheduled').length },
-    { id: 'in-progress', label: 'Đang thực hiện', count: orders.filter(o => o.status === 'in_progress').length },
-    { id: 'completed', label: 'Hoàn thành', count: orders.filter(o => o.status === 'completed').length },
-    { id: 'cancelled', label: 'Đã hủy', count: orders.filter(o => o.status === 'cancelled').length },
-  ];
+  const FILTER_STATUS_MAP: Record<FilterTab, BookingStatus[]> = {
+    all: [],
+    upcoming: ['PENDING', 'AWAITING_EMPLOYEE', 'CONFIRMED'],
+    inProgress: ['IN_PROGRESS'],
+    completed: ['COMPLETED'],
+    cancelled: ['CANCELLED'],
+  };
 
-  const getStatusColor = (status: string) => {
+  const FILTER_LABELS: Record<FilterTab, string> = {
+    all: 'Tat ca',
+    upcoming: 'Sap dien ra',
+    inProgress: 'Dang thuc hien',
+    completed: 'Hoan thanh',
+    cancelled: 'Da huy',
+  };
+
+  const filterOrder: FilterTab[] = ['all', 'upcoming', 'inProgress', 'completed', 'cancelled'];
+
+  const filterOptions = filterOrder.map((key) => ({
+    id: key,
+    label: FILTER_LABELS[key],
+    count:
+      key === 'all'
+        ? orders.length
+        : orders.filter((order) => FILTER_STATUS_MAP[key].includes(order.status)).length,
+  }));
+
+  const getStatusColor = (status: BookingStatus) => {
     switch (status) {
-      case 'scheduled':
-      case 'pending':
+      case 'PENDING':
+      case 'AWAITING_EMPLOYEE':
+      case 'CONFIRMED':
         return COLORS.warning;
-      case 'in-progress':
-      case 'in_progress':
+      case 'IN_PROGRESS':
         return COLORS.secondary;
-      case 'completed':
+      case 'COMPLETED':
         return COLORS.success;
-      case 'cancelled':
+      case 'CANCELLED':
         return COLORS.error;
       default:
         return COLORS.text.tertiary;
     }
   };
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status: BookingStatus) => {
     switch (status) {
-      case 'scheduled':
-      case 'pending':
-        return 'Đã đặt lịch';
-      case 'in-progress':
-      case 'in_progress':
-        return 'Đang thực hiện';
-      case 'completed':
-        return 'Hoàn thành';
-      case 'cancelled':
-        return 'Đã hủy';
+      case 'PENDING':
+        return 'Cho xac nhan';
+      case 'AWAITING_EMPLOYEE':
+        return 'Dang tim nhan vien';
+      case 'CONFIRMED':
+        return 'Da xac nhan';
+      case 'IN_PROGRESS':
+        return 'Dang thuc hien';
+      case 'COMPLETED':
+        return 'Da hoan thanh';
+      case 'CANCELLED':
+        return 'Da huy';
       default:
         return status;
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: BookingStatus) => {
     switch (status) {
-      case 'scheduled':
-      case 'pending':
+      case 'PENDING':
+      case 'AWAITING_EMPLOYEE':
+      case 'CONFIRMED':
         return 'time-outline';
-      case 'in-progress':
-      case 'in_progress':
+      case 'IN_PROGRESS':
         return 'play-circle';
-      case 'completed':
+      case 'COMPLETED':
         return 'checkmark-circle';
-      case 'cancelled':
+      case 'CANCELLED':
         return 'close-circle';
       default:
-        return 'information-circle';
+        return 'ellipse-outline';
     }
   };
 
-  const filteredOrders = selectedFilter === 'all' 
-    ? orders 
-    : orders.filter(order => {
-        if (selectedFilter === 'in-progress') {
-          return order.status === 'in-progress' || order.status === 'in_progress';
-        }
-        return order.status === selectedFilter;
-      });
+  const filteredOrders =
+    selectedFilter === 'all'
+      ? orders
+      : orders.filter((order) => FILTER_STATUS_MAP[selectedFilter].includes(order.status));
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -367,7 +393,9 @@ export const OrdersScreen = () => {
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={64} color={COLORS.text.tertiary} />
             <Text style={styles.emptyStateTitle}>
-              {selectedFilter === 'all' ? 'Chưa có đơn hàng nào' : `Không có đơn hàng ${getStatusText(selectedFilter).toLowerCase()}`}
+              {selectedFilter === 'all'
+                ? 'Chua co don hang nao'
+                : `Khong co don hang ${FILTER_LABELS[selectedFilter].toLowerCase()}`}
             </Text>
             <Text style={styles.emptyStateSubtitle}>
               {selectedFilter === 'all' 
@@ -574,3 +602,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
 });
+
+
+
+

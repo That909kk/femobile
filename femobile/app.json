@@ -7,20 +7,32 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "locales": {
+      "vi": {
+        "CFBundleDisplayName": "Dịch vụ Giúp việc",
+        "NSCameraUsageDescription": "Ứng dụng cần quyền truy cập camera để chụp ảnh đại diện."
+      },
+      "en": {
+        "CFBundleDisplayName": "Home Service",
+        "NSCameraUsageDescription": "This app needs access to camera to take profile photos."
+      }
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.thanhthattechnology.homeservice"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.thanhthattechnology.homeservice"
     },
     "web": {
       "favicon": "./assets/favicon.png"

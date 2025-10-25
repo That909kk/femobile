@@ -1,134 +1,68 @@
 {
   "vi": {
-    "title": "Trang làm việc nhân viên",
-    "welcome": "Chào buổi sáng",
-    "greeting": "Xin chào",
-    "subtitle": "Nhân viên",
+    "title": "Tram lam viec nhan vien",
+    "welcome": "Chao buoi sang",
+    "greeting": "Xin chao",
+    "subtitle": "Nhan vien CleanHome",
     "sections": {
       "schedule": {
-        "title": "Lịch làm việc",
-        "subtitle": "Quản lý lịch trình hôm nay",
-        "view_schedule": "Xem lịch"
+        "title": "Lich lam viec",
+        "subtitle": "Quan ly ca lam trong ngay",
+        "view_schedule": "Xem lich"
       },
       "customers": {
-        "title": "Khách hàng",
-        "subtitle": "Danh sách khách hàng phục vụ",
-        "view_list": "Danh sách"
+        "title": "Khach hang",
+        "subtitle": "Nhung khach hang sap phuc vu",
+        "view_list": "Xem danh sach"
       },
       "tasks": {
-        "title": "Công việc",
-        "subtitle": "Nhiệm vụ cần hoàn thành",
-        "view_tasks": "Xem nhiệm vụ"
+        "title": "Nhiem vu",
+        "subtitle": "Cong viec can hoan thanh",
+        "view_tasks": "Xem chi tiet"
       },
       "reports": {
-        "title": "Báo cáo",
-        "subtitle": "Thống kê hiệu suất làm việc",
-        "view_reports": "Xem báo cáo"
+        "title": "Bao cao",
+        "subtitle": "Thong ke hieu suat thang",
+        "view_reports": "Xem bao cao"
       }
     },
     "quick_actions": {
-      "title": "Thao tác nhanh",
-      "check_in": "Điểm danh",
-      "start_service": "Bắt đầu dịch vụ",
-      "complete_task": "Hoàn thành công việc",
-      "take_break": "Nghỉ giải lao"
+      "title": "Tac vu nhanh",
+      "check_in": "Diem danh",
+      "start_service": "Bat dau cong viec",
+      "complete_task": "Hoan thanh",
+      "take_break": "Nghi giai lao"
     },
     "today_stats": {
-      "title": "Thống kê hôm nay",
-      "appointments": "Lịch hẹn",
-      "completed": "Đã hoàn thành",
-      "pending": "Đang chờ",
-      "revenue": "Doanh thu"
+      "title": "Thong ke hom nay",
+      "appointments": "Lich hen",
+      "completed": "Da xong",
+      "pending": "Dang cho",
+      "revenue": "Thu nhap"
     },
     "schedule_overview": {
-      "title": "Tổng quan lịch trình",
-      "next_appointment": "Lịch hẹn tiếp theo",
-      "no_appointments": "Không có lịch hẹn",
-      "time_until": "Còn"
+      "title": "Tong quan lich",
+      "next_appointment": "Lich tiep theo",
+      "no_appointments": "Hom nay khong co lich",
+      "time_until": "Con lai"
     },
     "performance": {
-      "title": "Hiệu suất",
-      "rating": "Đánh giá",
-      "customer_feedback": "Phản hồi khách hàng",
-      "monthly_target": "Mục tiêu tháng"
+      "title": "Hieu suat",
+      "rating": "Danh gia",
+      "customer_feedback": "Phan hoi khach hang",
+      "monthly_target": "Muc tieu thang"
     },
     "actions": {
-      "logout": "Đăng xuất",
-      "refresh": "Làm mới",
-      "emergency": "Khẩn cấp",
-      "settings": "Cài đặt"
+      "logout": "Dang xuat",
+      "refresh": "Lam moi",
+      "emergency": "Ho tro khan",
+      "settings": "Cai dat"
     },
     "messages": {
-      "loading": "Đang tải...",
-      "good_morning": "Chúc bạn một ngày làm việc hiệu quả!",
-      "no_schedule": "Hôm nay bạn không có lịch làm việc",
-      "break_time": "Đã đến giờ nghỉ giải lao"
-    }
-  },
-  "en": {
-    "title": "Employee Workspace",
-    "welcome": "Good Morning",
-    "greeting": "Hello",
-    "subtitle": "Employee",
-    "sections": {
-      "schedule": {
-        "title": "Work Schedule",
-        "subtitle": "Manage today's schedule",
-        "view_schedule": "View Schedule"
-      },
-      "customers": {
-        "title": "Customers",
-        "subtitle": "Customer service list",
-        "view_list": "View List"
-      },
-      "tasks": {
-        "title": "Tasks",
-        "subtitle": "Tasks to complete",
-        "view_tasks": "View Tasks"
-      },
-      "reports": {
-        "title": "Reports",
-        "subtitle": "Work performance statistics",
-        "view_reports": "View Reports"
-      }
-    },
-    "quick_actions": {
-      "title": "Quick Actions",
-      "check_in": "Check In",
-      "start_service": "Start Service",
-      "complete_task": "Complete Task",
-      "take_break": "Take Break"
-    },
-    "today_stats": {
-      "title": "Today's Statistics",
-      "appointments": "Appointments",
-      "completed": "Completed",
-      "pending": "Pending",
-      "revenue": "Revenue"
-    },
-    "schedule_overview": {
-      "title": "Schedule Overview",
-      "next_appointment": "Next Appointment",
-      "no_appointments": "No appointments",
-      "time_until": "Time until"
-    },
-    "performance": {
-      "title": "Performance",
-      "rating": "Rating",
-      "customer_feedback": "Customer Feedback",
-      "monthly_target": "Monthly Target"
-    },
-    "actions": {
-      "logout": "Logout",
-      "refresh": "Refresh",
-      "emergency": "Emergency",
-      "settings": "Settings"
-    },
-    "messages": {
-      "loading": "Loading...",
-      "good_morning": "Have a productive work day!",
-      "no_schedule": "You have no work schedule today",
-      "break_time": "It's time for a break"
+      "loading": "Dang tai...",
+      "good_morning": "Chuc ban mot ngay lam viec hieu qua!",
+      "no_schedule": "Hom nay chua co lich lam viec",
+      "break_time": "Sau ca lam, nho nghi ngoi hop ly"
     }
   }
 }

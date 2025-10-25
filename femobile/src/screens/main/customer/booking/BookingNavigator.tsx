@@ -243,7 +243,7 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
     if (onClose) {
       onClose();
     } else {
-      navigation.navigate('CustomerDashboard');
+      navigation.navigate('CustomerHome');
     }
   };
 

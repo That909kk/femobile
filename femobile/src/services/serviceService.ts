@@ -120,6 +120,13 @@ class ServiceService {
   }
 
   /**
+   * Get customer services (alias for mobile app)
+   */
+  async getCustomerServices() {
+    return this.getAllServices();
+  }
+
+  /**
    * Get service by ID
    */
   async getServiceById(serviceId: number) {

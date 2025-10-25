@@ -48,10 +48,28 @@ export const ScheduleScreen = () => {
       ]);
 
       setSchedules(scheduleData);
-      setStats(statsData);
+      
+      // Handle case when statsData is null
+      if (statsData) {
+        setStats(statsData);
+      } else {
+        console.warn('Stats data is null, using default values');
+        setStats({
+          totalJobs: 0,
+          completedJobs: 0,
+          inProgressJobs: 0,
+          todayRevenue: 0
+        });
+      }
     } catch (error) {
       console.error('Error loading schedule:', error);
-      Alert.alert('Lỗi', 'Không thể tải lịch làm việc');
+      setSchedules([]);
+      setStats({
+        totalJobs: 0,
+        completedJobs: 0,
+        inProgressJobs: 0,
+        todayRevenue: 0
+      });
     } finally {
       setLoading(false);
     }

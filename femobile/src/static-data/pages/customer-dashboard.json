@@ -6,115 +6,56 @@
     "subtitle": "Khách hàng thân thiết",
     "sections": {
       "services": {
-        "title": "Dịch vụ",
-        "subtitle": "Khám phá các dịch vụ của chúng tôi",
+        "title": "Dịch vụ nổi bật",
+        "subtitle": "Khám phá các gói dịch vụ phù hợp",
         "book_now": "Đặt ngay"
       },
       "my_bookings": {
-        "title": "Lịch hẹn của tôi",
-        "subtitle": "Quản lý các lịch hẹn đã đặt",
+        "title": "Lịch hẹn của bạn",
+        "subtitle": "Theo dõi và quản lý tất cả đơn đặt",
         "view_all": "Xem tất cả"
       },
       "profile": {
         "title": "Hồ sơ cá nhân",
-        "subtitle": "Cập nhật thông tin của bạn",
+        "subtitle": "Cập nhật thông tin liên lạc",
         "edit": "Chỉnh sửa"
       },
       "support": {
         "title": "Hỗ trợ",
-        "subtitle": "Liên hệ với chúng tôi",
-        "contact": "Liên hệ"
+        "subtitle": "Cần trợ giúp? Chúng tôi luôn sẵn sàng",
+        "contact": "Liên hệ ngay"
       }
     },
     "quick_actions": {
-      "title": "Thao tác nhanh",
-      "book_service": "Đặt dịch vụ",
-      "reschedule": "Đổi lịch hẹn",
-      "view_history": "Xem lịch sử",
-      "rate_service": "Đánh giá dịch vụ"
+      "title": "Tac vu nhanh",
+      "book_service": "Dat dich vu",
+      "reschedule": "Doi lich hen",
+      "view_history": "Xem lich su",
+      "rate_service": "Danh gia nhan vien"
     },
     "stats": {
-      "upcoming_appointments": "Lịch hẹn sắp tới",
-      "total_bookings": "Tổng lịch hẹn",
-      "completed_services": "Dịch vụ đã hoàn thành",
-      "loyalty_points": "Điểm tích lũy"
+      "upcoming_appointments": "Lich sap dien ra",
+      "total_bookings": "Tong don dat",
+      "completed_services": "Da hoan thanh",
+      "loyalty_points": "Diem tich luy"
     },
     "recent_activity": {
-      "title": "Hoạt động gần đây",
-      "no_activity": "Chưa có hoạt động nào"
+      "title": "Hoat dong gan day",
+      "no_activity": "Chua co hoat dong gan day"
     },
     "recommendations": {
-      "title": "Dịch vụ đề xuất",
-      "subtitle": "Dành riêng cho bạn"
+      "title": "Dich vu de xuat",
+      "subtitle": "Lua chon danh rieng cho ban",
+      "book_appointment": "Dat lich hen"
     },
     "actions": {
-      "logout": "Đăng xuất",
-      "refresh": "Làm mới",
-      "book_appointment": "Đặt lịch hẹn"
+      "logout": "Dang xuat",
+      "refresh": "Lam moi"
     },
     "messages": {
-      "loading": "Đang tải...",
-      "no_appointments": "Bạn chưa có lịch hẹn nào",
-      "welcome_message": "Cảm ơn bạn đã tin tưởng dịch vụ của chúng tôi!"
-    }
-  },
-  "en": {
-    "title": "Customer Dashboard",
-    "welcome": "Welcome",
-    "greeting": "Hello",
-    "subtitle": "Valued Customer",
-    "sections": {
-      "services": {
-        "title": "Services",
-        "subtitle": "Discover our services",
-        "book_now": "Book Now"
-      },
-      "my_bookings": {
-        "title": "My Appointments",
-        "subtitle": "Manage your bookings",
-        "view_all": "View All"
-      },
-      "profile": {
-        "title": "Personal Profile",
-        "subtitle": "Update your information",
-        "edit": "Edit"
-      },
-      "support": {
-        "title": "Support",
-        "subtitle": "Contact us for help",
-        "contact": "Contact"
-      }
-    },
-    "quick_actions": {
-      "title": "Quick Actions",
-      "book_service": "Book Service",
-      "reschedule": "Reschedule Appointment",
-      "view_history": "View History",
-      "rate_service": "Rate Service"
-    },
-    "stats": {
-      "upcoming_appointments": "Upcoming Appointments",
-      "total_bookings": "Total Bookings",
-      "completed_services": "Completed Services",
-      "loyalty_points": "Loyalty Points"
-    },
-    "recent_activity": {
-      "title": "Recent Activity",
-      "no_activity": "No recent activity"
-    },
-    "recommendations": {
-      "title": "Recommended Services",
-      "subtitle": "Just for you"
-    },
-    "actions": {
-      "logout": "Logout",
-      "refresh": "Refresh",
-      "book_appointment": "Book Appointment"
-    },
-    "messages": {
-      "loading": "Loading...",
-      "no_appointments": "You don't have any appointments yet",
-      "welcome_message": "Thank you for trusting our services!"
+      "loading": "Dang tai...",
+      "no_appointments": "Ban chua co lich hen nao",
+      "welcome_message": "Cam on ban da tin chon CleanHome"
     }
   }
 }

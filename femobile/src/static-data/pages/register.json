@@ -1,150 +1,76 @@
 {
   "vi": {
-    "title": "Đăng ký",
-    "subtitle": "Tạo tài khoản mới để bắt đầu",
+    "title": "Dang ky",
+    "subtitle": "Mo tai khoan moi de bat dau dat dich vu",
     "form": {
       "role": {
-        "label": "Vai trò",
-        "placeholder": "Chọn vai trò của bạn",
+        "label": "Vai tro",
+        "placeholder": "Chon vai tro cua ban",
         "options": {
-          "customer": "Khách hàng",
-          "employee": "Nhân viên",
-          "admin": "Quản trị viên"
+          "customer": "Khach hang",
+          "employee": "Nhan vien",
+          "admin": "Quan tri vien"
         }
       },
       "fullName": {
-        "label": "Họ và tên",
-        "placeholder": "Nhập họ và tên"
+        "label": "Ho va ten",
+        "placeholder": "Nhap ho va ten"
       },
       "username": {
-        "label": "Tên đăng nhập",
-        "placeholder": "Nhập tên đăng nhập"
+        "label": "Ten dang nhap",
+        "placeholder": "Nhap ten dang nhap"
       },
       "email": {
         "label": "Email",
-        "placeholder": "Nhập email"
+        "placeholder": "Nhap email"
       },
       "phoneNumber": {
-        "label": "Số điện thoại",
-        "placeholder": "Nhập số điện thoại"
+        "label": "So dien thoai",
+        "placeholder": "Nhap so dien thoai"
       },
       "password": {
-        "label": "Mật khẩu",
-        "placeholder": "Nhập mật khẩu"
+        "label": "Mat khau",
+        "placeholder": "Nhap mat khau"
       },
       "confirm_password": {
-        "label": "Xác nhận mật khẩu",
-        "placeholder": "Nhập lại mật khẩu"
+        "label": "Xac nhan mat khau",
+        "placeholder": "Nhap lai mat khau"
       }
     },
     "actions": {
-      "register": "Đăng ký",
-      "registering": "Đang đăng ký...",
-      "agree_terms": "Tôi đồng ý với",
-      "terms_link": "Điều khoản sử dụng",
-      "and": "và",
-      "privacy_link": "Chính sách bảo mật"
+      "register": "Dang ky",
+      "registering": "Dang xu ly...",
+      "agree_terms": "Toi dong y voi",
+      "terms_link": "Dieu khoan su dung",
+      "and": "va",
+      "privacy_link": "Chinh sach bao mat"
     },
     "messages": {
       "validation": {
-        "role_required": "Vai trò là bắt buộc",
-        "fullName_required": "Họ và tên là bắt buộc",
-        "fullName_invalid": "Họ và tên chỉ được chứa chữ cái và khoảng trắng",
-        "username_required": "Tên đăng nhập là bắt buộc",
-        "username_length": "Tên đăng nhập phải có từ 3-50 ký tự",
-        "username_invalid": "Tên đăng nhập chỉ được chứa chữ cái, số và dấu gạch dưới",
-        "email_required": "Email là bắt buộc",
-        "email_invalid": "Email không hợp lệ",
-        "phoneNumber_required": "Số điện thoại là bắt buộc",
-        "phoneNumber_invalid": "Số điện thoại không hợp lệ",
-        "password_required": "Mật khẩu là bắt buộc",
-        "password_length": "Mật khẩu phải có từ 6-100 ký tự",
-        "confirm_password_required": "Xác nhận mật khẩu là bắt buộc",
-        "passwords_not_match": "Mật khẩu không khớp",
-        "terms_required": "Bạn phải đồng ý với điều khoản sử dụng"
+        "role_required": "Vui long chon vai tro",
+        "fullName_required": "Vui long nhap ho va ten",
+        "fullName_invalid": "Ho ten chi gom chu cai va khoang trang",
+        "username_required": "Vui long nhap ten dang nhap",
+        "username_length": "Ten dang nhap dai 3 den 50 ky tu",
+        "username_invalid": "Ten dang nhap chi gom chu, so va gach duoi",
+        "email_required": "Vui long nhap email",
+        "email_invalid": "Email khong hop le",
+        "phoneNumber_required": "Vui long nhap so dien thoai",
+        "phoneNumber_invalid": "So dien thoai khong hop le",
+        "password_required": "Vui long nhap mat khau",
+        "password_length": "Mat khau dai 6 den 100 ky tu",
+        "confirm_password_required": "Vui long xac nhan mat khau",
+        "passwords_not_match": "Mat khau khong khop",
+        "terms_required": "Ban phai dong y voi dieu khoan su dung"
       },
-      "have_account": "Đã có tài khoản?",
-      "login_link": "Đăng nhập ngay",
-      "register_success": "Đăng ký thành công!",
-      "register_error": "Đăng ký thất bại. Vui lòng thử lại.",
-      "loading": "Đang tải...",
-      "alert_success": "Thành công",
-      "alert_error": "Lỗi",
-      "alert_ok": "OK"
-    }
-  },
-  "en": {
-    "title": "Sign Up",
-    "subtitle": "Create a new account to get started",
-    "form": {
-      "role": {
-        "label": "Role",
-        "placeholder": "Select your role",
-        "options": {
-          "customer": "Customer",
-          "employee": "Employee",
-          "admin": "Admin"
-        }
-      },
-      "fullName": {
-        "label": "Full Name",
-        "placeholder": "Enter your full name"
-      },
-      "username": {
-        "label": "Username",
-        "placeholder": "Enter your username"
-      },
-      "email": {
-        "label": "Email",
-        "placeholder": "Enter your email"
-      },
-      "phoneNumber": {
-        "label": "Phone Number",
-        "placeholder": "Enter your phone number"
-      },
-      "password": {
-        "label": "Password",
-        "placeholder": "Enter your password"
-      },
-      "confirm_password": {
-        "label": "Confirm Password",
-        "placeholder": "Confirm your password"
-      }
-    },
-    "actions": {
-      "register": "Sign Up",
-      "registering": "Signing up...",
-      "agree_terms": "I agree to the",
-      "terms_link": "Terms of Service",
-      "and": "and",
-      "privacy_link": "Privacy Policy"
-    },
-    "messages": {
-      "validation": {
-        "role_required": "Role is required",
-        "fullName_required": "Full name is required",
-        "fullName_invalid": "Full name should only contain letters and spaces",
-        "username_required": "Username is required",
-        "username_length": "Username must be 3-50 characters",
-        "username_invalid": "Username can only contain letters, numbers and underscores",
-        "email_required": "Email is required",
-        "email_invalid": "Invalid email format",
-        "phoneNumber_required": "Phone number is required",
-        "phoneNumber_invalid": "Invalid phone number",
-        "password_required": "Password is required",
-        "password_length": "Password must be 6-100 characters",
-        "confirm_password_required": "Password confirmation is required",
-        "passwords_not_match": "Passwords do not match",
-        "terms_required": "You must agree to the terms of service"
-      },
-      "have_account": "Already have an account?",
-      "login_link": "Sign in",
-      "register_success": "Registration successful!",
-      "register_error": "Registration failed. Please try again.",
-      "loading": "Loading...",
-      "alert_success": "Success",
-      "alert_error": "Error",
-      "alert_ok": "OK"
+      "have_account": "Da co tai khoan?",
+      "login_link": "Dang nhap ngay",
+      "register_success": "Dang ky thanh cong",
+      "register_error": "Dang ky that bai, vui long thu lai",
+      "loading": "Dang tai...",
+      "alert_success": "Thanh cong",
+      "alert_error": "Loi",
+      "alert_ok": "Dong y"
     }
   }
 }

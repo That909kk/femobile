@@ -423,7 +423,7 @@ export const ProfileScreen = () => {
                   </View>
                 )}
 
-                {userData.skills && userData.skills.length > 0 && (
+                {userData.skills && Array.isArray(userData.skills) && userData.skills.length > 0 && (
                   <View style={styles.skillsSection}>
                     <Text style={styles.accountInfoLabel}>Kỹ năng:</Text>
                     <View style={styles.skillsContainer}>
@@ -458,7 +458,7 @@ export const ProfileScreen = () => {
             )}
 
             {/* Role Switcher - Show if user has multiple roles */}
-            {userInfo?.roles && userInfo.roles.length > 1 && (
+            {userInfo?.roles && Array.isArray(userInfo.roles) && userInfo.roles.length > 1 && (
               <View style={styles.roleSwitchSection}>
                 <Text style={styles.accountInfoLabel}>Chuyển đổi vai trò:</Text>
                 <View style={styles.rolesContainer}>
