@@ -18,6 +18,7 @@ import { bookingService } from '../../../../services';
 import { useUserInfo } from '../../../../hooks';
 import { STORAGE_KEYS } from '../../../../constants';
 import { useAuthStore } from '../../../../store/authStore';
+import { colors } from '../../../../styles';
 import { type LocationData } from './types';
 import { commonStyles } from './styles';
 
@@ -45,6 +46,10 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
 }) => {
   const { userInfo } = useUserInfo();
   const { isAuthenticated, accessToken, user: authUser } = useAuthStore();
+  const accentColor = colors.highlight.teal;
+  const warningColor = colors.feedback.warning;
+  const errorColor = colors.feedback.error;
+  const neutralLabelColor = colors.neutral.label;
   const [selectedOption, setSelectedOption] = useState<LocationOption>('default');
   const [defaultAddress, setDefaultAddress] = useState<LocationData | null>(null);
   const [currentLocation, setCurrentLocation] = useState<LocationData | null>(null);
@@ -216,7 +221,13 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
       console.log('Using customerId:', customerId);
       const response = await bookingService.getDefaultAddress(customerId);
       console.log('Default address API response:', response);
-      
+
+      if (!response) {
+        console.log('ℹ️ API returned no default address');
+        setDefaultAddress(null);
+        return;
+      }
+
       // Response is now DefaultAddressResponse directly (not wrapped in ApiResponse)
       const addressData: LocationData = {
         addressId: response.addressId,
@@ -228,13 +239,13 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
         longitude: response.longitude || 0,
         isDefault: response.isDefault
       };
-        
+
       // Extract district from city if needed for service calls
       // For TP. Hồ Chí Minh, we can use the city itself as district
       if (response.city === 'TP. Hồ Chí Minh') {
         addressData.district = 'TP. Hồ Chí Minh';
       }
-      
+
       setDefaultAddress(addressData);
       console.log('Default address loaded successfully:', addressData);
     } catch (error) {
@@ -456,37 +467,43 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
       disabled={disabled}
     >
       <View style={commonStyles.flexRow}>
-        <View style={{
-          width: 48,
-          height: 48,
-          borderRadius: 24,
-          backgroundColor: disabled ? '#CCC' : (isSelected ? '#007AFF' : '#F0F0F0'),
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginRight: 16
-        }}>
-          <Ionicons 
-            name={icon as any} 
-            size={24} 
-            color={disabled ? '#999' : (isSelected ? '#FFF' : '#007AFF')} 
+        <View
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 24,
+            backgroundColor: disabled
+              ? colors.neutral.border
+              : isSelected
+              ? accentColor
+              : colors.warm.beige,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginRight: 16,
+          }}
+        >
+          <Ionicons
+            name={icon as any}
+            size={24}
+            color={disabled ? neutralLabelColor : isSelected ? colors.neutral.white : accentColor}
           />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[
             commonStyles.cardTitle,
-            disabled && { color: '#999' }
+            disabled && { color: neutralLabelColor }
           ]}>
             {title}
           </Text>
           <Text style={[
             commonStyles.cardDescription,
-            disabled && { color: '#CCC' }
+            disabled && { color: neutralLabelColor }
           ]} numberOfLines={2}>
             {subtitle}
           </Text>
         </View>
         {isSelected && (
-          <Ionicons name="checkmark-circle" size={24} color="#007AFF" />
+          <Ionicons name="checkmark-circle" size={24} color={accentColor} />
         )}
       </View>
     </TouchableOpacity>
@@ -499,7 +516,7 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
       
       {gettingLocation && (
         <View style={commonStyles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color={accentColor} />
           <Text style={commonStyles.loadingText}>
             {currentLocation ? 'Đang tìm địa chỉ chính xác...' : 'Đang lấy vị trí hiện tại...'}
           </Text>
@@ -509,7 +526,7 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
       {currentLocation && (
         <View style={[commonStyles.card, { marginVertical: 16 }]}>
           <Text style={commonStyles.cardTitle}>Địa chỉ được chọn:</Text>
-          <Text style={[commonStyles.cardDescription, { color: '#007AFF', fontWeight: '600' }]}>
+          <Text style={[commonStyles.cardDescription, { color: accentColor, fontWeight: '600' }]}>
             {currentLocation.fullAddress}
           </Text>
           <Text style={[commonStyles.cardDescription, { fontSize: 12, marginTop: 4 }]}>
@@ -523,7 +540,7 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
           style={[commonStyles.secondaryButton, commonStyles.flexRow, { justifyContent: 'center' }]}
           onPress={getCurrentLocation}
         >
-          <Ionicons name="location" size={24} color="#007AFF" />
+          <Ionicons name="location" size={24} color={accentColor} />
           <Text style={[commonStyles.secondaryButtonText, { marginLeft: 8 }]}>Lấy vị trí hiện tại</Text>
         </TouchableOpacity>
       )}
@@ -533,7 +550,7 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
           style={[commonStyles.secondaryButton, commonStyles.flexRow, { justifyContent: 'center', marginTop: 12 }]}
           onPress={getCurrentLocation}
         >
-          <Ionicons name="refresh" size={20} color="#007AFF" />
+          <Ionicons name="refresh" size={20} color={accentColor} />
           <Text style={[commonStyles.secondaryButtonText, { marginLeft: 6 }]}>Cập nhật vị trí</Text>
         </TouchableOpacity>
       )}
@@ -590,12 +607,12 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
 
   return (
     <View style={commonStyles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.warm.beige} />
       
       {/* Header */}
       <View style={commonStyles.header}>
         <TouchableOpacity onPress={onBack} style={commonStyles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={colors.primary.navy} />
         </TouchableOpacity>
         <View style={commonStyles.headerContent}>
           <Text style={commonStyles.headerTitle}>Chọn địa điểm</Text>

@@ -1,25 +1,20 @@
-import { StyleSheet, Dimensions } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../../styles';
 
-const { width, height } = Dimensions.get('window');
-
 export const commonStyles = StyleSheet.create({
-  // Container Styles
+  // Container
   container: {
     flex: 1,
     backgroundColor: colors.neutral.background,
   },
   scrollContainer: {
-    flexGrow: 1,
-    paddingHorizontal: responsiveSpacing.md,
-    paddingBottom: responsiveSpacing.xxl * 2,
-  },
-  safeArea: {
     flex: 1,
-    backgroundColor: colors.neutral.background,
+  },
+  scrollContent: {
+    paddingBottom: responsiveSpacing.xl,
   },
 
-  // Header Styles
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -28,23 +23,27 @@ export const commonStyles = StyleSheet.create({
     backgroundColor: colors.warm.beige,
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.border,
-    elevation: 2,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.neutral.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: responsiveSpacing.sm,
     shadowColor: colors.primary.navy,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-  },
-  backButton: {
-    padding: responsiveSpacing.xs,
-    marginRight: responsiveSpacing.sm,
+    elevation: 2,
   },
   headerContent: {
     flex: 1,
-    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: responsiveFontSize.heading3,
-    fontWeight: '600',
+    fontSize: responsiveFontSize.heading2,
+    fontWeight: '700',
     color: colors.primary.navy,
   },
   headerSubtitle: {
@@ -53,97 +52,35 @@ export const commonStyles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // Progress Indicator
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: responsiveSpacing.md,
-    paddingVertical: responsiveSpacing.md,
-    backgroundColor: colors.neutral.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.neutral.border,
-  },
-  progressStep: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  progressDot: {
-    width: responsive.moderateScale(24),
-    height: responsive.moderateScale(24),
-    borderRadius: responsive.moderateScale(12),
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  progressDotActive: {
-    backgroundColor: colors.highlight.teal,
-    borderColor: colors.highlight.teal,
-  },
-  progressDotInactive: {
-    backgroundColor: colors.neutral.white,
-    borderColor: colors.neutral.border,
-  },
-  progressDotCompleted: {
-    backgroundColor: colors.feedback.success,
-    borderColor: colors.feedback.success,
-  },
-  progressText: {
-    fontSize: responsiveFontSize.caption - 4,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  progressTextActive: {
-    color: colors.highlight.teal,
-    fontWeight: '600',
-  },
-  progressTextInactive: {
-    color: colors.neutral.textSecondary,
-  },
-  progressLine: {
-    height: 2,
-    backgroundColor: colors.neutral.border,
-    position: 'absolute',
-    top: 11,
-    width: '100%',
-    zIndex: -1,
-  },
-  progressLineCompleted: {
-    backgroundColor: colors.feedback.success,
-  },
-
-  // Section Styles
+  // Section
   section: {
-    backgroundColor: colors.neutral.white,
-    borderRadius: responsive.moderateScale(16),
-    padding: responsiveSpacing.md,
-    marginVertical: responsiveSpacing.sm,
-    shadowColor: colors.primary.navy,
-    shadowOffset: { width: 0, height: responsive.moderateScale(4) },
-    shadowOpacity: 0.1,
-    shadowRadius: responsive.moderateScale(16),
-    elevation: 4,
+    marginBottom: responsiveSpacing.md,
   },
   sectionTitle: {
     fontSize: responsiveFontSize.heading3,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.primary.navy,
-    marginBottom: responsiveSpacing.md,
+    marginBottom: responsiveSpacing.sm,
   },
   sectionSubtitle: {
     fontSize: responsiveFontSize.caption,
     color: colors.neutral.textSecondary,
-    marginBottom: responsiveSpacing.sm,
+    marginBottom: responsiveSpacing.md,
   },
 
-  // Card Styles
+  // Card
   card: {
     backgroundColor: colors.neutral.white,
-    borderRadius: responsive.moderateScale(12),
+    borderRadius: 16,
     padding: responsiveSpacing.md,
-    marginVertical: responsiveSpacing.xs,
-    borderWidth: 1,
+    marginBottom: responsiveSpacing.md,
+    borderWidth: 2,
     borderColor: colors.neutral.border,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   cardSelected: {
     borderColor: colors.highlight.teal,
@@ -156,14 +93,13 @@ export const commonStyles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: responsiveFontSize.body,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.primary.navy,
-    flex: 1,
+    marginBottom: 4,
   },
   cardSubtitle: {
     fontSize: responsiveFontSize.caption,
     color: colors.neutral.textSecondary,
-    marginBottom: 4,
   },
   cardDescription: {
     fontSize: responsiveFontSize.caption,
@@ -171,256 +107,275 @@ export const commonStyles = StyleSheet.create({
     lineHeight: responsiveFontSize.caption * 1.4,
   },
   cardPrice: {
-    fontSize: responsiveFontSize.body,
+    fontSize: responsiveFontSize.heading3,
     fontWeight: '700',
     color: colors.highlight.teal,
-    textAlign: 'right',
   },
 
-  // Button Styles
-  buttonContainer: {
-    padding: responsiveSpacing.md,
-    backgroundColor: colors.neutral.white,
-    borderTopWidth: 1,
-    borderTopColor: colors.neutral.border,
-  },
+  // Buttons
   primaryButton: {
     backgroundColor: colors.highlight.teal,
     paddingVertical: responsiveSpacing.md,
-    paddingHorizontal: responsiveSpacing.lg,
-    borderRadius: responsive.moderateScale(12),
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: responsiveSpacing.sm,
-    shadowColor: colors.primary.navy,
-    shadowOffset: { width: 0, height: responsive.moderateScale(2) },
-    shadowOpacity: 0.15,
-    shadowRadius: responsive.moderateScale(6),
-    elevation: 3,
+    shadowColor: colors.highlight.teal,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   primaryButtonDisabled: {
-    backgroundColor: colors.neutral.label,
-    opacity: 0.6,
+    backgroundColor: colors.neutral.border,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   primaryButtonText: {
     color: colors.neutral.white,
     fontSize: responsiveFontSize.body,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   secondaryButton: {
     backgroundColor: colors.neutral.white,
     paddingVertical: responsiveSpacing.md,
-    paddingHorizontal: responsiveSpacing.lg,
-    borderRadius: responsive.moderateScale(12),
+    paddingHorizontal: responsiveSpacing.md,
+    borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.highlight.teal,
-    marginTop: responsiveSpacing.sm,
   },
   secondaryButtonText: {
     color: colors.highlight.teal,
     fontSize: responsiveFontSize.body,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 
-  // Input Styles
+  // Input
   inputContainer: {
-    marginVertical: responsiveSpacing.sm,
+    marginBottom: responsiveSpacing.md,
   },
   inputLabel: {
     fontSize: responsiveFontSize.caption,
     fontWeight: '600',
     color: colors.primary.navy,
-    marginBottom: responsiveSpacing.sm,
+    marginBottom: responsiveSpacing.xs,
   },
   input: {
     borderWidth: 1,
     borderColor: colors.neutral.border,
-    borderRadius: responsive.moderateScale(8),
-    paddingHorizontal: responsiveSpacing.md,
-    paddingVertical: responsiveSpacing.sm,
+    borderRadius: 12,
+    padding: responsiveSpacing.sm,
     fontSize: responsiveFontSize.body,
     color: colors.neutral.textPrimary,
     backgroundColor: colors.neutral.white,
   },
   inputFocused: {
     borderColor: colors.highlight.teal,
-  },
-  inputError: {
-    borderColor: colors.feedback.error,
-  },
-  inputErrorText: {
-    color: colors.feedback.error,
-    fontSize: responsiveFontSize.caption - 2,
-    marginTop: 4,
+    borderWidth: 2,
   },
 
-  // List Styles
-  listContainer: {
-    paddingHorizontal: responsiveSpacing.md,
-  },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: responsiveSpacing.md,
-    paddingHorizontal: responsiveSpacing.md,
-    backgroundColor: colors.neutral.white,
-    borderRadius: responsive.moderateScale(12),
-    marginVertical: responsiveSpacing.xs,
-    borderWidth: 1,
-    borderColor: colors.neutral.border,
-  },
-  listItemSelected: {
-    borderColor: colors.highlight.teal,
-    backgroundColor: colors.warm.beige,
-  },
-  listItemContent: {
-    flex: 1,
-    marginLeft: responsiveSpacing.sm,
-  },
-  listItemTitle: {
-    fontSize: responsiveFontSize.body,
-    fontWeight: '600',
-    color: colors.primary.navy,
-  },
-  listItemSubtitle: {
-    fontSize: responsiveFontSize.caption,
-    color: colors.neutral.textSecondary,
-    marginTop: 2,
-  },
-
-  // Loading Styles
+  // Loading
   loadingContainer: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     padding: responsiveSpacing.xxl,
   },
   loadingText: {
+    marginTop: responsiveSpacing.sm,
     fontSize: responsiveFontSize.body,
     color: colors.neutral.textSecondary,
-    marginTop: responsiveSpacing.md,
-  },
-
-  // Error Styles
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: responsiveSpacing.xxl,
-  },
-  errorText: {
-    fontSize: responsiveFontSize.body,
-    color: colors.feedback.error,
     textAlign: 'center',
-    marginTop: responsiveSpacing.md,
   },
 
-  // Utility Styles
+  // Flex
   flexRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   flexRowBetween: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  textCenter: {
-    textAlign: 'center',
-  },
-  textRight: {
-    textAlign: 'right',
-  },
-  marginVertical: {
-    marginVertical: responsiveSpacing.sm,
-  },
-  marginHorizontal: {
-    marginHorizontal: responsiveSpacing.sm,
+  flexColumn: {
+    flexDirection: 'column',
   },
 
-  // Checkbox Styles
+  // Button Container
+  buttonContainer: {
+    padding: responsiveSpacing.md,
+    backgroundColor: colors.neutral.white,
+    borderTopWidth: 1,
+    borderTopColor: colors.neutral.border,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+
+  // Badge
+  badge: {
+    paddingHorizontal: responsiveSpacing.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  badgeText: {
+    fontSize: responsiveFontSize.caption - 2,
+    fontWeight: '600',
+  },
+  badgeSuccess: {
+    backgroundColor: colors.feedback.success + '20',
+  },
+  badgeSuccessText: {
+    color: colors.feedback.success,
+  },
+  badgeWarning: {
+    backgroundColor: colors.feedback.warning + '20',
+  },
+  badgeWarningText: {
+    color: colors.feedback.warning,
+  },
+  badgeError: {
+    backgroundColor: colors.feedback.error + '20',
+  },
+  badgeErrorText: {
+    color: colors.feedback.error,
+  },
+  badgeInfo: {
+    backgroundColor: colors.highlight.teal + '20',
+  },
+  badgeInfoText: {
+    color: colors.highlight.teal,
+  },
+
+  // Divider
+  divider: {
+    height: 1,
+    backgroundColor: colors.neutral.border,
+    marginVertical: responsiveSpacing.sm,
+  },
+
+  // Empty State
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: responsiveSpacing.xxl,
+  },
+  emptyTitle: {
+    fontSize: responsiveFontSize.heading3,
+    fontWeight: '700',
+    color: colors.neutral.textSecondary,
+    marginTop: responsiveSpacing.md,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textSecondary,
+    marginTop: responsiveSpacing.xs,
+    textAlign: 'center',
+  },
+
+  // Error
+  errorContainer: {
+    backgroundColor: colors.feedback.error + '15',
+    borderRadius: 12,
+    padding: responsiveSpacing.md,
+    marginBottom: responsiveSpacing.md,
+  },
+  errorText: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.feedback.error,
+    textAlign: 'center',
+  },
+
+  // Info Box
+  infoBox: {
+    backgroundColor: colors.highlight.teal + '15',
+    borderRadius: 12,
+    padding: responsiveSpacing.md,
+    marginBottom: responsiveSpacing.md,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  infoIcon: {
+    marginRight: responsiveSpacing.sm,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: responsiveFontSize.caption,
+    color: colors.primary.navy,
+    lineHeight: responsiveFontSize.caption * 1.4,
+  },
+
+  // Checkbox
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginVertical: responsiveSpacing.sm,
-  },
-  checkbox: {
-    width: responsive.moderateScale(20),
-    height: responsive.moderateScale(20),
-    borderRadius: responsive.moderateScale(4),
-    borderWidth: 2,
-    borderColor: colors.neutral.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: responsiveSpacing.sm,
-    marginTop: 2,
-  },
-  checkboxChecked: {
-    backgroundColor: colors.highlight.teal,
-    borderColor: colors.highlight.teal,
+    marginBottom: responsiveSpacing.md,
   },
   checkboxLabel: {
     flex: 1,
     fontSize: responsiveFontSize.caption,
     color: colors.neutral.textPrimary,
-    lineHeight: responsiveFontSize.caption * 1.4,
+    marginLeft: responsiveSpacing.sm,
+    lineHeight: responsiveFontSize.caption * 1.5,
   },
 
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 28, 45, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    backgroundColor: colors.neutral.white,
-    borderRadius: responsive.moderateScale(16),
-    padding: responsiveSpacing.lg,
-    margin: responsiveSpacing.md,
-    maxHeight: height * 0.8,
-  },
-  modalTitle: {
-    fontSize: responsiveFontSize.heading3,
-    fontWeight: '600',
-    color: colors.primary.navy,
-    marginBottom: responsiveSpacing.md,
-    textAlign: 'center',
-  },
-  modalContent: {
-    marginBottom: responsiveSpacing.lg,
-  },
-  modalActions: {
+  // Progress Indicator
+  progressContainer: {
     flexDirection: 'row',
-    gap: responsiveSpacing.sm,
-  },
-  modalActionButton: {
-    flex: 1,
-    paddingVertical: responsiveSpacing.sm,
-    paddingHorizontal: responsiveSpacing.md,
-    borderRadius: responsive.moderateScale(8),
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: responsiveSpacing.md,
+    paddingVertical: responsiveSpacing.sm,
+    backgroundColor: colors.neutral.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.border,
   },
-  modalActionPrimary: {
+  progressStep: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  progressDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  progressDotActive: {
     backgroundColor: colors.highlight.teal,
   },
-  modalActionSecondary: {
-    backgroundColor: colors.neutral.white,
-    borderWidth: 1,
-    borderColor: colors.neutral.border,
+  progressDotCompleted: {
+    backgroundColor: colors.feedback.success,
   },
-  modalActionText: {
-    fontSize: responsiveFontSize.body,
+  progressDotInactive: {
+    backgroundColor: colors.neutral.border,
+  },
+  progressText: {
+    fontSize: responsiveFontSize.caption - 2,
+    textAlign: 'center',
+  },
+  progressTextActive: {
+    color: colors.highlight.teal,
     fontWeight: '600',
   },
-  modalActionTextPrimary: {
-    color: colors.neutral.white,
+  progressTextInactive: {
+    color: colors.neutral.textSecondary,
   },
-  modalActionTextSecondary: {
-    color: colors.primary.navy,
+  progressLine: {
+    height: 2,
+    flex: 1,
+    backgroundColor: colors.neutral.border,
+    marginHorizontal: 4,
+    marginBottom: 20,
+  },
+  progressLineCompleted: {
+    backgroundColor: colors.feedback.success,
   },
 });
-
-export default commonStyles;

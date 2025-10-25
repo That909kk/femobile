@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,25 +10,20 @@ import {
   Image,
   Modal,
   TextInput,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../../../components';
-import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../../styles';
-import { commonStyles } from './styles';
+import { colors, responsive, responsiveSpacing, responsiveFontSize, screenDimensions } from '../../../../styles';
 import { 
   serviceService,
   type Service as FullService, 
-  type ServiceOption as OldServiceOption,
-  type ServiceChoice as OldServiceChoice,
   type Category,
-  type CategoryService
 } from '../../../../services';
 import {
-  ServiceOptionsResponse,
   ServiceOption,
-  ServiceChoice,
   CalculatePriceRequest,
-  CalculatePriceResponse
 } from '../../../../types/booking';
 
 interface SelectedOption {
@@ -42,7 +37,12 @@ interface SelectedOption {
 interface ServiceSelectionProps {
   selectedService: FullService | null;
   selectedOptions: SelectedOption[];
-  onNext: (service: FullService, options: SelectedOption[], totalPrice?: number) => void;
+  onNext: (
+    service: FullService,
+    options: SelectedOption[],
+    totalPrice?: number,
+    quantity?: number
+  ) => void;
   onClose: () => void;
 }
 
@@ -66,26 +66,44 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [searchText, setSearchText] = useState('');
   
-  // New states for quantity and custom inputs
   const [quantity, setQuantity] = useState<number>(1);
-  const [customInputs, setCustomInputs] = useState<{ [key: string]: string | number }>({
-    'rooms': '',
-    'bathrooms': '',
-    'area': '',
-    'floors': '',
-    'note': ''
-  });
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     loadInitialData();
   }, []);
 
   useEffect(() => {
+    if (services.length > 0) {
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(0.95);
+
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 9,
+          tension: 45,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      fadeAnim.setValue(1);
+      scaleAnim.setValue(1);
+    }
+  }, [services, fadeAnim, scaleAnim]);
+
+  useEffect(() => {
     if (currentSelectedService) {
       loadServiceOptions(currentSelectedService.serviceId);
       calculatePrice();
     }
-  }, [currentSelectedService, selectedChoices, quantity, customInputs]);
+  }, [currentSelectedService, selectedChoices, quantity]);
 
   useEffect(() => {
     filterServices();
@@ -111,46 +129,48 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
       const response = await serviceService.getCategories();
       if (response.success && response.data) {
         setCategories(response.data);
-      } else {
-        Alert.alert('Thông báo', response.message || 'Không thể tải danh mục');
       }
     } catch (error) {
       console.error('Error loading categories:', error);
-      Alert.alert('Lỗi', 'Không thể tải danh sách danh mục');
     }
   };
 
   const loadAllServices = async () => {
     try {
-      // Load all categories first
-      const categoriesResponse = await serviceService.getCategories();
-      if (categoriesResponse.success && categoriesResponse.data) {
-        const allServicesData: FullService[] = [];
-        
-        // Load services for each category
-        for (const category of categoriesResponse.data) {
-          try {
-            const categoryResponse = await serviceService.getCategoryServices(category.categoryId);
-            if (categoryResponse.success && categoryResponse.data) {
-              const categoryServices = categoryResponse.data.services.map(convertToFullService);
-              allServicesData.push(...categoryServices);
-            }
-          } catch (error) {
-            console.error(`Error loading services for category ${category.categoryId}:`, error);
-          }
-        }
-        
-        setAllServices(allServicesData);
-        setServices(allServicesData);
+      const response = await serviceService.getCustomerServices();
+
+      if (!response.success) {
+        setAllServices([]);
+        setServices([]);
+        Alert.alert('Thông báo', response.message || 'Không thể tải danh sách dịch vụ');
+        return;
       }
-    } catch (error) {
+
+      const rawData = response.data as any;
+      const serviceList: any[] = Array.isArray(rawData)
+        ? rawData
+        : Array.isArray(rawData?.services)
+          ? rawData.services
+          : [];
+
+      if (serviceList.length === 0) {
+        setAllServices([]);
+        setServices([]);
+        return;
+      }
+
+      const normalizedServices = serviceList.map(convertToFullService);
+      setAllServices(normalizedServices);
+      setServices(normalizedServices);
+    } catch (error: any) {
       console.error('Error loading services:', error);
+      setAllServices([]);
+      setServices([]);
       Alert.alert('Lỗi', 'Không thể tải danh sách dịch vụ. Vui lòng thử lại.');
     }
   };
 
   const convertToFullService = (serviceData: any): FullService => {
-    // Handle both CategoryService format and direct service format
     return {
       serviceId: serviceData.serviceId,
       name: serviceData.name || serviceData.serviceName,
@@ -170,13 +190,28 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
     setLoadingServices(true);
     try {
       const response = await serviceService.getCategoryServices(categoryId);
-      if (response.success && response.data) {
+      
+      if (response.success && response.data && response.data.services) {
         const fullServices = response.data.services.map(convertToFullService);
         setServices(fullServices);
+      } else {
+        // Fallback: filter from allServices
+        const fallbackCategory = categories.find((cat) => cat.categoryId === categoryId);
+        const fallbackServices = allServices.filter(
+          (service) =>
+            fallbackCategory?.categoryName && service.categoryName === fallbackCategory.categoryName,
+        );
+        setServices(fallbackServices);
       }
     } catch (error) {
       console.error('Error loading services by category:', error);
-      filterServices();
+      // Fallback on error
+      const fallbackCategory = categories.find((cat) => cat.categoryId === categoryId);
+      const fallbackServices = allServices.filter(
+        (service) =>
+          fallbackCategory?.categoryName && service.categoryName === fallbackCategory.categoryName,
+      );
+      setServices(fallbackServices);
     } finally {
       setLoadingServices(false);
     }
@@ -219,17 +254,35 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
           formattedDuration: response.data.formattedDuration,
           recommendedStaff: response.data.suggestedStaff
         });
+      } else {
+        // API failed but service exists, use base price
+        const totalPrice = currentSelectedService.basePrice * quantity;
+        setCalculatedPrice({
+          unitPrice: currentSelectedService.basePrice,
+          totalPrice: totalPrice,
+          formattedTotalPrice: `${totalPrice.toLocaleString('vi-VN')}đ`,
+          totalDurationHours: currentSelectedService.estimatedDurationHours,
+          formattedDuration: `${currentSelectedService.estimatedDurationHours}h`,
+          recommendedStaff: currentSelectedService.recommendedStaff
+        });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error calculating price:', error);
-      // Fallback to basic calculation (API should handle complex pricing)
+      // On timeout or error, use base price as fallback
       const totalPrice = currentSelectedService.basePrice * quantity;
-
       setCalculatedPrice({
         unitPrice: currentSelectedService.basePrice,
         totalPrice: totalPrice,
-        formattedTotalPrice: `${totalPrice.toLocaleString('vi-VN')}đ`
+        formattedTotalPrice: `${totalPrice.toLocaleString('vi-VN')}đ`,
+        totalDurationHours: currentSelectedService.estimatedDurationHours,
+        formattedDuration: `${currentSelectedService.estimatedDurationHours}h`,
+        recommendedStaff: currentSelectedService.recommendedStaff
       });
+      
+      // Only show error if it's not a timeout and there are selected choices
+      if (error?.message !== 'timeout of 20000ms exceeded' && selectedChoiceIds.length > 0) {
+        console.warn('Failed to calculate accurate price, using base price');
+      }
     }
   };
 
@@ -260,16 +313,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
   const handleServiceSelect = (service: FullService) => {
     setCurrentSelectedService(service);
     setShowOptionsModal(true);
-    
-    // Reset inputs when selecting new service
     setQuantity(1);
-    setCustomInputs({
-      'rooms': '',
-      'bathrooms': '',
-      'area': '',
-      'floors': '',
-      'note': ''
-    });
     setSelectedChoices({});
   };
 
@@ -278,41 +322,50 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
       const current = prev[optionId] || [];
       
       if (isMultiple) {
-        // For CHECKBOX type
         if (current.includes(choiceId)) {
           return { ...prev, [optionId]: current.filter(id => id !== choiceId) };
         } else {
           return { ...prev, [optionId]: [...current, choiceId] };
         }
       } else {
-        // For RADIO type
         return { ...prev, [optionId]: [choiceId] };
       }
     });
   };
 
-  const updateSelectedOptions = () => {
+  const buildSelectedOptions = () => {
     const options: SelectedOption[] = [];
-    
+
     Object.entries(selectedChoices).forEach(([optionId, choiceIds]) => {
-      const option = serviceOptions.find(opt => opt.optionId === parseInt(optionId));
-      if (option) {
-        choiceIds.forEach(choiceId => {
-          const choice = option.choices.find((ch: any) => ch.choiceId === choiceId);
-          if (choice) {
-            options.push({
-              optionId: option.optionId,
-              choiceId: choice.choiceId,
-              optionName: option.optionName,
-              choiceName: choice.choiceName,
-              priceAdjustment: 0, // API will calculate total price
-            });
-          }
-        });
+      const option = serviceOptions.find((opt) => opt.optionId === Number(optionId));
+      if (!option) {
+        return;
       }
+
+      choiceIds.forEach((choiceId) => {
+        const choice = option.choices.find((ch: any) => ch.choiceId === choiceId);
+        if (!choice) {
+          return;
+        }
+
+        const rawAdjustment = (choice as any).priceAdjustment;
+        const priceAdjustment =
+          typeof rawAdjustment === 'number'
+            ? rawAdjustment
+            : Number(rawAdjustment) || 0;
+
+        options.push({
+          optionId: option.optionId,
+          choiceId: choice.choiceId,
+          optionName: option.optionName,
+          choiceName: choice.choiceName,
+          priceAdjustment,
+        });
+      });
     });
 
-    setCurrentSelectedOptions(options);
+  setCurrentSelectedOptions(options);
+  return options;
   };
 
   const handleConfirm = () => {
@@ -321,14 +374,12 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
       return;
     }
 
-    // Validate required options (exclude QUANTITY_INPUT and MULTIPLE_CHOICE_CHECKBOX from being required)
     const requiredOptions = serviceOptions.filter(option => 
       option.isRequired && 
       option.optionType !== 'QUANTITY_INPUT' && 
       option.optionType !== 'MULTIPLE_CHOICE_CHECKBOX'
     );
     const missingOptions = requiredOptions.filter(option => {
-      // Only check for choice selections, not quantity inputs or checkbox options
       return !selectedChoices[option.optionId] || selectedChoices[option.optionId].length === 0;
     });
 
@@ -337,409 +388,22 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
       return;
     }
 
-    // Validate quantity inputs are numbers (only if provided)
-    const quantityInputOptions = serviceOptions.filter(option => option.optionType === 'QUANTITY_INPUT');
-    for (const option of quantityInputOptions) {
-      const inputValue = customInputs[`option_${option.optionId}`];
-      if (inputValue && inputValue !== '') {
-        const numValue = parseInt(inputValue.toString());
-        if (isNaN(numValue) || numValue < 1) {
-          Alert.alert('Thông báo', `${option.optionName}: Phải là số nguyên dương`);
-          return;
-        }
-      }
-    }
-
-    // Validate custom inputs for cleaning services (completely optional - only validate format if provided)
-    // Users can skip all custom inputs and proceed to next step
-    if (currentSelectedService.name.toLowerCase().includes('dọn')) {
-      // Only validate format if user entered values - all are optional
-      if (customInputs.rooms && customInputs.rooms !== '') {
-        const rooms = parseInt(customInputs.rooms.toString());
-        if (isNaN(rooms) || rooms < 1) {
-          Alert.alert('Thông báo', 'Số phòng ngủ phải là số nguyên dương (hoặc để trống)');
-          return;
-        }
-      }
-      
-      if (customInputs.bathrooms && customInputs.bathrooms !== '') {
-        const bathrooms = parseInt(customInputs.bathrooms.toString());
-        if (isNaN(bathrooms) || bathrooms < 1) {
-          Alert.alert('Thông báo', 'Số phòng tắm phải là số nguyên dương (hoặc để trống)');
-          return;
-        }
-      }
-
-      if (customInputs.area && customInputs.area !== '') {
-        const area = parseInt(customInputs.area.toString());
-        if (isNaN(area) || area < 1) {
-          Alert.alert('Thông báo', 'Diện tích phải là số nguyên dương (hoặc để trống)');
-          return;
-        }
-      }
-
-      if (customInputs.floors && customInputs.floors !== '') {
-        const floors = parseInt(customInputs.floors.toString());
-        if (isNaN(floors) || floors < 1) {
-          Alert.alert('Thông báo', 'Số tầng phải là số nguyên dương (hoặc để trống)');
-          return;
-        }
-      }
-    }
-
-    // Validate quantity
     if (quantity < 1) {
       Alert.alert('Thông báo', 'Số lượng phải lớn hơn 0');
       return;
     }
 
-    // Update selected options
-    updateSelectedOptions();
+  const updatedOptions = buildSelectedOptions();
+    const normalizedQuantity = Math.max(1, quantity);
+    const derivedTotalPrice =
+      calculatedPrice?.totalPrice ?? currentSelectedService.basePrice * normalizedQuantity;
 
-    onNext(currentSelectedService, currentSelectedOptions, calculatedPrice?.totalPrice);
+    onNext(currentSelectedService, updatedOptions, derivedTotalPrice, normalizedQuantity);
   };
 
   const formatPrice = (price: number) => {
     return `${(price || 0).toLocaleString('vi-VN')}đ`;
   };
-
-  const renderCustomInputs = () => {
-    // Only show custom inputs if a service is selected and modal is visible
-    if (!currentSelectedService || !showOptionsModal) {
-      return null;
-    }
-
-    const isCleaningService = currentSelectedService?.name.toLowerCase().includes('dọn');
-
-    return (
-      <View style={styles.customInputsContainer}>
-        <Text style={styles.sectionTitle}>
-          {isCleaningService ? 'Thông tin nhà cần dọn (tùy chọn)' : 'Thông tin đặt dịch vụ (tùy chọn)'}
-        </Text>
-        <Text style={styles.sectionSubtitle}>
-          Bạn có thể bỏ qua phần này và chuyển sang bước tiếp theo
-        </Text>
-        
-        {/* Quantity Input */}
-        <View style={styles.inputRow}>
-          <Text style={styles.inputLabel}>Số lượng (mặc định: {quantity}):</Text>
-          <View style={styles.quantityContainer}>
-            <TouchableOpacity 
-              style={styles.quantityBtn}
-              onPress={() => setQuantity(Math.max(1, quantity - 1))}
-            >
-              <Ionicons name="remove" size={20} color={colors.highlight.teal} />
-            </TouchableOpacity>
-            <Text style={styles.quantityText}>{quantity}</Text>
-            <TouchableOpacity 
-              style={styles.quantityBtn}
-              onPress={() => setQuantity(quantity + 1)}
-            >
-              <Ionicons name="add" size={20} color={colors.highlight.teal} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Service-specific inputs based on service type */}
-        {currentSelectedService?.name.toLowerCase().includes('dọn') && (
-          <>
-            <View style={styles.inputRow}>
-              <Text style={styles.inputLabel}>Số phòng ngủ (tùy chọn):</Text>
-              <TextInput
-                style={styles.textInput}
-                value={customInputs.rooms?.toString() || ''}
-                onChangeText={(text) => setCustomInputs(prev => ({...prev, rooms: text}))}
-                placeholder="Ví dụ: 2 (không bắt buộc)"
-                keyboardType="numeric"
-              />
-            </View>
-
-            <View style={styles.inputRow}>
-              <Text style={styles.inputLabel}>Số phòng tắm (tùy chọn):</Text>
-              <TextInput
-                style={styles.textInput}
-                value={customInputs.bathrooms?.toString() || ''}
-                onChangeText={(text) => setCustomInputs(prev => ({...prev, bathrooms: text}))}
-                placeholder="Ví dụ: 1 (không bắt buộc)"
-                keyboardType="numeric"
-              />
-            </View>
-
-            <View style={styles.inputRow}>
-              <Text style={styles.inputLabel}>Diện tích (m²) - tùy chọn:</Text>
-              <TextInput
-                style={styles.textInput}
-                value={customInputs.area?.toString() || ''}
-                onChangeText={(text) => setCustomInputs(prev => ({...prev, area: text}))}
-                placeholder="Ví dụ: 50 (không bắt buộc)"
-                keyboardType="numeric"
-              />
-            </View>
-
-            <View style={styles.inputRow}>
-              <Text style={styles.inputLabel}>Số tầng (tùy chọn):</Text>
-              <TextInput
-                style={styles.textInput}
-                value={customInputs.floors?.toString() || ''}
-                onChangeText={(text) => setCustomInputs(prev => ({...prev, floors: text}))}
-                placeholder="Ví dụ: 1 (không bắt buộc)"
-                keyboardType="numeric"
-              />
-            </View>
-          </>
-        )}
-
-        {/* General note input */}
-        <View style={styles.inputRow}>
-          <Text style={styles.inputLabel}>Ghi chú (tùy chọn):</Text>
-          <TextInput
-            style={[styles.textInput, styles.noteInput]}
-            value={customInputs.note?.toString() || ''}
-            onChangeText={(text) => setCustomInputs(prev => ({...prev, note: text}))}
-            placeholder="Ghi chú thêm về dịch vụ (không bắt buộc)..."
-            multiline
-            numberOfLines={3}
-          />
-        </View>
-      </View>
-    );
-  };
-
-  const renderCategoryTabs = () => (
-    <View style={{ paddingHorizontal: responsiveSpacing.md, paddingVertical: responsiveSpacing.sm }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 4 }}>
-        <TouchableOpacity
-          style={[
-            commonStyles.secondaryButton,
-            { marginRight: responsiveSpacing.sm, paddingVertical: responsiveSpacing.sm, paddingHorizontal: responsiveSpacing.md },
-            !selectedCategory && { backgroundColor: colors.highlight.teal }
-          ]}
-          onPress={() => {
-            setSelectedCategory(null);
-            setServices(allServices);
-          }}
-        >
-          <Text style={[
-            commonStyles.secondaryButtonText,
-            { fontSize: responsiveFontSize.caption },
-            !selectedCategory && { color: colors.neutral.white }
-          ]}>
-            Tất cả
-          </Text>
-        </TouchableOpacity>
-        
-        {categories.map((category) => (
-          <TouchableOpacity
-            key={category.categoryId}
-            style={[
-              commonStyles.secondaryButton,
-              { marginRight: responsiveSpacing.sm, paddingVertical: responsiveSpacing.sm, paddingHorizontal: responsiveSpacing.md },
-              selectedCategory?.categoryId === category.categoryId && { backgroundColor: colors.highlight.teal }
-            ]}
-            onPress={() => handleCategorySelect(category)}
-          >
-            <Text style={[
-              commonStyles.secondaryButtonText,
-              { fontSize: responsiveFontSize.caption },
-              selectedCategory?.categoryId === category.categoryId && { color: colors.neutral.white }
-            ]}>
-              {category.categoryName}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
-  );
-
-  const renderServiceOptions = () => (
-    <Modal
-      visible={showOptionsModal}
-      animationType="slide"
-      presentationStyle="pageSheet"
-    >
-      <View style={commonStyles.container}>
-        <View style={commonStyles.header}>
-          <TouchableOpacity onPress={() => setShowOptionsModal(false)} style={commonStyles.backButton}>
-            <Ionicons name="close" size={24} color={colors.primary.navy} />
-          </TouchableOpacity>
-          <View style={commonStyles.headerContent}>
-            <Text style={commonStyles.headerTitle}>
-              {currentSelectedService?.name}
-            </Text>
-            <Text style={commonStyles.headerSubtitle}>Tùy chỉnh dịch vụ</Text>
-          </View>
-        </View>
-
-        <ScrollView style={styles.modalContent}>
-          {/* Service Info */}
-          <View style={styles.serviceInfoContainer}>
-            <Text style={styles.serviceDescription}>
-              {currentSelectedService?.description}
-            </Text>
-            <Text style={styles.servicePrice}>
-              Giá cơ bản: {currentSelectedService?.formattedPrice}
-            </Text>
-          </View>
-
-          {/* Service Options - Show first if available */}
-          {serviceOptions.length > 0 && (
-            <View style={styles.optionsContainer}>
-              <Text style={styles.sectionTitle}>Lựa chọn dịch vụ</Text>
-              <Text style={styles.sectionSubtitle}>Chọn các tùy chọn phù hợp với nhu cầu của bạn</Text>
-              {serviceOptions.map((option) => (
-                <View key={option.optionId} style={styles.optionGroup}>
-                  <Text style={styles.optionTitle}>
-                    {option.optionName}
-                    {option.isRequired && 
-                     option.optionType !== 'QUANTITY_INPUT' && 
-                     option.optionType !== 'MULTIPLE_CHOICE_CHECKBOX' && 
-                     <Text style={styles.required}> *</Text>}
-                    {(option.optionType === 'QUANTITY_INPUT' || option.optionType === 'MULTIPLE_CHOICE_CHECKBOX') && 
-                     <Text style={styles.optional}> (tùy chọn)</Text>}
-                  </Text>
-                  
-                  {option.optionType === 'QUANTITY_INPUT' ? (
-                    // Render input for quantity type
-                    <TextInput
-                      style={styles.textInput}
-                      value={customInputs[`option_${option.optionId}`]?.toString() || ''}
-                      onChangeText={(text) => setCustomInputs(prev => ({
-                        ...prev, 
-                        [`option_${option.optionId}`]: text
-                      }))}
-                      placeholder={option.isRequired ? "Nhập số lượng..." : "Nhập số lượng (tùy chọn)..."}
-                      keyboardType="numeric"
-                    />
-                  ) : (
-                    // Render choices for other types
-                    option.choices.map((choice: any) => {
-                      const isSelected = selectedChoices[option.optionId]?.includes(choice.choiceId) || false;
-                      const isMultiple = option.optionType === 'MULTIPLE_CHOICE_CHECKBOX';
-                      
-                      return (
-                        <TouchableOpacity
-                          key={choice.choiceId}
-                          style={[styles.choiceItem, isSelected && styles.choiceItemSelected]}
-                          onPress={() => handleChoiceChange(option.optionId, choice.choiceId, isMultiple)}
-                        >
-                          <View style={styles.choiceContent}>
-                            <View style={styles.choiceInfo}>
-                              <Text style={[styles.choiceText, isSelected && styles.choiceTextSelected]}>
-                                {choice.choiceName}
-                              </Text>
-                              {/* Remove individual choice pricing - API will calculate total price */}
-                            </View>
-                            <View style={[
-                              isMultiple ? styles.checkbox : styles.radio,
-                              isSelected && (isMultiple ? styles.checkboxSelected : styles.radioSelected)
-                            ]}>
-                              {isSelected && (
-                                <Ionicons 
-                                  name={isMultiple ? "checkmark" : "radio-button-on"} 
-                                  size={16} 
-                                  color="white" 
-                                />
-                              )}
-                            </View>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })
-                  )}
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Custom Inputs - Show after service options */}
-          {renderCustomInputs()}
-
-          {/* Price Summary */}
-          {calculatedPrice && (
-            <View style={styles.priceSummaryContainer}>
-              <Text style={styles.sectionTitle}>Tổng cộng</Text>
-              <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>Số lượng:</Text>
-                <Text style={styles.priceValue}>{quantity}</Text>
-              </View>
-              <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>Giá đơn vị:</Text>
-                <Text style={styles.priceValue}>{formatPrice(calculatedPrice.unitPrice)}</Text>
-              </View>
-              {calculatedPrice.totalPrice > calculatedPrice.unitPrice * quantity && (
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>Phụ thu:</Text>
-                  <Text style={styles.priceValue}>
-                    {formatPrice(calculatedPrice.totalPrice - (calculatedPrice.unitPrice * quantity))}
-                  </Text>
-                </View>
-              )}
-              <View style={[styles.priceRow, styles.totalPriceRow]}>
-                <Text style={styles.totalPriceLabel}>Tổng cộng:</Text>
-                <Text style={styles.totalPriceValue}>
-                  {calculatedPrice 
-                    ? formatPrice(calculatedPrice.totalPrice)
-                    : currentSelectedService?.formattedPrice}
-                </Text>
-              </View>
-            </View>
-          )}
-        </ScrollView>
-
-        <View style={commonStyles.buttonContainer}>
-          <TouchableOpacity
-            style={commonStyles.primaryButton}
-            onPress={handleConfirm}
-          >
-            <Text style={commonStyles.primaryButtonText}>Xác nhận</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-
-  const renderServices = () => (
-    <ScrollView style={commonStyles.scrollContainer}>
-      {loadingServices ? (
-        <View style={commonStyles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.highlight.teal} />
-          <Text style={commonStyles.loadingText}>Đang tải dịch vụ...</Text>
-        </View>
-      ) : (
-        services.map((service) => (
-          <TouchableOpacity
-            key={service.serviceId}
-            style={[
-              commonStyles.card,
-              currentSelectedService?.serviceId === service.serviceId && commonStyles.cardSelected
-            ]}
-            onPress={() => handleServiceSelect(service)}
-          >
-            <View style={commonStyles.cardHeader}>
-              <Image
-                source={{ uri: service.iconUrl || 'https://picsum.photos/60' }}
-                style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12 }}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={commonStyles.cardTitle}>{service.name}</Text>
-                <Text style={commonStyles.cardDescription} numberOfLines={2}>
-                  {service.description}
-                </Text>
-                <View style={[commonStyles.flexRowBetween, { marginTop: 8 }]}>
-                  <Text style={commonStyles.cardPrice}>
-                    {service.formattedPrice}/{service.unit}
-                  </Text>
-                  <Text style={commonStyles.cardSubtitle}>
-                    ~{service.estimatedDurationHours}h
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))
-      )}
-    </ScrollView>
-  );
 
   if (loading) {
     return (
@@ -751,39 +415,295 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
   }
 
   return (
-    <View style={commonStyles.container}>
-      <View style={commonStyles.header}>
-        <TouchableOpacity onPress={onClose} style={commonStyles.backButton}>
+    <View style={styles.container}>
+      {/* Modern Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onClose} style={styles.backButton}>
           <Ionicons name="close" size={24} color={colors.primary.navy} />
         </TouchableOpacity>
-        <View style={commonStyles.headerContent}>
-          <Text style={commonStyles.headerTitle}>Chọn dịch vụ</Text>
-          <Text style={commonStyles.headerSubtitle}>Lựa chọn dịch vụ phù hợp</Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Chọn dịch vụ</Text>
+          <Text style={styles.headerSubtitle}>Khám phá dịch vụ hoàn hảo cho bạn</Text>
         </View>
       </View>
 
-      {/* Search */}
-      <View style={[commonStyles.section, { marginHorizontal: responsiveSpacing.md, marginVertical: responsiveSpacing.sm }]}>
-        <View style={[commonStyles.flexRow, { paddingHorizontal: responsiveSpacing.md, paddingVertical: responsiveSpacing.sm, backgroundColor: colors.neutral.background, borderRadius: responsive.moderateScale(8) }]}>
-          <Ionicons name="search" size={20} color={colors.neutral.textSecondary} style={{ marginRight: responsiveSpacing.sm }} />
+      {/* Smart Search */}
+      <Animated.View style={[styles.searchSection, { opacity: fadeAnim }]}>
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={colors.neutral.textSecondary} />
           <TextInput
-            style={[commonStyles.input, { flex: 1, borderWidth: 0, padding: 0, backgroundColor: 'transparent' }]}
+            style={styles.searchInput}
             placeholder="Tìm kiếm dịch vụ..."
             value={searchText}
             onChangeText={setSearchText}
             placeholderTextColor={colors.neutral.textSecondary}
           />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchText('')}>
+              <Ionicons name="close-circle" size={20} color={colors.neutral.textSecondary} />
+            </TouchableOpacity>
+          )}
         </View>
+      </Animated.View>
+
+      {/* Modern Category Tabs */}
+      <View style={styles.categorySection}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScrollContent}>
+          <TouchableOpacity
+            style={[styles.categoryTab, !selectedCategory && styles.categoryTabActive]}
+            onPress={() => {
+              setSelectedCategory(null);
+              setServices(allServices);
+            }}
+          >
+            <Ionicons name="apps" size={18} color={!selectedCategory ? colors.neutral.white : colors.neutral.textSecondary} />
+            <Text style={[styles.categoryTabText, !selectedCategory && styles.categoryTabTextActive]}>
+              Tất cả
+            </Text>
+          </TouchableOpacity>
+          
+          {categories.map((category) => (
+            <TouchableOpacity
+              key={category.categoryId}
+              style={[styles.categoryTab, selectedCategory?.categoryId === category.categoryId && styles.categoryTabActive]}
+              onPress={() => handleCategorySelect(category)}
+            >
+              <Text style={[styles.categoryTabText, selectedCategory?.categoryId === category.categoryId && styles.categoryTabTextActive]}>
+                {category.categoryName}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
-      {/* Categories */}
-      {renderCategoryTabs()}
+      {/* Modern Service Grid */}
+      <Animated.ScrollView 
+        style={styles.servicesContainer}
+        contentContainerStyle={styles.servicesContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {loadingServices ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.highlight.teal} />
+            <Text style={styles.loadingText}>Đang tải dịch vụ...</Text>
+          </View>
+        ) : services.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="briefcase-outline" size={64} color={colors.neutral.border} />
+            <Text style={styles.emptyTitle}>Hiện chưa có dịch vụ nào</Text>
+            <Text style={styles.emptySubtitle}>
+              {searchText ? 'Thử tìm kiếm với từ khóa khác' : 'Vui lòng quay lại sau'}
+            </Text>
+          </View>
+        ) : (
+          services.map((service, index) => {
+            const isSelected = currentSelectedService?.serviceId === service.serviceId;
+            return (
+              <Animated.View
+                key={service.serviceId}
+                style={{
+                  opacity: fadeAnim,
+                  transform: [{ scale: scaleAnim }],
+                }}
+              >
+                <TouchableOpacity
+                  style={[styles.serviceCard, isSelected && styles.serviceCardSelected]}
+                  onPress={() => handleServiceSelect(service)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.serviceCardHeader}>
+                    <View style={styles.serviceIconWrapper}>
+                      <Image
+                        source={{ uri: service.iconUrl || 'https://picsum.photos/60' }}
+                        style={styles.serviceIcon}
+                      />
+                      {service.recommendedStaff > 1 && (
+                        <View style={styles.staffBadge}>
+                          <Ionicons name="people" size={10} color={colors.neutral.white} />
+                          <Text style={styles.staffBadgeText}>{service.recommendedStaff}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.serviceInfo}>
+                      <Text style={styles.serviceName} numberOfLines={1}>
+                        {service.name}
+                      </Text>
+                      <Text style={styles.serviceCategory}>{service.categoryName}</Text>
+                      <Text style={styles.serviceDescription} numberOfLines={2}>
+                        {service.description}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.serviceFooter}>
+                    <View style={styles.priceContainer}>
+                      <Text style={styles.priceLabel}>Từ</Text>
+                      <Text style={styles.servicePrice}>{service.formattedPrice}</Text>
+                    </View>
+                    <View style={styles.durationContainer}>
+                      <Ionicons name="time-outline" size={14} color={colors.neutral.textSecondary} />
+                      <Text style={styles.serviceDuration}>~{service.estimatedDurationHours}h</Text>
+                    </View>
+                  </View>
 
-      {/* Services */}
-      {renderServices()}
+                  {isSelected && (
+                    <View style={styles.selectedBadge}>
+                      <Ionicons name="checkmark-circle" size={24} color={colors.highlight.teal} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
+            );
+          })
+        )}
+      </Animated.ScrollView>
 
-      {/* Service Options Modal */}
-      {renderServiceOptions()}
+      {/* Service Options Modal - Will be designed next */}
+      {showOptionsModal && currentSelectedService && (
+        <Modal
+          visible={showOptionsModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <View style={styles.modalContainer}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setShowOptionsModal(false)} style={styles.modalCloseButton}>
+                <Ionicons name="close" size={24} color={colors.primary.navy} />
+              </TouchableOpacity>
+              <View style={styles.modalHeaderContent}>
+                <Text style={styles.modalTitle} numberOfLines={1}>
+                  {currentSelectedService.name}
+                </Text>
+                <Text style={styles.modalSubtitle}>Tùy chỉnh dịch vụ của bạn</Text>
+              </View>
+            </View>
+
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              {/* Service Info Card */}
+              <View style={styles.serviceInfoCard}>
+                <Image
+                  source={{ uri: currentSelectedService.iconUrl || 'https://picsum.photos/120' }}
+                  style={styles.modalServiceIcon}
+                />
+                <Text style={styles.modalServiceDescription}>
+                  {currentSelectedService.description}
+                </Text>
+                <View style={styles.serviceMetrics}>
+                  <View style={styles.metricItem}>
+                    <Ionicons name="cash-outline" size={20} color={colors.highlight.teal} />
+                    <Text style={styles.metricLabel}>Giá cơ bản</Text>
+                    <Text style={styles.metricValue}>{currentSelectedService.formattedPrice}</Text>
+                  </View>
+                  <View style={styles.metricDivider} />
+                  <View style={styles.metricItem}>
+                    <Ionicons name="time-outline" size={20} color={colors.highlight.teal} />
+                    <Text style={styles.metricLabel}>Thời gian</Text>
+                    <Text style={styles.metricValue}>~{currentSelectedService.estimatedDurationHours}h</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Service Options */}
+              {serviceOptions.length > 0 && (
+                <View style={styles.optionsSection}>
+                  <Text style={styles.sectionTitle}>Tùy chọn dịch vụ</Text>
+                  {serviceOptions.map((option) => (
+                    <View key={option.optionId} style={styles.optionGroup}>
+                      <Text style={styles.optionTitle}>
+                        {option.optionName}
+                        {option.isRequired && option.optionType !== 'QUANTITY_INPUT' && option.optionType !== 'MULTIPLE_CHOICE_CHECKBOX' && (
+                          <Text style={styles.required}> *</Text>
+                        )}
+                      </Text>
+                      
+                      {option.choices.map((choice: any) => {
+                        const isSelected = selectedChoices[option.optionId]?.includes(choice.choiceId) || false;
+                        const isMultiple = option.optionType === 'MULTIPLE_CHOICE_CHECKBOX';
+                        
+                        return (
+                          <TouchableOpacity
+                            key={choice.choiceId}
+                            style={[styles.choiceCard, isSelected && styles.choiceCardSelected]}
+                            onPress={() => handleChoiceChange(option.optionId, choice.choiceId, isMultiple)}
+                            activeOpacity={0.7}
+                          >
+                            <View style={styles.choiceContent}>
+                              <Text style={[styles.choiceText, isSelected && styles.choiceTextSelected]}>
+                                {choice.choiceName}
+                              </Text>
+                              <View style={[isMultiple ? styles.checkbox : styles.radio, isSelected && styles.checkboxSelected]}>
+                                {isSelected && (
+                                  <Ionicons 
+                                    name={isMultiple ? "checkmark" : "ellipse"} 
+                                    size={isMultiple ? 16 : 12} 
+                                    color={colors.neutral.white} 
+                                  />
+                                )}
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Quantity Section */}
+              <View style={styles.quantitySection}>
+                <Text style={styles.sectionTitle}>Số lượng</Text>
+                <View style={styles.quantityControl}>
+                  <TouchableOpacity 
+                    style={[styles.quantityButton, quantity === 1 && styles.quantityButtonDisabled]}
+                    onPress={() => setQuantity(Math.max(1, quantity - 1))}
+                    disabled={quantity === 1}
+                  >
+                    <Ionicons name="remove" size={24} color={quantity === 1 ? colors.neutral.border : colors.highlight.teal} />
+                  </TouchableOpacity>
+                  <View style={styles.quantityDisplay}>
+                    <Text style={styles.quantityText}>{quantity}</Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.quantityButton}
+                    onPress={() => setQuantity(quantity + 1)}
+                  >
+                    <Ionicons name="add" size={24} color={colors.highlight.teal} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Price Summary */}
+              {calculatedPrice && (
+                <View style={styles.priceSummary}>
+                  <Text style={styles.sectionTitle}>Tổng cộng</Text>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Giá đơn vị</Text>
+                    <Text style={styles.summaryValue}>{formatPrice(calculatedPrice.unitPrice)}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Số lượng</Text>
+                    <Text style={styles.summaryValue}>x{quantity}</Text>
+                  </View>
+                  <View style={styles.summaryDivider} />
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>Tổng cộng</Text>
+                    <Text style={styles.totalValue}>{formatPrice(calculatedPrice.totalPrice)}</Text>
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Modal Footer */}
+            <View style={styles.modalFooter}>
+              <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
+                <Text style={styles.confirmButtonText}>Tiếp tục</Text>
+                <Ionicons name="arrow-forward" size={20} color={colors.neutral.white} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 };
@@ -800,38 +720,67 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.background,
   },
   loadingText: {
-    marginTop: responsiveSpacing.sm,
+    marginTop: responsiveSpacing.md,
     fontSize: responsiveFontSize.body,
     color: colors.neutral.textSecondary,
   },
+  
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: responsiveSpacing.md,
-    paddingVertical: responsiveSpacing.sm,
+    paddingVertical: responsiveSpacing.md,
     backgroundColor: colors.warm.beige,
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.border,
   },
-  closeButton: {
-    padding: 4,
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.neutral.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: responsiveSpacing.sm,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  headerContent: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: responsiveFontSize.heading3,
-    fontWeight: '600',
+    fontSize: responsiveFontSize.heading2,
+    fontWeight: '700',
     color: colors.primary.navy,
+  },
+  headerSubtitle: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
+    marginTop: 2,
+  },
+
+  // Search
+  searchSection: {
+    paddingHorizontal: responsiveSpacing.md,
+    paddingVertical: responsiveSpacing.sm,
+    backgroundColor: colors.warm.beige,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: responsiveSpacing.md,
-    paddingHorizontal: responsiveSpacing.sm,
+    paddingHorizontal: responsiveSpacing.md,
     paddingVertical: responsiveSpacing.sm,
     backgroundColor: colors.neutral.white,
-    borderRadius: responsive.moderateScale(8),
-    borderWidth: 1,
-    borderColor: colors.neutral.border,
+    borderRadius: 12,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   searchInput: {
     flex: 1,
@@ -839,90 +788,183 @@ const styles = StyleSheet.create({
     fontSize: responsiveFontSize.body,
     color: colors.neutral.textPrimary,
   },
-  categoryContainer: {
+
+  // Categories
+  categorySection: {
     paddingVertical: responsiveSpacing.sm,
     backgroundColor: colors.neutral.white,
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.border,
   },
+  categoryScrollContent: {
+    paddingHorizontal: responsiveSpacing.md,
+  },
   categoryTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: responsiveSpacing.md,
     paddingVertical: responsiveSpacing.sm,
-    marginHorizontal: 4,
-    borderRadius: responsive.moderateScale(20),
+    marginRight: responsiveSpacing.sm,
+    borderRadius: 20,
     backgroundColor: colors.neutral.background,
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
   },
   categoryTabActive: {
     backgroundColor: colors.highlight.teal,
+    borderColor: colors.highlight.teal,
   },
   categoryTabText: {
     fontSize: responsiveFontSize.caption,
     color: colors.neutral.textSecondary,
+    fontWeight: '500',
+    marginLeft: 4,
   },
   categoryTabTextActive: {
     color: colors.neutral.white,
-    fontWeight: '500',
   },
+
+  // Services
   servicesContainer: {
     flex: 1,
-    padding: responsiveSpacing.md,
+    backgroundColor: '#F5F5F5',
   },
-  loader: {
-    marginTop: responsiveSpacing.xxl,
+  servicesContent: {
+    padding: responsiveSpacing.md,
+    flexGrow: 1,
+  },
+  emptyContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: responsiveSpacing.xxl * 2,
+    minHeight: 400,
+  },
+  emptyTitle: {
+    fontSize: responsiveFontSize.heading3,
+    fontWeight: '600',
+    color: colors.neutral.textSecondary,
+    marginTop: responsiveSpacing.md,
+  },
+  emptySubtitle: {
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textSecondary,
+    marginTop: responsiveSpacing.xs,
   },
   serviceCard: {
-    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: responsiveSpacing.md,
-    backgroundColor: colors.neutral.white,
-    borderRadius: responsive.moderateScale(12),
-    marginBottom: responsiveSpacing.sm,
-    borderWidth: 1,
-    borderColor: colors.neutral.border,
-    shadowColor: colors.primary.navy,
-    shadowOffset: { width: 0, height: responsive.moderateScale(2) },
-    shadowOpacity: 0.08,
-    shadowRadius: responsive.moderateScale(8),
-    elevation: 2,
+    marginBottom: responsiveSpacing.md,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+    position: 'relative',
   },
   serviceCardSelected: {
+    borderWidth: 3,
     borderColor: colors.highlight.teal,
-    backgroundColor: colors.warm.beige,
+    backgroundColor: '#E0F2F1',
+    shadowOpacity: 0.2,
+    elevation: 8,
   },
-  serviceIcon: {
-    width: responsive.moderateScale(60),
-    height: responsive.moderateScale(60),
-    borderRadius: responsive.moderateScale(8),
+  serviceCardHeader: {
+    flexDirection: 'row',
+    marginBottom: responsiveSpacing.sm,
+  },
+  serviceIconWrapper: {
+    position: 'relative',
     marginRight: responsiveSpacing.sm,
   },
-  serviceContent: {
+  serviceIcon: {
+    width: 70,
+    height: 70,
+    borderRadius: 12,
+    backgroundColor: colors.warm.beige,
+  },
+  staffBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: colors.highlight.teal,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  staffBadgeText: {
+    fontSize: 10,
+    color: colors.neutral.white,
+    fontWeight: '700',
+    marginLeft: 2,
+  },
+  serviceInfo: {
     flex: 1,
   },
   serviceName: {
     fontSize: responsiveFontSize.body,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.primary.navy,
+    marginBottom: 2,
+  },
+  serviceCategory: {
+    fontSize: responsiveFontSize.caption - 2,
+    color: colors.highlight.teal,
+    fontWeight: '500',
     marginBottom: 4,
   },
   serviceDescription: {
     fontSize: responsiveFontSize.caption,
     color: colors.neutral.textSecondary,
-    marginBottom: responsiveSpacing.sm,
     lineHeight: responsiveFontSize.caption * 1.4,
   },
   serviceFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: responsiveSpacing.sm,
+    paddingTop: responsiveSpacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.neutral.border,
   },
-  servicePrice: {
-    fontSize: responsiveFontSize.body,
-    fontWeight: '600',
-    color: colors.highlight.teal,
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
   },
-  serviceDuration: {
+  priceLabel: {
     fontSize: responsiveFontSize.caption - 2,
     color: colors.neutral.textSecondary,
+    marginRight: 4,
   },
+  servicePrice: {
+    fontSize: responsiveFontSize.heading3,
+    fontWeight: '700',
+    color: colors.highlight.teal,
+  },
+  durationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.neutral.background,
+    paddingHorizontal: responsiveSpacing.sm,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  serviceDuration: {
+    fontSize: responsiveFontSize.caption - 1,
+    color: colors.neutral.textSecondary,
+    marginLeft: 4,
+  },
+  selectedBadge: {
+    position: 'absolute',
+    top: responsiveSpacing.sm,
+    right: responsiveSpacing.sm,
+  },
+
+  // Modal
   modalContainer: {
     flex: 1,
     backgroundColor: colors.neutral.background,
@@ -930,119 +972,108 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: responsiveSpacing.md,
-    paddingVertical: responsiveSpacing.sm,
+    paddingVertical: responsiveSpacing.md,
     backgroundColor: colors.warm.beige,
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.border,
   },
-  modalTitle: {
-    fontSize: responsiveFontSize.heading3,
-    fontWeight: '600',
-    color: colors.primary.navy,
+  modalCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.neutral.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: responsiveSpacing.sm,
+  },
+  modalHeaderContent: {
     flex: 1,
-    textAlign: 'center',
+  },
+  modalTitle: {
+    fontSize: responsiveFontSize.heading2,
+    fontWeight: '700',
+    color: colors.primary.navy,
+  },
+  modalSubtitle: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
+    marginTop: 2,
   },
   modalContent: {
     flex: 1,
     padding: responsiveSpacing.md,
   },
-  serviceInfoContainer: {
-    padding: responsiveSpacing.md,
+  serviceInfoCard: {
     backgroundColor: colors.neutral.white,
-    borderRadius: responsive.moderateScale(12),
+    borderRadius: 16,
+    padding: responsiveSpacing.lg,
     marginBottom: responsiveSpacing.md,
+    alignItems: 'center',
     shadowColor: colors.primary.navy,
-    shadowOffset: { width: 0, height: responsive.moderateScale(2) },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
-    shadowRadius: responsive.moderateScale(8),
-    elevation: 2,
+    shadowRadius: 12,
+    elevation: 3,
   },
-  customInputsContainer: {
-    backgroundColor: colors.neutral.white,
-    borderRadius: responsive.moderateScale(12),
-    padding: responsiveSpacing.md,
+  modalServiceIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 16,
     marginBottom: responsiveSpacing.md,
-    shadowColor: colors.primary.navy,
-    shadowOffset: { width: 0, height: responsive.moderateScale(2) },
-    shadowOpacity: 0.08,
-    shadowRadius: responsive.moderateScale(8),
-    elevation: 2,
   },
-  sectionTitle: {
+  modalServiceDescription: {
     fontSize: responsiveFontSize.body,
-    fontWeight: '600',
-    color: colors.primary.navy,
-    marginBottom: responsiveSpacing.sm,
+    color: colors.neutral.textSecondary,
+    textAlign: 'center',
+    marginBottom: responsiveSpacing.md,
+    lineHeight: responsiveFontSize.body * 1.5,
   },
-  sectionSubtitle: {
+  serviceMetrics: {
+    flexDirection: 'row',
+    width: '100%',
+  },
+  metricItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  metricDivider: {
+    width: 1,
+    backgroundColor: colors.neutral.border,
+    marginHorizontal: responsiveSpacing.sm,
+  },
+  metricLabel: {
     fontSize: responsiveFontSize.caption - 1,
     color: colors.neutral.textSecondary,
-    marginBottom: responsiveSpacing.md,
-    fontStyle: 'italic',
+    marginTop: 4,
   },
-  inputRow: {
+  metricValue: {
+    fontSize: responsiveFontSize.body,
+    fontWeight: '700',
+    color: colors.primary.navy,
+    marginTop: 2,
+  },
+
+  // Options
+  optionsSection: {
     marginBottom: responsiveSpacing.md,
   },
-  inputLabel: {
-    fontSize: responsiveFontSize.caption,
-    fontWeight: '500',
+  sectionTitle: {
+    fontSize: responsiveFontSize.heading3,
+    fontWeight: '700',
     color: colors.primary.navy,
     marginBottom: responsiveSpacing.sm,
   },
-  quantityContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.neutral.background,
-    borderRadius: responsive.moderateScale(8),
-    padding: 4,
-  },
-  quantityBtn: {
-    width: responsive.moderateScale(40),
-    height: responsive.moderateScale(40),
-    justifyContent: 'center',
-    alignItems: 'center',
+  optionGroup: {
     backgroundColor: colors.neutral.white,
-    borderRadius: responsive.moderateScale(6),
-    borderWidth: 1,
-    borderColor: colors.neutral.border,
-  },
-  quantityText: {
-    fontSize: responsiveFontSize.heading3,
-    fontWeight: '600',
-    color: colors.primary.navy,
-    marginHorizontal: responsiveSpacing.md,
-    minWidth: responsive.moderateScale(30),
-    textAlign: 'center',
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: colors.neutral.border,
-    borderRadius: responsive.moderateScale(8),
-    padding: responsiveSpacing.sm,
-    fontSize: responsiveFontSize.body,
-    color: colors.neutral.textPrimary,
-    backgroundColor: colors.neutral.background,
-  },
-  noteInput: {
-    height: responsive.moderateScale(80),
-    textAlignVertical: 'top',
-  },
-  optionsContainer: {
-    backgroundColor: colors.neutral.white,
-    borderRadius: responsive.moderateScale(12),
+    borderRadius: 16,
     padding: responsiveSpacing.md,
     marginBottom: responsiveSpacing.md,
     shadowColor: colors.primary.navy,
-    shadowOffset: { width: 0, height: responsive.moderateScale(2) },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
-    shadowRadius: responsive.moderateScale(8),
+    shadowRadius: 8,
     elevation: 2,
-  },
-  optionGroup: {
-    marginBottom: responsiveSpacing.md,
   },
   optionTitle: {
     fontSize: responsiveFontSize.body,
@@ -1053,20 +1084,15 @@ const styles = StyleSheet.create({
   required: {
     color: colors.feedback.error,
   },
-  optional: {
-    color: colors.neutral.textSecondary,
-    fontStyle: 'italic',
-    fontSize: responsiveFontSize.caption,
-  },
-  choiceItem: {
-    padding: responsiveSpacing.sm,
-    borderRadius: responsive.moderateScale(8),
-    borderWidth: 1,
+  choiceCard: {
+    borderRadius: 12,
+    borderWidth: 2,
     borderColor: colors.neutral.border,
-    marginBottom: responsiveSpacing.sm,
     backgroundColor: colors.neutral.background,
+    marginBottom: responsiveSpacing.sm,
+    overflow: 'hidden',
   },
-  choiceItemSelected: {
+  choiceCardSelected: {
     borderColor: colors.highlight.teal,
     backgroundColor: colors.warm.beige,
   },
@@ -1074,27 +1100,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  choiceInfo: {
-    flex: 1,
+    padding: responsiveSpacing.sm,
   },
   choiceText: {
-    fontSize: responsiveFontSize.caption,
+    fontSize: responsiveFontSize.body,
     color: colors.neutral.textPrimary,
+    flex: 1,
   },
   choiceTextSelected: {
     color: colors.highlight.teal,
-    fontWeight: '500',
-  },
-  choicePrice: {
-    fontSize: responsiveFontSize.caption - 2,
-    color: colors.neutral.textSecondary,
-    marginTop: 2,
+    fontWeight: '600',
   },
   checkbox: {
-    width: responsive.moderateScale(20),
-    height: responsive.moderateScale(20),
-    borderRadius: responsive.moderateScale(4),
+    width: 24,
+    height: 24,
+    borderRadius: 6,
     borderWidth: 2,
     borderColor: colors.neutral.border,
     backgroundColor: colors.neutral.white,
@@ -1106,65 +1126,130 @@ const styles = StyleSheet.create({
     backgroundColor: colors.highlight.teal,
   },
   radio: {
-    width: responsive.moderateScale(20),
-    height: responsive.moderateScale(20),
-    borderRadius: responsive.moderateScale(10),
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: colors.neutral.border,
     backgroundColor: colors.neutral.white,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  radioSelected: {
-    borderColor: colors.highlight.teal,
-    backgroundColor: colors.highlight.teal,
-  },
-  priceSummaryContainer: {
+
+  // Quantity
+  quantitySection: {
     backgroundColor: colors.neutral.white,
-    borderRadius: responsive.moderateScale(12),
+    borderRadius: 16,
     padding: responsiveSpacing.md,
     marginBottom: responsiveSpacing.md,
     shadowColor: colors.primary.navy,
-    shadowOffset: { width: 0, height: responsive.moderateScale(2) },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
-    shadowRadius: responsive.moderateScale(8),
+    shadowRadius: 8,
     elevation: 2,
   },
-  priceRow: {
+  quantityControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quantityButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: colors.warm.beige,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.highlight.teal,
+  },
+  quantityButtonDisabled: {
+    backgroundColor: colors.neutral.background,
+    borderColor: colors.neutral.border,
+  },
+  quantityDisplay: {
+    marginHorizontal: responsiveSpacing.xl,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  quantityText: {
+    fontSize: responsiveFontSize.heading1,
+    fontWeight: '700',
+    color: colors.primary.navy,
+  },
+
+  // Price Summary
+  priceSummary: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 16,
+    padding: responsiveSpacing.md,
+    marginBottom: responsiveSpacing.md,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: responsiveSpacing.sm,
   },
-  priceLabel: {
-    fontSize: responsiveFontSize.caption,
+  summaryLabel: {
+    fontSize: responsiveFontSize.body,
     color: colors.neutral.textSecondary,
   },
-  priceValue: {
-    fontSize: responsiveFontSize.caption,
-    color: colors.neutral.textPrimary,
-  },
-  totalPriceRow: {
-    borderTopWidth: 1,
-    borderTopColor: colors.neutral.border,
-    paddingTop: responsiveSpacing.sm,
-    marginTop: responsiveSpacing.sm,
-    marginBottom: 0,
-  },
-  totalPriceLabel: {
+  summaryValue: {
     fontSize: responsiveFontSize.body,
     fontWeight: '600',
+    color: colors.neutral.textPrimary,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: colors.neutral.border,
+    marginVertical: responsiveSpacing.sm,
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalLabel: {
+    fontSize: responsiveFontSize.heading3,
+    fontWeight: '700',
     color: colors.primary.navy,
   },
-  totalPriceValue: {
-    fontSize: responsiveFontSize.heading3,
+  totalValue: {
+    fontSize: responsiveFontSize.heading2,
     fontWeight: '700',
     color: colors.highlight.teal,
   },
+
+  // Modal Footer
   modalFooter: {
     padding: responsiveSpacing.md,
     backgroundColor: colors.neutral.white,
     borderTopWidth: 1,
     borderTopColor: colors.neutral.border,
+  },
+  confirmButton: {
+    flexDirection: 'row',
+    backgroundColor: colors.highlight.teal,
+    paddingVertical: responsiveSpacing.md,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.highlight.teal,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  confirmButtonText: {
+    color: colors.neutral.white,
+    fontSize: responsiveFontSize.body,
+    fontWeight: '700',
+    marginRight: responsiveSpacing.sm,
   },
 });

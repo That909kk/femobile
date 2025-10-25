@@ -2,20 +2,17 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  TextInput,
   Platform,
   StatusBar,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
-import { Button } from '../../../../components';
 import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../../styles';
-import { serviceService, type Service, type Employee } from '../../../../services';
+import { type Service } from '../../../../services';
 import { type LocationData } from './types';
 import { commonStyles } from './styles';
 
@@ -48,6 +45,9 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
 }) => {
   // Alias for backwards compatibility
   const selectedAddress = selectedLocation;
+
+  const accentColor = colors.highlight.teal;
+  const warningColor = colors.feedback.warning;
 
   const [loading, setLoading] = useState(false);
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
@@ -258,7 +258,7 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
       {/* Header */}
       <View style={commonStyles.header}>
         <TouchableOpacity onPress={onBack} style={commonStyles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={colors.primary.navy} />
         </TouchableOpacity>
         <View style={commonStyles.headerContent}>
           <Text style={commonStyles.headerTitle}>Chọn thời gian</Text>
@@ -318,21 +318,30 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
                       paddingVertical: 12
                     },
                     isSelected && commonStyles.cardSelected,
-                    isToday && { borderColor: '#FFA500', borderWidth: 2 }
+                    isToday && { borderColor: warningColor, borderWidth: 2 }
                   ]}
                   onPress={() => handleDateCardSelect(dateValue)}
                 >
                   <Text style={[
-                    { fontSize: 12, color: '#666', fontWeight: '500' },
-                    isToday && { color: '#FFA500' },
-                    isSelected && { color: '#007AFF' }
+                    {
+                      fontSize: 12,
+                      color: colors.neutral.textSecondary,
+                      fontWeight: '500',
+                    },
+                    isToday && { color: warningColor },
+                    isSelected && { color: accentColor }
                   ]}>
                     {formatDate(date)}
                   </Text>
                   <Text style={[
-                    { fontSize: 20, fontWeight: '700', color: '#333', marginTop: 4 },
-                    isToday && { color: '#FFA500' },
-                    isSelected && { color: '#007AFF' }
+                    {
+                      fontSize: 20,
+                      fontWeight: '700',
+                      color: colors.primary.navy,
+                      marginTop: 4,
+                    },
+                    isToday && { color: warningColor },
+                    isSelected && { color: accentColor }
                   ]}>
                     {date.getDate()}
                   </Text>
@@ -344,22 +353,22 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
           {/* Custom Date Picker */}
           <View style={{ marginTop: 16 }}>
             <Text style={[commonStyles.cardDescription, { marginBottom: 8 }]}>Hoặc chọn ngày khác:</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[commonStyles.secondaryButton, commonStyles.flexRow, { justifyContent: 'center' }]}
               onPress={openDatePicker}
             >
-              <Ionicons name="calendar-outline" size={20} color="#007AFF" />
+              <Ionicons name="calendar-outline" size={20} color={accentColor} />
               <Text style={[commonStyles.secondaryButtonText, { marginLeft: 8 }]}>Chọn ngày từ lịch</Text>
             </TouchableOpacity>
             
             {/* Display selected date */}
             {selectedPickerDate && (
-              <Text style={[commonStyles.cardDescription, { textAlign: 'center', marginTop: 8, color: '#007AFF', fontWeight: '600' }]}>
+              <Text style={[commonStyles.cardDescription, { textAlign: 'center', marginTop: 8, color: accentColor, fontWeight: '600' }]}>
                 Đã chọn: {formatDisplayDate(selectedPickerDate)}
               </Text>
             )}
             {selectedDate && !selectedPickerDate && (
-              <Text style={[commonStyles.cardDescription, { textAlign: 'center', marginTop: 8, color: '#007AFF', fontWeight: '600' }]}>
+              <Text style={[commonStyles.cardDescription, { textAlign: 'center', marginTop: 8, color: accentColor, fontWeight: '600' }]}>
                 Ngày đã chọn: {selectedDate.split('-').reverse().join('/')}
               </Text>
             )}
@@ -419,8 +428,8 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
                     <Text style={[
                       commonStyles.cardTitle,
                       { fontSize: 16 },
-                      isSelected && { color: '#007AFF' },
-                      !isValidTime && { color: '#999' }
+                      isSelected && { color: accentColor },
+                      !isValidTime && { color: colors.neutral.label }
                     ]}>
                       {time}
                     </Text>
@@ -432,22 +441,22 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
             {/* Custom Time Picker */}
             <View style={{ marginTop: 16 }}>
               <Text style={[commonStyles.cardDescription, { marginBottom: 8 }]}>Hoặc chọn giờ khác:</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[commonStyles.secondaryButton, commonStyles.flexRow, { justifyContent: 'center' }]}
                 onPress={openTimePicker}
               >
-                <Ionicons name="time-outline" size={20} color="#007AFF" />
+                <Ionicons name="time-outline" size={20} color={accentColor} />
                 <Text style={[commonStyles.secondaryButtonText, { marginLeft: 8 }]}>Chọn giờ từ đồng hồ</Text>
               </TouchableOpacity>
               
               {/* Display selected time */}
               {selectedPickerTime && (
-                <Text style={[commonStyles.cardDescription, { textAlign: 'center', marginTop: 8, color: '#007AFF', fontWeight: '600' }]}>
+                <Text style={[commonStyles.cardDescription, { textAlign: 'center', marginTop: 8, color: accentColor, fontWeight: '600' }]}>
                   Đã chọn: {selectedPickerTime}
                 </Text>
               )}
               {selectedTime && !selectedPickerTime && (
-                <Text style={[commonStyles.cardDescription, { textAlign: 'center', marginTop: 8, color: '#007AFF', fontWeight: '600' }]}>
+                <Text style={[commonStyles.cardDescription, { textAlign: 'center', marginTop: 8, color: accentColor, fontWeight: '600' }]}>
                   Giờ đã chọn: {selectedTime}
                 </Text>
               )}
@@ -481,11 +490,16 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
           disabled={!selectedDate || !selectedTime || loading}
         >
           {loading ? (
-            <ActivityIndicator size="small" color="#FFF" />
+            <ActivityIndicator size="small" color={colors.neutral.white} />
           ) : (
             <>
               <Text style={commonStyles.primaryButtonText}>Tiếp tục</Text>
-              <Ionicons name="arrow-forward" size={20} color="#FFF" style={{ marginLeft: 8 }} />
+              <Ionicons
+                name="arrow-forward"
+                size={20}
+                color={colors.neutral.white}
+                style={{ marginLeft: 8 }}
+              />
             </>
           )}
         </TouchableOpacity>
@@ -494,6 +508,3 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  // Giữ lại một số styles đặc biệt cho TimeSelection nếu cần
-});

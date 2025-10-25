@@ -8,11 +8,10 @@ import { BookingConfirmation } from './BookingConfirmation';
 import { BookingSuccess } from './BookingSuccess';
 import { ProgressIndicator } from './ProgressIndicator';
 import { type LocationData, type SelectedOption } from './types';
-import { 
-  bookingService, 
-  serviceService,
-  type Service, 
-  type Address, 
+import {
+  bookingService,
+  type Service,
+  type PaymentMethod,
   type Employee
 } from '../../../../services';
 import { type BookingRequest, type BookingResponse } from '../../../../types/booking';
@@ -48,17 +47,19 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
   // Booking data
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<SelectedOption[]>([]);
+  const [selectedQuantity, setSelectedQuantity] = useState<number>(1);
   const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [totalPrice, setTotalPrice] = useState<number>(0);
-  const [bookingResult, setBookingResult] = useState<any>(null);
+  const [bookingResult, setBookingResult] = useState<BookingResponse | null>(null);
   const [preloadedDefaultAddress, setPreloadedDefaultAddress] = useState<LocationData | null>(null);
   
   // New states for API integration
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(null);
-  const [availablePaymentMethods, setAvailablePaymentMethods] = useState<any[]>([]);
+  const [availablePaymentMethods, setAvailablePaymentMethods] = useState<PaymentMethod[]>([]);
   const [bookingNote, setBookingNote] = useState<string>('');
   const [promoCode, setPromoCode] = useState<string>('');
 
@@ -110,7 +111,7 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
       if (response && Array.isArray(response)) {
         setAvailablePaymentMethods(response);
         // Auto-select first available payment method
-        if (response.length > 0 && response[0].isActive) {
+        if (response.length > 0) {
           setSelectedPaymentMethodId(response[0].methodId);
         }
         console.log('✅ Payment methods loaded:', response);
@@ -154,16 +155,32 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
     }
   };
 
-  const handleServiceSelection = (service: Service, options: SelectedOption[], calculatedPrice?: number) => {
+  const handleServiceSelection = (
+    service: Service,
+    options: SelectedOption[],
+    calculatedPrice?: number,
+    quantity?: number,
+  ) => {
+    const normalizedQuantity = Math.max(1, quantity ?? 1);
+    const derivedPrice =
+      calculatedPrice !== undefined ? calculatedPrice : service.basePrice * normalizedQuantity;
+
     setSelectedService(service);
     setSelectedOptions(options);
-    if (calculatedPrice !== undefined) {
-      setTotalPrice(calculatedPrice);
-    } else {
-      // Fallback to base price if no calculated price
-      setTotalPrice(service.basePrice);
-    }
-    console.log('🎯 Service selected:', service.name, 'with options:', options, 'price:', calculatedPrice);
+    setSelectedQuantity(normalizedQuantity);
+    setTotalPrice(derivedPrice);
+
+    console.log(
+      '🎯 Service selected:',
+      service.name,
+      'with options:',
+      options,
+      'quantity:',
+      normalizedQuantity,
+      'price:',
+      derivedPrice,
+    );
+
     goToNextStep();
   };
 
@@ -174,6 +191,11 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
 
   const handleTimeSelection = () => {
     goToNextStep();
+  };
+
+  const handleEmployeeSelect = (employeeId: string | null, employee: Employee | null = null) => {
+    setSelectedEmployeeId(employeeId);
+    setSelectedEmployee(employee);
   };
 
   const handleEmployeeSelection = () => {
@@ -228,10 +250,12 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
     setCurrentStep(BookingStep.SERVICE_SELECTION);
     setSelectedService(null);
     setSelectedOptions([]);
+  setSelectedQuantity(1);
     setSelectedLocation(preloadedDefaultAddress); // Keep default address
     setSelectedDate('');
     setSelectedTime('');
     setSelectedEmployeeId(null);
+    setSelectedEmployee(null);
     setTotalPrice(0);
     setBookingResult(null);
     setBookingNote('');
@@ -294,7 +318,7 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
             selectedDate={selectedDate}
             selectedTime={selectedTime}
             selectedEmployeeId={selectedEmployeeId}
-            onEmployeeSelect={setSelectedEmployeeId}
+            onEmployeeSelect={handleEmployeeSelect}
             onNext={handleEmployeeSelection}
             onBack={goToPreviousStep}
           />
@@ -309,9 +333,10 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
             selectedDate={selectedDate}
             selectedTime={selectedTime}
             selectedEmployeeId={selectedEmployeeId}
-            // availableEmployees={[]} // Temporarily remove
+            selectedEmployee={selectedEmployee}
             totalPrice={totalPrice}
-            // availablePaymentMethods={availablePaymentMethods} // Now loaded in component
+            quantity={selectedQuantity}
+            availablePaymentMethods={availablePaymentMethods}
             selectedPaymentMethodId={selectedPaymentMethodId}
             bookingNote={bookingNote}
             promoCode={promoCode}
@@ -320,6 +345,7 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
             onPromoCodeChange={setPromoCode}
             onConfirm={handleBookingConfirmation}
             onBack={goToPreviousStep}
+            isSubmitting={loading}
           />
         );
 

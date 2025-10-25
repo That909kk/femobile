@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   Image,
@@ -11,7 +10,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Button } from '../../../../components';
+import { colors } from '../../../../styles';
 import { serviceService, type Service, type Employee } from '../../../../services';
 import { type LocationData } from './types';
 import { commonStyles } from './styles';
@@ -22,7 +21,7 @@ interface EmployeeSelectionProps {
   selectedDate: string;
   selectedTime: string;
   selectedEmployeeId: string | null;
-  onEmployeeSelect: (employeeId: string | null) => void;
+  onEmployeeSelect: (employeeId: string | null, employee: Employee | null) => void;
   onNext: () => void;
   onBack: () => void;
 }
@@ -37,6 +36,11 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
   onNext,
   onBack,
 }) => {
+  const accentColor = colors.highlight.teal;
+  const successColor = colors.feedback.success;
+  const warningColor = colors.feedback.warning;
+  const errorColor = colors.feedback.error;
+
   const [loading, setLoading] = useState(false);
   const [suitableEmployees, setSuitableEmployees] = useState<Employee[]>([]);
   const [error, setError] = useState<string>('');
@@ -73,8 +77,6 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
         city: selectedLocation.city,
       });
 
-      console.log('API Response:', response);
-
       if (response && response.data && Array.isArray(response.data)) {
         // Extract the employee data array from response
         setSuitableEmployees(response.data);
@@ -96,14 +98,17 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
     }
   };
 
-  const handleEmployeeSelect = (employeeId: string) => {
+  const handleEmployeeSelect = (employee: Employee) => {
     // Allow deselecting by clicking the same employee
-    const newSelectedId = selectedEmployeeId === employeeId ? null : employeeId;
-    onEmployeeSelect(newSelectedId);
+    if (selectedEmployeeId === employee.employeeId) {
+      onEmployeeSelect(null, null);
+    } else {
+      onEmployeeSelect(employee.employeeId, employee);
+    }
   };
 
   const handleSkip = () => {
-    onEmployeeSelect(null);
+    onEmployeeSelect(null, null);
     onNext();
   };
 
@@ -115,7 +120,7 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
         { marginBottom: 12 },
         selectedEmployeeId === employee.employeeId && commonStyles.cardSelected
       ]}
-      onPress={() => handleEmployeeSelect(employee.employeeId)}
+      onPress={() => handleEmployeeSelect(employee)}
     >
       <View style={commonStyles.flexRowBetween}>
         <View style={commonStyles.flexRow}>
@@ -126,14 +131,14 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
               height: 60,
               borderRadius: 30,
               marginRight: 12,
-              backgroundColor: '#F0F0F0'
+              backgroundColor: colors.warm.beige,
             }}
             defaultSource={{ uri: 'https://picsum.photos/200' }}
           />
           <View style={{ flex: 1 }}>
             <Text style={commonStyles.cardTitle}>{employee.fullName}</Text>
             <View style={[commonStyles.flexRow, { marginTop: 4 }]}>
-              <Ionicons name="star" size={16} color="#FFD700" />
+              <Ionicons name="star" size={16} color={colors.feedback.warning} />
               <Text style={[commonStyles.cardDescription, { marginLeft: 4 }]}>
                 {employee.rating === 'HIGHEST' ? '5.0' : employee.rating}
               </Text>
@@ -141,17 +146,22 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
                 ({employee.completedJobs} công việc)
               </Text>
             </View>
-            <Text style={[commonStyles.cardDescription, { 
-              marginTop: 4,
-              color: employee.status === 'AVAILABLE' ? '#34C759' : '#FF9500',
-              fontWeight: '500'
-            }]}>
+            <Text
+              style={[
+                commonStyles.cardDescription,
+                {
+                  marginTop: 4,
+                  color: employee.status === 'AVAILABLE' ? successColor : warningColor,
+                  fontWeight: '500',
+                },
+              ]}
+            >
               {employee.status}
             </Text>
           </View>
         </View>
         {selectedEmployeeId === employee.employeeId && (
-          <Ionicons name="checkmark-circle" size={24} color="#007AFF" />
+          <Ionicons name="checkmark-circle" size={24} color={accentColor} />
         )}
       </View>
       
@@ -161,19 +171,26 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
           <Text style={[commonStyles.cardDescription, { marginBottom: 8, fontWeight: '500' }]}>Kỹ năng:</Text>
           <View style={commonStyles.flexRow}>
             {employee.skills.slice(0, 3).map((skill, index) => (
-              <View key={index} style={{
-                backgroundColor: '#007AFF20',
-                paddingHorizontal: 8,
-                paddingVertical: 4,
-                borderRadius: 12,
-                marginRight: 8,
-                marginBottom: 4
-              }}>
-                <Text style={{
-                  fontSize: 12,
-                  color: '#007AFF',
-                  fontWeight: '500'
-                }}>{skill}</Text>
+              <View
+                key={index}
+                style={{
+                  backgroundColor: 'rgba(27, 181, 166, 0.12)',
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                  marginRight: 8,
+                  marginBottom: 4,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: accentColor,
+                    fontWeight: '500',
+                  }}
+                >
+                  {skill}
+                </Text>
               </View>
             ))}
             {employee.skills.length > 3 && (
@@ -199,12 +216,12 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
 
   return (
     <View style={commonStyles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.warm.beige} />
       
       {/* Header */}
       <View style={commonStyles.header}>
         <TouchableOpacity onPress={onBack} style={commonStyles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={colors.primary.navy} />
         </TouchableOpacity>
         <View style={commonStyles.headerContent}>
           <Text style={commonStyles.headerTitle}>Chọn nhân viên</Text>
@@ -233,12 +250,12 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
 
           {loading ? (
             <View style={commonStyles.loadingContainer}>
-              <ActivityIndicator size="large" color="#007AFF" />
+              <ActivityIndicator size="large" color={accentColor} />
               <Text style={commonStyles.loadingText}>Đang tìm nhân viên phù hợp...</Text>
             </View>
           ) : error ? (
             <View style={commonStyles.errorContainer}>
-              <Ionicons name="warning-outline" size={48} color="#FF3B30" />
+              <Ionicons name="warning-outline" size={48} color={errorColor} />
               <Text style={commonStyles.errorText}>{error}</Text>
               <TouchableOpacity onPress={loadSuitableEmployees} style={[commonStyles.secondaryButton, { marginTop: 16 }]}>
                 <Text style={commonStyles.secondaryButtonText}>Thử lại</Text>
@@ -283,6 +300,3 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  // Giữ lại một số styles đặc biệt cho EmployeeSelection nếu cần
-});

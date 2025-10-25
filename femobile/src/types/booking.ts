@@ -120,30 +120,31 @@ export interface BookingAssignment {
 
 export interface BookingRequest {
   addressId?: string;
-  newAddress?: NewBookingAddress;
+  newAddress?: NewBookingAddress | null;
   bookingTime: string;
   note?: string;
-  promoCode?: string;
+  promoCode?: string | null;
   bookingDetails: BookingDetail[];
-  assignments?: BookingAssignment[];
+  assignments?: BookingAssignment[] | null;
   paymentMethodId: number;
 }
 
 export interface BookingValidationRequest {
   addressId?: string;
-  newAddress?: NewBookingAddress;
+  newAddress?: NewBookingAddress | null;
   bookingTime: string;
   note?: string;
   promoCode?: string | null;
   bookingDetails: BookingDetail[];
-  assignments?: BookingAssignment[];
-  paymentMethodId?: number;
+  assignments?: BookingAssignment[] | null;
+  paymentMethodId: number;
 }
 
 export interface PaymentMethod {
   methodId: number;
   methodCode: string;
   methodName: string;
+  description?: string;
 }
 
 export interface ServiceChoice {
@@ -256,7 +257,8 @@ export interface ServiceValidation {
 }
 
 export interface BookingValidationResponse {
-  valid: boolean; // API returns 'valid', not 'isValid'
+  valid?: boolean; // Some APIs return 'valid'
+  isValid?: boolean; // Others return 'isValid'
   calculatedTotalAmount: number | null;
   formattedTotalAmount?: string;
   errors: string[];
