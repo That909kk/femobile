@@ -180,7 +180,7 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
           <Ionicons
             name="notifications-outline"
             size={responsive.moderateScale(24)}
-            color={colors.neutral.white}
+            color={colors.primary.navy}
           />
           <View style={styles.notificationBadge} />
         </TouchableOpacity>
@@ -200,19 +200,37 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
     </View>
   );
 
+  const promoBanners = [
+    require('../../../assets/images/banner-1.png'),
+    require('../../../assets/images/banner-2.png'),
+    require('../../../assets/images/banner-3.png'),
+  ];
+
   const renderPromoBanner = () => (
-    <View style={styles.promoBanner}>
-      <View style={styles.promoPlaceholder}>
-        <Ionicons
-          name="megaphone-outline"
-          size={responsive.moderateScale(24)}
-          color={colors.neutral.white}
-        />
-        <Text style={styles.placeholderTitle}>Tính năng đang phát triển</Text>
-        <Text style={styles.placeholderSubtitle}>
-          Ưu đãi sẽ được cập nhật ngay khi có thông tin mới.
-        </Text>
-      </View>
+    <View style={styles.promoBannerContainer}>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        snapToInterval={screenDimensions.width - responsive.moderateScale(32)}
+        snapToAlignment="center"
+        contentContainerStyle={styles.promoBannerContent}
+      >
+        {promoBanners.map((banner, index) => (
+          <TouchableOpacity
+            key={`banner-${index}`}
+            style={styles.promoBanner}
+            activeOpacity={0.9}
+          >
+            <Image
+              source={banner}
+              style={styles.promoBannerImage}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
     </View>
   );
 
@@ -398,17 +416,20 @@ const styles = StyleSheet.create({
     paddingRight: responsiveSpacing.md,
     paddingTop: responsiveSpacing.sm,
     paddingBottom: responsiveSpacing.lg,
+    overflow: 'visible', // Đảm bảo shadow và các element không bị cắt
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: responsiveSpacing.md,
-    paddingRight: 0, // Bỏ padding right để tránh conflict với margin của button
+    paddingRight: responsiveSpacing.xs, // Thêm padding để đảm bảo button không bị cắt
   },
   userInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1, // Cho phép userInfo co giãn nhưng không đẩy button ra ngoài
+    marginRight: responsiveSpacing.sm, // Tạo khoảng cách với button
   },
   avatar: {
     width: responsive.moderateScale(40),
@@ -433,14 +454,16 @@ const styles = StyleSheet.create({
     height: responsive.moderateScale(48),
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.highlight.teal,
+    backgroundColor: colors.neutral.white,
     borderRadius: responsive.moderateScale(24),
     shadowColor: colors.primary.navy,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-    marginRight: responsiveSpacing.sm, // Thêm margin để tránh bị cắt
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+    flexShrink: 0, // Không cho nút bị co lại
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
   },
   notificationBadge: {
     position: 'absolute',
@@ -484,29 +507,28 @@ const styles = StyleSheet.create({
   },
   
   // Promo Banner
+  promoBannerContainer: {
+    marginVertical: responsiveSpacing.md,
+  },
+  promoBannerContent: {
+    paddingHorizontal: responsiveSpacing.md,
+  },
   promoBanner: {
-    margin: responsiveSpacing.md,
+    width: screenDimensions.width - responsive.moderateScale(32),
+    height: responsive.moderateScale(160),
+    marginRight: responsiveSpacing.sm,
     borderRadius: responsive.moderateScale(16),
     overflow: 'hidden',
-    position: 'relative',
-    backgroundColor: colors.primary.navy,
+    backgroundColor: colors.neutral.white,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: responsive.moderateScale(4) },
+    shadowOpacity: 0.1,
+    shadowRadius: responsive.moderateScale(12),
+    elevation: 4,
   },
-  promoPlaceholder: {
-    padding: responsiveSpacing.lg,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-  },
-  placeholderTitle: {
-    fontSize: responsiveFontSize.heading3,
-    color: colors.neutral.white,
-    fontWeight: '600',
-    marginTop: responsiveSpacing.sm,
-  },
-  placeholderSubtitle: {
-    fontSize: responsiveFontSize.caption,
-    color: colors.neutral.white,
-    lineHeight: responsiveFontSize.caption * 1.4,
-    marginTop: responsiveSpacing.xs,
+  promoBannerImage: {
+    width: '100%',
+    height: '100%',
   },
   
   // Section Styles

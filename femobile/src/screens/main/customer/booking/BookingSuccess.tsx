@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../../../components';
-import { COLORS } from '../../../../constants';
+import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../../styles';
 import { BookingResponse } from '../../../../types/booking';
 import { commonStyles } from './styles';
 
@@ -46,7 +46,7 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
       <ScrollView style={commonStyles.scrollContainer}>
         {/* Success Icon */}
         <View style={styles.successIcon}>
-          <Ionicons name="checkmark-circle" size={80} color={COLORS.success} />
+          <Ionicons name="checkmark-circle" size={80} color={colors.feedback.success} />
         </View>
 
         {/* Success Message */}
@@ -87,7 +87,7 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
         {/* Share Button */}
         <View style={commonStyles.section}>
           <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-            <Ionicons name="share-outline" size={20} color={COLORS.text.inverse} />
+            <Ionicons name="share-outline" size={20} color={colors.neutral.white} />
             <Text style={styles.shareButtonText}>Chia sẻ</Text>
           </TouchableOpacity>
         </View>
@@ -115,72 +115,77 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
 const styles = StyleSheet.create({
   successIcon: {
     alignItems: 'center',
-    marginVertical: 30,
+    marginVertical: responsiveSpacing.xxl,
   },
   successTitle: {
-    fontSize: 24,
+    fontSize: responsiveFontSize.heading1,
     fontWeight: 'bold',
-    color: COLORS.primary,
+    color: colors.highlight.teal,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: responsiveSpacing.sm,
   },
   successSubtitle: {
-    fontSize: 16,
-    color: COLORS.text.primary,
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textPrimary,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: responsiveSpacing.md,
   },
   infoTitle: {
-    fontSize: 18,
+    fontSize: responsiveFontSize.heading3,
     fontWeight: 'bold',
-    color: COLORS.primary,
-    marginBottom: 16,
+    color: colors.primary.navy,
+    marginBottom: responsiveSpacing.md,
   },
   infoText: {
-    fontSize: 16,
-    color: COLORS.text.primary,
-    marginBottom: 8,
-    lineHeight: 24,
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textPrimary,
+    marginBottom: responsiveSpacing.sm,
+    lineHeight: responsiveFontSize.body * 1.5,
   },
   totalAmount: {
-    fontSize: 18,
+    fontSize: responsiveFontSize.heading3,
     fontWeight: 'bold',
-    color: COLORS.primary,
-    marginTop: 8,
-    paddingTop: 12,
+    color: colors.highlight.teal,
+    marginTop: responsiveSpacing.sm,
+    paddingTop: responsiveSpacing.sm,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: colors.neutral.border,
   },
   shareButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.secondary,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    gap: 8,
+    backgroundColor: colors.highlight.teal,
+    paddingVertical: responsiveSpacing.sm,
+    paddingHorizontal: responsiveSpacing.lg,
+    borderRadius: responsive.moderateScale(8),
+    gap: responsiveSpacing.sm,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: responsive.moderateScale(2) },
+    shadowOpacity: 0.15,
+    shadowRadius: responsive.moderateScale(6),
+    elevation: 3,
   },
   shareButtonText: {
-    color: COLORS.text.inverse,
-    fontSize: 16,
+    color: colors.neutral.white,
+    fontSize: responsiveFontSize.body,
     fontWeight: '600',
   },
   button: {
-    marginBottom: 12,
+    marginBottom: responsiveSpacing.sm,
   },
   secondaryButton: {
-    backgroundColor: COLORS.secondary,
+    backgroundColor: colors.highlight.teal,
   },
   secondaryButtonText: {
-    color: COLORS.text.inverse,
+    color: colors.neutral.white,
   },
   outlineButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: COLORS.primary,
+    borderColor: colors.highlight.teal,
   },
   outlineButtonText: {
-    color: COLORS.primary,
+    color: colors.highlight.teal,
   },
 });

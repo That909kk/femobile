@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../../../components';
-import { COLORS, UI } from '../../../../constants';
+import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../../styles';
 import { commonStyles } from './styles';
 import { 
   serviceService,
@@ -428,14 +428,14 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
               style={styles.quantityBtn}
               onPress={() => setQuantity(Math.max(1, quantity - 1))}
             >
-              <Ionicons name="remove" size={20} color={COLORS.primary} />
+              <Ionicons name="remove" size={20} color={colors.highlight.teal} />
             </TouchableOpacity>
             <Text style={styles.quantityText}>{quantity}</Text>
             <TouchableOpacity 
               style={styles.quantityBtn}
               onPress={() => setQuantity(quantity + 1)}
             >
-              <Ionicons name="add" size={20} color={COLORS.primary} />
+              <Ionicons name="add" size={20} color={colors.highlight.teal} />
             </TouchableOpacity>
           </View>
         </View>
@@ -506,13 +506,13 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
   };
 
   const renderCategoryTabs = () => (
-    <View style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
+    <View style={{ paddingHorizontal: responsiveSpacing.md, paddingVertical: responsiveSpacing.sm }}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 4 }}>
         <TouchableOpacity
           style={[
             commonStyles.secondaryButton,
-            { marginRight: 8, paddingVertical: 8, paddingHorizontal: 16 },
-            !selectedCategory && { backgroundColor: COLORS.primary }
+            { marginRight: responsiveSpacing.sm, paddingVertical: responsiveSpacing.sm, paddingHorizontal: responsiveSpacing.md },
+            !selectedCategory && { backgroundColor: colors.highlight.teal }
           ]}
           onPress={() => {
             setSelectedCategory(null);
@@ -521,8 +521,8 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
         >
           <Text style={[
             commonStyles.secondaryButtonText,
-            { fontSize: 14 },
-            !selectedCategory && { color: COLORS.text.inverse }
+            { fontSize: responsiveFontSize.caption },
+            !selectedCategory && { color: colors.neutral.white }
           ]}>
             Tất cả
           </Text>
@@ -533,15 +533,15 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
             key={category.categoryId}
             style={[
               commonStyles.secondaryButton,
-              { marginRight: 8, paddingVertical: 8, paddingHorizontal: 16 },
-              selectedCategory?.categoryId === category.categoryId && { backgroundColor: COLORS.primary }
+              { marginRight: responsiveSpacing.sm, paddingVertical: responsiveSpacing.sm, paddingHorizontal: responsiveSpacing.md },
+              selectedCategory?.categoryId === category.categoryId && { backgroundColor: colors.highlight.teal }
             ]}
             onPress={() => handleCategorySelect(category)}
           >
             <Text style={[
               commonStyles.secondaryButtonText,
-              { fontSize: 14 },
-              selectedCategory?.categoryId === category.categoryId && { color: COLORS.text.inverse }
+              { fontSize: responsiveFontSize.caption },
+              selectedCategory?.categoryId === category.categoryId && { color: colors.neutral.white }
             ]}>
               {category.categoryName}
             </Text>
@@ -560,7 +560,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
       <View style={commonStyles.container}>
         <View style={commonStyles.header}>
           <TouchableOpacity onPress={() => setShowOptionsModal(false)} style={commonStyles.backButton}>
-            <Ionicons name="close" size={24} color={COLORS.text.primary} />
+            <Ionicons name="close" size={24} color={colors.primary.navy} />
           </TouchableOpacity>
           <View style={commonStyles.headerContent}>
             <Text style={commonStyles.headerTitle}>
@@ -702,7 +702,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
     <ScrollView style={commonStyles.scrollContainer}>
       {loadingServices ? (
         <View style={commonStyles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <ActivityIndicator size="large" color={colors.highlight.teal} />
           <Text style={commonStyles.loadingText}>Đang tải dịch vụ...</Text>
         </View>
       ) : (
@@ -744,7 +744,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <ActivityIndicator size="large" color={colors.highlight.teal} />
         <Text style={styles.loadingText}>Đang tải dịch vụ...</Text>
       </View>
     );
@@ -754,7 +754,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
     <View style={commonStyles.container}>
       <View style={commonStyles.header}>
         <TouchableOpacity onPress={onClose} style={commonStyles.backButton}>
-          <Ionicons name="close" size={24} color={COLORS.text.primary} />
+          <Ionicons name="close" size={24} color={colors.primary.navy} />
         </TouchableOpacity>
         <View style={commonStyles.headerContent}>
           <Text style={commonStyles.headerTitle}>Chọn dịch vụ</Text>
@@ -763,15 +763,15 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
       </View>
 
       {/* Search */}
-      <View style={[commonStyles.section, { marginHorizontal: 20, marginVertical: 8 }]}>
-        <View style={[commonStyles.flexRow, { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: COLORS.backgroundDark, borderRadius: 8 }]}>
-          <Ionicons name="search" size={20} color={COLORS.text.secondary} style={{ marginRight: 12 }} />
+      <View style={[commonStyles.section, { marginHorizontal: responsiveSpacing.md, marginVertical: responsiveSpacing.sm }]}>
+        <View style={[commonStyles.flexRow, { paddingHorizontal: responsiveSpacing.md, paddingVertical: responsiveSpacing.sm, backgroundColor: colors.neutral.background, borderRadius: responsive.moderateScale(8) }]}>
+          <Ionicons name="search" size={20} color={colors.neutral.textSecondary} style={{ marginRight: responsiveSpacing.sm }} />
           <TextInput
             style={[commonStyles.input, { flex: 1, borderWidth: 0, padding: 0, backgroundColor: 'transparent' }]}
             placeholder="Tìm kiếm dịch vụ..."
             value={searchText}
             onChangeText={setSearchText}
-            placeholderTextColor={COLORS.text.secondary}
+            placeholderTextColor={colors.neutral.textSecondary}
           />
         </View>
       </View>
@@ -791,118 +791,123 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.neutral.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.neutral.background,
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: COLORS.text.secondary,
+    marginTop: responsiveSpacing.sm,
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textSecondary,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: COLORS.surface,
+    paddingHorizontal: responsiveSpacing.md,
+    paddingVertical: responsiveSpacing.sm,
+    backgroundColor: colors.warm.beige,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.neutral.border,
   },
   closeButton: {
     padding: 4,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: responsiveFontSize.heading3,
     fontWeight: '600',
-    color: COLORS.text.primary,
+    color: colors.primary.navy,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: COLORS.surface,
-    borderRadius: 8,
+    margin: responsiveSpacing.md,
+    paddingHorizontal: responsiveSpacing.sm,
+    paddingVertical: responsiveSpacing.sm,
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(8),
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.neutral.border,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
-    fontSize: 16,
-    color: COLORS.text.primary,
+    marginLeft: responsiveSpacing.sm,
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textPrimary,
   },
   categoryContainer: {
-    paddingVertical: 12,
-    backgroundColor: COLORS.surface,
+    paddingVertical: responsiveSpacing.sm,
+    backgroundColor: colors.neutral.white,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.neutral.border,
   },
   categoryTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: responsiveSpacing.md,
+    paddingVertical: responsiveSpacing.sm,
     marginHorizontal: 4,
-    borderRadius: 20,
-    backgroundColor: COLORS.background,
+    borderRadius: responsive.moderateScale(20),
+    backgroundColor: colors.neutral.background,
   },
   categoryTabActive: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.highlight.teal,
   },
   categoryTabText: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
   },
   categoryTabTextActive: {
-    color: COLORS.text.inverse,
+    color: colors.neutral.white,
     fontWeight: '500',
   },
   servicesContainer: {
     flex: 1,
-    padding: 16,
+    padding: responsiveSpacing.md,
   },
   loader: {
-    marginTop: 50,
+    marginTop: responsiveSpacing.xxl,
   },
   serviceCard: {
     flexDirection: 'row',
-    padding: 16,
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    marginBottom: 12,
+    padding: responsiveSpacing.md,
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(12),
+    marginBottom: responsiveSpacing.sm,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.neutral.border,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: responsive.moderateScale(2) },
+    shadowOpacity: 0.08,
+    shadowRadius: responsive.moderateScale(8),
+    elevation: 2,
   },
   serviceCardSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primaryLight,
+    borderColor: colors.highlight.teal,
+    backgroundColor: colors.warm.beige,
   },
   serviceIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    marginRight: 12,
+    width: responsive.moderateScale(60),
+    height: responsive.moderateScale(60),
+    borderRadius: responsive.moderateScale(8),
+    marginRight: responsiveSpacing.sm,
   },
   serviceContent: {
     flex: 1,
   },
   serviceName: {
-    fontSize: 16,
+    fontSize: responsiveFontSize.body,
     fontWeight: '600',
-    color: COLORS.text.primary,
+    color: colors.primary.navy,
     marginBottom: 4,
   },
   serviceDescription: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
-    marginBottom: 8,
-    lineHeight: 20,
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
+    marginBottom: responsiveSpacing.sm,
+    lineHeight: responsiveFontSize.caption * 1.4,
   },
   serviceFooter: {
     flexDirection: 'row',
@@ -910,145 +915,160 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   servicePrice: {
-    fontSize: 16,
+    fontSize: responsiveFontSize.body,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: colors.highlight.teal,
   },
   serviceDuration: {
-    fontSize: 12,
-    color: COLORS.text.secondary,
+    fontSize: responsiveFontSize.caption - 2,
+    color: colors.neutral.textSecondary,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.neutral.background,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: COLORS.surface,
+    paddingHorizontal: responsiveSpacing.md,
+    paddingVertical: responsiveSpacing.sm,
+    backgroundColor: colors.warm.beige,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.neutral.border,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: responsiveFontSize.heading3,
     fontWeight: '600',
-    color: COLORS.text.primary,
+    color: colors.primary.navy,
     flex: 1,
     textAlign: 'center',
   },
   modalContent: {
     flex: 1,
-    padding: 16,
+    padding: responsiveSpacing.md,
   },
   serviceInfoContainer: {
-    padding: 16,
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    marginBottom: 16,
+    padding: responsiveSpacing.md,
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(12),
+    marginBottom: responsiveSpacing.md,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: responsive.moderateScale(2) },
+    shadowOpacity: 0.08,
+    shadowRadius: responsive.moderateScale(8),
+    elevation: 2,
   },
   customInputsContainer: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(12),
+    padding: responsiveSpacing.md,
+    marginBottom: responsiveSpacing.md,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: responsive.moderateScale(2) },
+    shadowOpacity: 0.08,
+    shadowRadius: responsive.moderateScale(8),
+    elevation: 2,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: responsiveFontSize.body,
     fontWeight: '600',
-    color: COLORS.text.primary,
-    marginBottom: 12,
+    color: colors.primary.navy,
+    marginBottom: responsiveSpacing.sm,
   },
   sectionSubtitle: {
-    fontSize: 13,
-    color: COLORS.text.secondary,
-    marginBottom: 16,
+    fontSize: responsiveFontSize.caption - 1,
+    color: colors.neutral.textSecondary,
+    marginBottom: responsiveSpacing.md,
     fontStyle: 'italic',
   },
   inputRow: {
-    marginBottom: 16,
+    marginBottom: responsiveSpacing.md,
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: responsiveFontSize.caption,
     fontWeight: '500',
-    color: COLORS.text.primary,
-    marginBottom: 8,
+    color: colors.primary.navy,
+    marginBottom: responsiveSpacing.sm,
   },
   quantityContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: 8,
+    backgroundColor: colors.neutral.background,
+    borderRadius: responsive.moderateScale(8),
     padding: 4,
   },
   quantityBtn: {
-    width: 40,
-    height: 40,
+    width: responsive.moderateScale(40),
+    height: responsive.moderateScale(40),
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: 6,
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(6),
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.neutral.border,
   },
   quantityText: {
-    fontSize: 18,
+    fontSize: responsiveFontSize.heading3,
     fontWeight: '600',
-    color: COLORS.text.primary,
-    marginHorizontal: 20,
-    minWidth: 30,
+    color: colors.primary.navy,
+    marginHorizontal: responsiveSpacing.md,
+    minWidth: responsive.moderateScale(30),
     textAlign: 'center',
   },
   textInput: {
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: COLORS.text.primary,
-    backgroundColor: COLORS.background,
+    borderColor: colors.neutral.border,
+    borderRadius: responsive.moderateScale(8),
+    padding: responsiveSpacing.sm,
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textPrimary,
+    backgroundColor: colors.neutral.background,
   },
   noteInput: {
-    height: 80,
+    height: responsive.moderateScale(80),
     textAlignVertical: 'top',
   },
   optionsContainer: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(12),
+    padding: responsiveSpacing.md,
+    marginBottom: responsiveSpacing.md,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: responsive.moderateScale(2) },
+    shadowOpacity: 0.08,
+    shadowRadius: responsive.moderateScale(8),
+    elevation: 2,
   },
   optionGroup: {
-    marginBottom: 20,
+    marginBottom: responsiveSpacing.md,
   },
   optionTitle: {
-    fontSize: 16,
+    fontSize: responsiveFontSize.body,
     fontWeight: '600',
-    color: COLORS.text.primary,
-    marginBottom: 12,
+    color: colors.primary.navy,
+    marginBottom: responsiveSpacing.sm,
   },
   required: {
-    color: COLORS.error,
+    color: colors.feedback.error,
   },
   optional: {
-    color: COLORS.text.secondary,
+    color: colors.neutral.textSecondary,
     fontStyle: 'italic',
-    fontSize: 14,
+    fontSize: responsiveFontSize.caption,
   },
   choiceItem: {
-    padding: 12,
-    borderRadius: 8,
+    padding: responsiveSpacing.sm,
+    borderRadius: responsive.moderateScale(8),
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 8,
-    backgroundColor: COLORS.background,
+    borderColor: colors.neutral.border,
+    marginBottom: responsiveSpacing.sm,
+    backgroundColor: colors.neutral.background,
   },
   choiceItemSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primaryLight,
+    borderColor: colors.highlight.teal,
+    backgroundColor: colors.warm.beige,
   },
   choiceContent: {
     flexDirection: 'row',
@@ -1059,87 +1079,92 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   choiceText: {
-    fontSize: 14,
-    color: COLORS.text.primary,
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textPrimary,
   },
   choiceTextSelected: {
-    color: COLORS.primary,
+    color: colors.highlight.teal,
     fontWeight: '500',
   },
   choicePrice: {
-    fontSize: 12,
-    color: COLORS.text.secondary,
+    fontSize: responsiveFontSize.caption - 2,
+    color: colors.neutral.textSecondary,
     marginTop: 2,
   },
   checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
+    width: responsive.moderateScale(20),
+    height: responsive.moderateScale(20),
+    borderRadius: responsive.moderateScale(4),
     borderWidth: 2,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    borderColor: colors.neutral.border,
+    backgroundColor: colors.neutral.white,
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkboxSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary,
+    borderColor: colors.highlight.teal,
+    backgroundColor: colors.highlight.teal,
   },
   radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: responsive.moderateScale(20),
+    height: responsive.moderateScale(20),
+    borderRadius: responsive.moderateScale(10),
     borderWidth: 2,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    borderColor: colors.neutral.border,
+    backgroundColor: colors.neutral.white,
     justifyContent: 'center',
     alignItems: 'center',
   },
   radioSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary,
+    borderColor: colors.highlight.teal,
+    backgroundColor: colors.highlight.teal,
   },
   priceSummaryContainer: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(12),
+    padding: responsiveSpacing.md,
+    marginBottom: responsiveSpacing.md,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: responsive.moderateScale(2) },
+    shadowOpacity: 0.08,
+    shadowRadius: responsive.moderateScale(8),
+    elevation: 2,
   },
   priceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: responsiveSpacing.sm,
   },
   priceLabel: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
   },
   priceValue: {
-    fontSize: 14,
-    color: COLORS.text.primary,
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textPrimary,
   },
   totalPriceRow: {
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: 12,
-    marginTop: 8,
+    borderTopColor: colors.neutral.border,
+    paddingTop: responsiveSpacing.sm,
+    marginTop: responsiveSpacing.sm,
     marginBottom: 0,
   },
   totalPriceLabel: {
-    fontSize: 16,
+    fontSize: responsiveFontSize.body,
     fontWeight: '600',
-    color: COLORS.text.primary,
+    color: colors.primary.navy,
   },
   totalPriceValue: {
-    fontSize: 18,
+    fontSize: responsiveFontSize.heading3,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: colors.highlight.teal,
   },
   modalFooter: {
-    padding: 16,
-    backgroundColor: COLORS.surface,
+    padding: responsiveSpacing.md,
+    backgroundColor: colors.neutral.white,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: colors.neutral.border,
   },
 });

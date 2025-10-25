@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../../../../constants';
+import { colors } from '../../../../styles';
 import { commonStyles } from './styles';
 
 interface ProgressIndicatorProps {
@@ -33,12 +33,12 @@ export const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({ currentSte
             !isActive && !isCompleted && commonStyles.progressDotInactive,
           ]}>
             {isCompleted ? (
-              <Ionicons name="checkmark" size={12} color={COLORS.text.inverse} />
+              <Ionicons name="checkmark" size={12} color={colors.neutral.white} />
             ) : (
               <Text style={{
                 fontSize: 12,
                 fontWeight: '600',
-                color: isActive ? COLORS.text.inverse : COLORS.text.secondary,
+                color: isActive ? colors.neutral.white : colors.neutral.textSecondary,
               }}>
                 {stepNumber}
               </Text>

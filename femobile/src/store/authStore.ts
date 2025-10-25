@@ -287,7 +287,17 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           const userData = await SecureStore.getItemAsync(STORAGE_KEYS.USER_DATA);
           const userRole = await SecureStore.getItemAsync(STORAGE_KEYS.USER_ROLE);
           
-          if (token && refreshToken && userData && userRole) {
+          // Chỉ cho phép vào nếu CÓ ĐỦ accessToken VÀ refreshToken
+          if (!token || !refreshToken) {
+            // Không có token -> đá ra ngoài login
+            console.log('No tokens found, redirecting to login');
+            await get().clearAuth();
+            set({ loading: false });
+            return;
+          }
+          
+          // Có token -> kiểm tra thêm userData và role
+          if (userData && userRole) {
             set({
               isAuthenticated: true,
               accessToken: token,
@@ -302,6 +312,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             if (!isValidToken) {
               const refreshSuccess = await get().refreshTokens();
               if (!refreshSuccess) {
+                // Refresh thất bại -> đá ra ngoài login
+                console.log('Token refresh failed, redirecting to login');
                 await get().clearAuth();
               }
             } else {
@@ -309,10 +321,15 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               await get().refreshSession();
             }
           } else {
+            // Có token nhưng thiếu userData hoặc role -> đá ra ngoài login
+            console.log('Missing user data or role, redirecting to login');
+            await get().clearAuth();
             set({ loading: false });
           }
         } catch (error) {
           console.warn('Failed to check auth status:', error);
+          // Có lỗi -> đá ra ngoài login để an toàn
+          await get().clearAuth();
           set({ loading: false });
         }
       },

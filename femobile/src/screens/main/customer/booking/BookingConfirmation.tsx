@@ -13,7 +13,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import { Button, Checkbox } from '../../../../components';
-import { COLORS, STORAGE_KEYS } from '../../../../constants';
+import { STORAGE_KEYS } from '../../../../constants';
+import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../../styles';
 import { useAuth } from '../../../../hooks';
 import { 
   bookingService, 

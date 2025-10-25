@@ -157,6 +157,9 @@ const AppNavigator = () => {
     );
   }
 
+  // Logic: 
+  // - Nếu có accessToken VÀ refreshToken (isAuthenticated = true) -> vào Main
+  // - Nếu KHÔNG có hoặc thiếu 1 trong 2 tokens -> đá ra Auth (Login)
   return (
     <Stack.Navigator 
       screenOptions={{ 

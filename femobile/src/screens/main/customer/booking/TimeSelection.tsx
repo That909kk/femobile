@@ -14,7 +14,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../../../components';
-import { COLORS } from '../../../../constants';
+import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../../styles';
 import { serviceService, type Service, type Employee } from '../../../../services';
 import { type LocationData } from './types';
 import { commonStyles } from './styles';
