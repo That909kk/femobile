@@ -14,18 +14,62 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../../hooks/useAuth';
 import { serviceService } from '../../../services/serviceService';
 import { employeeScheduleService } from '../../../services/employeeScheduleService';
-import { colors, typography, spacing, responsive, screenDimensions, responsiveSpacing, responsiveFontSize, getGridItemWidth } from '../../../styles';
+import { colors, responsive, screenDimensions, responsiveSpacing, responsiveFontSize, getGridItemWidth } from '../../../styles';
 import { Service, Employee } from '../../../types';
 
 interface CustomerHomeScreenProps {}
 
 const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { user } = useAuth();
   const [services, setServices] = useState<Service[]>([]);
+  const userAvatar = user && 'avatar' in user ? user.avatar : undefined;
+  const userFullName = user?.fullName ?? user?.username ?? 'Khách hàng';
   const [featuredEmployees, setFeaturedEmployees] = useState<Employee[]>([]);
+  const [servicesError, setServicesError] = useState<string | null>(null);
+  const [employeesError, setEmployeesError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const mapServiceFromApi = (item: any): Service => {
+    const rawId = item?.serviceId ?? item?.id;
+
+    return {
+      id: rawId ? String(rawId) : '',
+      name: item?.name ?? 'Dịch vụ chưa cập nhật',
+      description: item?.description,
+      basePrice: typeof item?.basePrice === 'number' ? item.basePrice : undefined,
+      duration: typeof item?.estimatedDurationHours === 'number' ? item.estimatedDurationHours : undefined,
+      image: item?.iconUrl ?? undefined,
+      categoryId: item?.categoryId ? String(item.categoryId) : undefined,
+      isNew: Boolean(item?.isNew),
+      isActive: Boolean(item?.isActive ?? true),
+      createdAt: item?.createdAt ?? '',
+      updatedAt: item?.updatedAt ?? '',
+    };
+  };
+
+  const mapEmployeeFromApi = (item: any): Employee => {
+    const ratingValue = Number(item?.rating);
+    const rawId = item?.employeeId ?? item?.id;
+
+    return {
+      id: rawId ? String(rawId) : '',
+      name: item?.fullName ?? item?.name ?? 'Nhân viên chưa cập nhật',
+      email: item?.email ?? '',
+      phone: item?.phoneNumber ?? item?.phone ?? undefined,
+      avatar: item?.avatar ?? undefined,
+      skills: Array.isArray(item?.skills) ? item.skills : [],
+      rating: Number.isFinite(ratingValue) ? ratingValue : undefined,
+      totalReviews: typeof item?.totalReviews === 'number' ? item.totalReviews : undefined,
+      isActive: Boolean(item?.status ? item.status !== 'INACTIVE' : true),
+      isAvailable: item?.status ? item.status === 'AVAILABLE' : true,
+      experience: typeof item?.experienceYears === 'number' ? item.experienceYears : undefined,
+      description: item?.description ?? undefined,
+      createdAt: item?.createdAt ?? '',
+      updatedAt: item?.updatedAt ?? '',
+    };
+  };
 
   useEffect(() => {
     loadInitialData();
@@ -48,9 +92,19 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
   const loadServices = async () => {
     try {
       const response = await serviceService.getCustomerServices();
-      setServices(response.data || []);
+
+      if (response.success && Array.isArray(response.data)) {
+        const mappedServices = response.data.map(mapServiceFromApi);
+        setServices(mappedServices);
+        setServicesError(null);
+      } else {
+        setServices([]);
+        setServicesError(response.message || 'Có lỗi xảy ra, vui lòng thử lại');
+      }
     } catch (error) {
       console.error('Error loading services:', error);
+      setServices([]);
+      setServicesError('Có lỗi xảy ra, vui lòng thử lại');
     }
   };
 
@@ -60,9 +114,18 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
         status: 'AVAILABLE',
         limit: 4
       });
-      setFeaturedEmployees(response.data || []);
+      if (response.success && Array.isArray(response.data)) {
+        const mappedEmployees = response.data.map(mapEmployeeFromApi);
+        setFeaturedEmployees(mappedEmployees);
+        setEmployeesError(null);
+      } else {
+        setFeaturedEmployees([]);
+        setEmployeesError(response.message || 'Có lỗi xảy ra, vui lòng thử lại');
+      }
     } catch (error) {
       console.error('Error loading featured employees:', error);
+      setFeaturedEmployees([]);
+      setEmployeesError('Có lỗi xảy ra, vui lòng thử lại');
     }
   };
 
@@ -73,10 +136,16 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
   };
 
   const handleServicePress = (service: Service) => {
+    if (!service.id) {
+      return;
+    }
     navigation.navigate('ServiceDetail', { serviceId: service.id });
   };
 
   const handleEmployeePress = (employee: Employee) => {
+    if (!employee.id) {
+      return;
+    }
     navigation.navigate('EmployeePreview', { employeeId: employee.id });
   };
 
@@ -93,44 +162,38 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
       <View style={styles.headerTop}>
         <View style={styles.userInfo}>
           <Image
-            source={{ 
-              uri: user?.avatar || 'https://picsum.photos/40/40?random=1' 
+            source={{
+              uri: userAvatar || 'https://picsum.photos/40/40?random=1',
             }}
             style={styles.avatar}
           />
           <View style={styles.greetingContainer}>
             <Text style={styles.greetingText}>Xin chào</Text>
-            <Text style={styles.userName}>{user?.name || 'Khách hàng'}</Text>
+            <Text style={styles.userName}>{userFullName}</Text>
           </View>
         </View>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.notificationButton}
           onPress={() => navigation.navigate('NotificationList')}
           activeOpacity={0.7}
         >
-          <Ionicons 
-            name="notifications-outline" 
-            size={responsive.moderateScale(24)} 
-            color={colors.neutral.white} 
+          <Ionicons
+            name="notifications-outline"
+            size={responsive.moderateScale(24)}
+            color={colors.neutral.white}
           />
           <View style={styles.notificationBadge} />
         </TouchableOpacity>
       </View>
-      
+
       <View style={styles.walletCard}>
         <View style={styles.walletInfo}>
           <Text style={styles.walletLabel}>
             Khám phá và trải nghiệm các dịch vụ gia đình ngay hôm nay.
           </Text>
-          <View style={styles.pointsContainer}>
-            <View style={styles.pointsItem}>
-              <Ionicons name="wallet-outline" size={16} color={colors.highlight.teal} />
-              <Text style={styles.pointsText}>0 ₫</Text>
-            </View>
-            <View style={styles.pointsItem}>
-              <Ionicons name="star" size={16} color={colors.feedback.warning} />
-              <Text style={styles.pointsText}>0 Points</Text>
-            </View>
+          <View style={styles.pointsPlaceholder}>
+            <Ionicons name="construct-outline" size={16} color={colors.highlight.teal} />
+            <Text style={styles.placeholderTextSecondary}>Tính năng đang phát triển</Text>
           </View>
         </View>
       </View>
@@ -139,35 +202,23 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
 
   const renderPromoBanner = () => (
     <View style={styles.promoBanner}>
-      <Image
-        source={{ uri: 'https://picsum.photos/320/160?random=promo' }}
-        style={styles.promoImage}
-        resizeMode="cover"
-      />
-      <View style={styles.promoOverlay}>
-        <View style={styles.promoContent}>
-          <Text style={styles.promoTitle}>GIẢM GIÁ ĐẶC BIỆT</Text>
-          <Text style={styles.promoSubtitle}>15.000.000</Text>
-          <Text style={styles.promoDescription}>CHO THÁNG 1.000.000</Text>
-        </View>
-      </View>
-      <View style={styles.promoDots}>
-        {[0, 1, 2, 3, 4, 5].map((index) => (
-          <View
-            key={index}
-            style={[
-              styles.promoDot,
-              index === 2 && styles.promoDotActive
-            ]}
-          />
-        ))}
+      <View style={styles.promoPlaceholder}>
+        <Ionicons
+          name="megaphone-outline"
+          size={responsive.moderateScale(24)}
+          color={colors.neutral.white}
+        />
+        <Text style={styles.placeholderTitle}>Tính năng đang phát triển</Text>
+        <Text style={styles.placeholderSubtitle}>
+          Ưu đãi sẽ được cập nhật ngay khi có thông tin mới.
+        </Text>
       </View>
     </View>
   );
 
-  const renderServiceCard = (service: Service) => (
+  const renderServiceCard = (service: Service, index: number) => (
     <TouchableOpacity
-      key={service.id}
+      key={service.id || `service-${index}`}
       style={styles.serviceCard}
       onPress={() => handleServicePress(service)}
       activeOpacity={0.85}
@@ -202,15 +253,21 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
         </TouchableOpacity>
       </View>
       
-      <View style={styles.serviceGrid}>
-        {services.slice(0, 8).map((service) => renderServiceCard(service))}
-      </View>
+      {servicesError ? (
+        <Text style={styles.errorText}>{servicesError}</Text>
+      ) : services.length > 0 ? (
+        <View style={styles.serviceGrid}>
+          {services.slice(0, 8).map((service, index) => renderServiceCard(service, index))}
+        </View>
+      ) : (
+        <Text style={styles.emptyText}>Không có dữ liệu</Text>
+      )}
     </View>
   );
 
-  const renderEmployeeCard = (employee: Employee) => (
+  const renderEmployeeCard = (employee: Employee, index: number) => (
     <TouchableOpacity
-      key={employee.id}
+      key={employee.id || `employee-${index}`}
       style={styles.employeeCard}
       onPress={() => handleEmployeePress(employee)}
       activeOpacity={0.85}
@@ -228,7 +285,7 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
         <View style={styles.employeeRating}>
           <Ionicons name="star" size={12} color={colors.feedback.warning} />
           <Text style={styles.ratingText}>
-            {employee.rating?.toFixed(1) || '5.0'}
+            {typeof employee.rating === 'number' ? employee.rating.toFixed(1) : 'N/A'}
           </Text>
         </View>
         <Text style={styles.employeeSkills} numberOfLines={1}>
@@ -247,13 +304,19 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
         </TouchableOpacity>
       </View>
       
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.employeeList}
-      >
-        {featuredEmployees.map((employee) => renderEmployeeCard(employee))}
-      </ScrollView>
+      {employeesError ? (
+        <Text style={styles.errorText}>{employeesError}</Text>
+      ) : featuredEmployees.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.employeeList}
+        >
+          {featuredEmployees.map((employee, index) => renderEmployeeCard(employee, index))}
+        </ScrollView>
+      ) : (
+        <Text style={styles.emptyText}>Không có dữ liệu</Text>
+      )}
     </View>
   );
 
@@ -266,28 +329,10 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
         </TouchableOpacity>
       </View>
       
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.rewardsList}
-      >
-        <View style={styles.rewardCard}>
-          <Image
-            source={{ uri: 'https://picsum.photos/200/120?random=reward1' }}
-            style={styles.rewardImage}
-          />
-          <View style={styles.rewardContent}>
-            <Text style={styles.rewardTitle} numberOfLines={2}>
-              Voucher 100.000₫ cho hóa đơn từ 500.000₫ tại Le Monde Steak
-            </Text>
-            <Text style={styles.rewardProvider}>Le Monde Steak</Text>
-            <View style={styles.rewardPoints}>
-              <Ionicons name="star" size={16} color={colors.feedback.warning} />
-              <Text style={styles.rewardPointsText}>50</Text>
-            </View>
-          </View>
-        </View>
-      </ScrollView>
+      <View style={styles.placeholderCard}>
+        <Ionicons name="gift-outline" size={responsive.moderateScale(20)} color={colors.highlight.teal} />
+        <Text style={styles.placeholderText}>Tính năng đang phát triển</Text>
+      </View>
     </View>
   );
 
@@ -427,19 +472,15 @@ const styles = StyleSheet.create({
     marginBottom: responsiveSpacing.sm,
     lineHeight: responsiveFontSize.body * 1.4,
   },
-  pointsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  pointsItem: {
+  pointsPlaceholder: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  pointsText: {
+  placeholderTextSecondary: {
     fontSize: responsiveFontSize.caption,
     color: colors.neutral.textSecondary,
-    marginLeft: responsiveSpacing.xs,
     fontWeight: '500',
+    marginLeft: responsiveSpacing.xs,
   },
   
   // Promo Banner
@@ -448,59 +489,24 @@ const styles = StyleSheet.create({
     borderRadius: responsive.moderateScale(16),
     overflow: 'hidden',
     position: 'relative',
+    backgroundColor: colors.primary.navy,
   },
-  promoImage: {
-    width: '100%',
-    height: responsive.verticalScale(160),
-  },
-  promoOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(15, 28, 45, 0.3)',
+  promoPlaceholder: {
+    padding: responsiveSpacing.lg,
     justifyContent: 'center',
-    paddingLeft: responsiveSpacing.lg,
+    alignItems: 'flex-start',
   },
-  promoContent: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  promoTitle: {
-    fontSize: responsiveFontSize.caption,
+  placeholderTitle: {
+    fontSize: responsiveFontSize.heading3,
     color: colors.neutral.white,
     fontWeight: '600',
-    marginBottom: responsiveSpacing.xs,
+    marginTop: responsiveSpacing.sm,
   },
-  promoSubtitle: {
-    fontSize: responsiveFontSize.heading2,
-    color: colors.neutral.white,
-    fontWeight: 'bold',
-    marginBottom: responsiveSpacing.xs,
-  },
-  promoDescription: {
+  placeholderSubtitle: {
     fontSize: responsiveFontSize.caption,
     color: colors.neutral.white,
-  },
-  promoDots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingVertical: responsiveSpacing.sm,
-    position: 'absolute',
-    bottom: responsiveSpacing.sm,
-    left: 0,
-    right: 0,
-  },
-  promoDot: {
-    width: responsive.moderateScale(6),
-    height: responsive.moderateScale(6),
-    borderRadius: responsive.moderateScale(3),
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    marginHorizontal: responsive.moderateScale(3),
-  },
-  promoDotActive: {
-    backgroundColor: colors.highlight.teal,
+    lineHeight: responsiveFontSize.caption * 1.4,
+    marginTop: responsiveSpacing.xs,
   },
   
   // Section Styles
@@ -530,6 +536,14 @@ const styles = StyleSheet.create({
     color: colors.highlight.teal,
     fontWeight: '500',
     marginRight: responsiveSpacing.xs,
+  },
+  errorText: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.feedback.error,
+  },
+  emptyText: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
   },
   
   // Service Grid
@@ -631,49 +645,24 @@ const styles = StyleSheet.create({
   },
   
   // Rewards Section
-  rewardsList: {
-    paddingRight: responsiveSpacing.md,
-  },
-  rewardCard: {
+  placeholderCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.neutral.white,
     borderRadius: responsive.moderateScale(12),
-    overflow: 'hidden',
-    width: responsive.moderateScale(screenDimensions.isSmallScreen ? 220 : 240),
-    marginRight: responsiveSpacing.sm,
+    padding: responsiveSpacing.md,
     shadowColor: colors.primary.navy,
     shadowOffset: { width: 0, height: responsive.moderateScale(2) },
     shadowOpacity: 0.08,
     shadowRadius: responsive.moderateScale(8),
     elevation: 2,
   },
-  rewardImage: {
-    width: '100%',
-    height: responsive.verticalScale(100),
-  },
-  rewardContent: {
-    padding: responsiveSpacing.sm,
-  },
-  rewardTitle: {
+  placeholderText: {
+    flex: 1,
     fontSize: responsiveFontSize.caption,
-    color: colors.neutral.textPrimary,
-    fontWeight: '500',
-    marginBottom: responsiveSpacing.xs,
-    lineHeight: responsiveFontSize.caption * 1.3,
-  },
-  rewardProvider: {
-    fontSize: responsiveFontSize.caption - 1,
     color: colors.neutral.textSecondary,
-    marginBottom: responsiveSpacing.xs,
-  },
-  rewardPoints: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  rewardPointsText: {
-    fontSize: responsiveFontSize.caption,
-    color: colors.feedback.warning,
-    fontWeight: '600',
-    marginLeft: responsiveSpacing.xs,
+    fontWeight: '500',
+    marginLeft: responsiveSpacing.sm,
   },
 });
 
