@@ -96,16 +96,6 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
     const hasTime = selectedTime || selectedPickerTime;
     if (!selectedService || !hasDate || !hasTime || !selectedAddress) return;
 
-    // If using picker date, we need to call onDateSelect to sync with parent
-    if (selectedPickerDate && !selectedDate) {
-      onDateSelect(getDateValue(selectedPickerDate));
-    }
-
-    // If using picker time, we need to call onTimeSelect to sync with parent
-    if (selectedPickerTime && !selectedTime) {
-      onTimeSelect(selectedPickerTime);
-    }
-
     // Additional validation can be added here
     onNext();
   };
@@ -172,7 +162,9 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
           return;
         }
         
-        // Set the picker date
+        // Sync with parent state immediately
+        const dateValue = getDateValue(selectedDate);
+        onDateSelect(dateValue);
         setSelectedPickerDate(selectedDate);
         
         const formattedDate = selectedDate.toLocaleDateString('vi-VN');
@@ -197,6 +189,9 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
         return;
       }
       
+      // Sync with parent state immediately
+      const dateValue = getDateValue(tempDate);
+      onDateSelect(dateValue);
       setSelectedPickerDate(tempDate);
       setShowDatePicker(false);
       
@@ -223,23 +218,58 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
   };
 
   const openTimePicker = () => {
-    // Set initial time based on current selection or default to 8:00 AM
-    const defaultTime = new Date();
+    // Use a date in UTC to avoid timezone conversion issues
+    // We'll create a date where the UTC time matches the local time we want
+    const now = new Date();
+    let targetHours = 8;
+    let targetMinutes = 0;
     
     if (selectedTime) {
       // Parse existing selected time
-      const [hours, minutes] = selectedTime.split(':').map(Number);
-      defaultTime.setHours(hours, minutes, 0, 0);
-    } else {
-      // Default to 8:00 AM
-      defaultTime.setHours(8, 0, 0, 0);
+      [targetHours, targetMinutes] = selectedTime.split(':').map(Number);
+    } else if (selectedPickerTime) {
+      // Use picker time if available
+      [targetHours, targetMinutes] = selectedPickerTime.split(':').map(Number);
     }
     
-    setTempTime(defaultTime);
+    // Create date with UTC time matching our target local time
+    // This avoids iOS DateTimePicker applying timezone offset
+    const timeDate = new Date(Date.UTC(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      targetHours,
+      targetMinutes,
+      0,
+      0
+    ));
+    
+    console.log('🕐 Opening time picker with:', {
+      targetHours,
+      targetMinutes,
+      timeDate: timeDate.toISOString(),
+      timeDateLocal: timeDate.toString(),
+      getUTCHours: timeDate.getUTCHours(),
+      getHours: timeDate.getHours(),
+      selectedDate,
+      selectedPickerDate: selectedPickerDate?.toISOString()
+    });
+    
+    setTempTime(timeDate);
     setShowTimePicker(true);
   };
 
   const handleTimePickerChange = (event: any, selectedTime?: Date) => {
+    console.log('🕐 Time picker onChange:', {
+      event: event?.type,
+      selectedTime: selectedTime?.toISOString(),
+      selectedTimeLocal: selectedTime?.toString(),
+      getUTCHours: selectedTime?.getUTCHours(),
+      getUTCMinutes: selectedTime?.getUTCMinutes(),
+      getHours: selectedTime?.getHours(),
+      getMinutes: selectedTime?.getMinutes(),
+    });
+    
     // On Android, close picker after any change
     if (Platform.OS === 'android') {
       setShowTimePicker(false);
@@ -253,8 +283,8 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
         const timeString = `${selectedTime.getHours().toString().padStart(2, '0')}:${selectedTime.getMinutes().toString().padStart(2, '0')}`;
         
         // Validate if this time is valid for selected date
-        const currentDate = selectedPickerDate || new Date(selectedDate);
-        if (!isValidBookingTime(currentDate, timeString)) {
+        const currentDate = selectedPickerDate || (selectedDate ? new Date(selectedDate) : null);
+        if (currentDate && !isValidBookingTime(currentDate, timeString)) {
           Alert.alert('Lỗi', 'Thời gian này không hợp lệ. Vui lòng chọn thời gian ít nhất 30 phút từ bây giờ.');
           return;
         }
@@ -271,11 +301,26 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
   const handleTimePickerDone = () => {
     // This is called when iOS picker is dismissed
     if (Platform.OS === 'ios') {
-      const timeString = `${tempTime.getHours().toString().padStart(2, '0')}:${tempTime.getMinutes().toString().padStart(2, '0')}`;
+      // Extract UTC hours/minutes which represent our intended local time
+      const hours = tempTime.getUTCHours();
+      const minutes = tempTime.getUTCMinutes();
+      const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+      
+      console.log('🕐 Time picker done:', {
+        tempTime: tempTime.toISOString(),
+        tempTimeLocal: tempTime.toString(),
+        getUTCHours: tempTime.getUTCHours(),
+        getUTCMinutes: tempTime.getUTCMinutes(),
+        getHours: tempTime.getHours(),
+        getMinutes: tempTime.getMinutes(),
+        timeString,
+        selectedPickerDate: selectedPickerDate?.toISOString(),
+        selectedDate
+      });
       
       // Validate if this time is valid for selected date
-      const currentDate = selectedPickerDate || new Date(selectedDate);
-      if (!isValidBookingTime(currentDate, timeString)) {
+      const currentDate = selectedPickerDate || (selectedDate ? new Date(selectedDate) : null);
+      if (currentDate && !isValidBookingTime(currentDate, timeString)) {
         Alert.alert('Lỗi', 'Thời gian này không hợp lệ. Vui lòng chọn thời gian ít nhất 30 phút từ bây giờ.');
         setShowTimePicker(false);
         return;
@@ -285,12 +330,29 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
       onTimeSelect(timeString); // Update parent state immediately
       setShowTimePicker(false);
       Alert.alert('Thành công', `Đã chọn giờ ${timeString}`);
+      setShowTimePicker(false);
+      Alert.alert('Thành công', `Đã chọn giờ ${timeString}`);
     }
   };
 
-  const isValidBookingTime = (date: Date, time: string) => {
+  const isValidBookingTime = (date: Date | string, time: string) => {
     const now = new Date();
-    const selectedDate = new Date(date);
+    
+    // Handle invalid or missing date
+    let selectedDate: Date;
+    if (date instanceof Date) {
+      selectedDate = date;
+    } else if (typeof date === 'string' && date) {
+      selectedDate = new Date(date);
+    } else {
+      // If no valid date, cannot validate time
+      return true; // Allow selection, will be validated later
+    }
+    
+    // Check if date is valid
+    if (isNaN(selectedDate.getTime())) {
+      return true; // Allow selection if date parsing failed
+    }
     
     // Parse time string (HH:MM format)
     const [hours, minutes] = time.split(':').map(Number);
@@ -491,10 +553,10 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
               marginTop: 16
             }}>
               {availableTimes.map((time) => {
-                // Use picker date if available, otherwise use selected date
-                const currentDate = selectedPickerDate || new Date(selectedDate);
+                // Use picker date if available, otherwise use selected date string
+                const currentDate = selectedPickerDate || (selectedDate ? selectedDate : null);
                 const isSelected = selectedTime === time && !selectedPickerTime; // Only highlight if not using picker
-                const isValidTime = isValidBookingTime(currentDate, time);
+                const isValidTime = currentDate ? isValidBookingTime(currentDate, time) : true;
                 
                 return (
                   <TouchableOpacity
@@ -572,6 +634,8 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
                       is24Hour={true}
                       display="spinner"
                       onChange={handleTimePickerChange}
+                      minuteInterval={1}
+                      locale="vi-VN"
                     />
                   </View>
                 )}
@@ -598,10 +662,10 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
             commonStyles.primaryButton,
             commonStyles.flexRow,
             { justifyContent: 'center' },
-            (!selectedDate || !selectedTime || loading) && commonStyles.primaryButtonDisabled
+            ((!selectedDate && !selectedPickerDate) || (!selectedTime && !selectedPickerTime) || loading) && commonStyles.primaryButtonDisabled
           ]}
           onPress={validateAndNext}
-          disabled={!selectedDate || !selectedTime || loading}
+          disabled={(!selectedDate && !selectedPickerDate) || (!selectedTime && !selectedPickerTime) || loading}
         >
           {loading ? (
             <ActivityIndicator size="small" color={colors.neutral.white} />

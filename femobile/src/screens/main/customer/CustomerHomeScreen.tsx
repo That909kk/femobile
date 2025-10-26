@@ -8,7 +8,9 @@ import {
   Image,
   RefreshControl,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../../hooks/useAuth';
@@ -30,6 +32,7 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
   const [employeesError, setEmployeesError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [bannersLoaded, setBannersLoaded] = useState<boolean[]>([false, false, false]);
 
   const mapServiceFromApi = (item: any): Service => {
     const rawId = item?.serviceId ?? item?.id;
@@ -206,6 +209,14 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
     require('../../../assets/images/banner-3.png'),
   ];
 
+  const handleBannerLoad = (index: number) => {
+    setBannersLoaded(prev => {
+      const newState = [...prev];
+      newState[index] = true;
+      return newState;
+    });
+  };
+
   const renderPromoBanner = () => (
     <View style={styles.promoBannerContainer}>
       <ScrollView
@@ -223,11 +234,20 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
             style={styles.promoBanner}
             activeOpacity={0.9}
           >
-            <Image
+            <ExpoImage
               source={banner}
               style={styles.promoBannerImage}
-              resizeMode="cover"
+              contentFit="cover"
+              transition={300}
+              priority={index === 0 ? 'high' : 'normal'}
+              cachePolicy="memory-disk"
+              onLoadEnd={() => handleBannerLoad(index)}
             />
+            {!bannersLoaded[index] && (
+              <View style={styles.bannerPlaceholder}>
+                <ActivityIndicator size="small" color={colors.highlight.teal} />
+              </View>
+            )}
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -250,9 +270,6 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
       </View>
       <Text style={styles.serviceTitle} numberOfLines={2}>
         {service.name}
-      </Text>
-      <Text style={styles.servicePrice}>
-        {service.basePrice ? `${service.basePrice.toLocaleString()}₫` : 'Liên hệ'}
       </Text>
     </TouchableOpacity>
   );
@@ -322,19 +339,10 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
         </TouchableOpacity>
       </View>
       
-      {employeesError ? (
-        <Text style={styles.errorText}>{employeesError}</Text>
-      ) : featuredEmployees.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.employeeList}
-        >
-          {featuredEmployees.map((employee, index) => renderEmployeeCard(employee, index))}
-        </ScrollView>
-      ) : (
-        <Text style={styles.emptyText}>Không có dữ liệu</Text>
-      )}
+      <View style={styles.placeholderCard}>
+        <Ionicons name="people-outline" size={responsive.moderateScale(20)} color={colors.highlight.teal} />
+        <Text style={styles.placeholderText}>Tính năng đang phát triển</Text>
+      </View>
     </View>
   );
 
@@ -529,6 +537,16 @@ const styles = StyleSheet.create({
   promoBannerImage: {
     width: '100%',
     height: '100%',
+  },
+  bannerPlaceholder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.warm.beige,
   },
   
   // Section Styles
