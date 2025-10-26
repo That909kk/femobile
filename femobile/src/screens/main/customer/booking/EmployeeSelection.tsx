@@ -116,62 +116,59 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
     }
   };
 
-  const handleSkip = () => {
-    onEmployeeSelect(null, null);
-    onNext();
-  };
-
   const renderEmployee = (employee: Employee) => (
     <TouchableOpacity
       key={employee.employeeId}
       style={[
         commonStyles.card,
-        { marginBottom: 12 },
+        { marginBottom: 12, position: 'relative' },
         selectedEmployeeId === employee.employeeId && commonStyles.cardSelected
       ]}
       onPress={() => handleEmployeeSelect(employee)}
     >
-      <View style={commonStyles.flexRowBetween}>
-        <View style={commonStyles.flexRow}>
-          <Image
-            source={{ uri: employee.avatar || 'https://picsum.photos/200' }}
-            style={{
-              width: 60,
-              height: 60,
-              borderRadius: 30,
-              marginRight: 12,
-              backgroundColor: colors.warm.beige,
-            }}
-            defaultSource={{ uri: 'https://picsum.photos/200' }}
-          />
-          <View style={{ flex: 1 }}>
-            <Text style={commonStyles.cardTitle}>{employee.fullName}</Text>
-            <View style={[commonStyles.flexRow, { marginTop: 4 }]}>
-              <Ionicons name="star" size={16} color={colors.feedback.warning} />
-              <Text style={[commonStyles.cardDescription, { marginLeft: 4 }]}>
-                {employee.rating === 'HIGHEST' ? '5.0' : employee.rating}
-              </Text>
-              <Text style={[commonStyles.cardDescription, { marginLeft: 4 }]}>
-                ({employee.completedJobs} công việc)
-              </Text>
-            </View>
-            <Text
-              style={[
-                commonStyles.cardDescription,
-                {
-                  marginTop: 4,
-                  color: employee.status === 'AVAILABLE' ? successColor : warningColor,
-                  fontWeight: '500',
-                },
-              ]}
-            >
-              {employee.status}
+      {/* Selected Badge */}
+      {selectedEmployeeId === employee.employeeId && (
+        <View style={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}>
+          <Ionicons name="checkmark-circle" size={28} color={accentColor} />
+        </View>
+      )}
+      
+      <View style={commonStyles.flexRow}>
+        <Image
+          source={{ uri: employee.avatar || 'https://picsum.photos/200' }}
+          style={{
+            width: 60,
+            height: 60,
+            borderRadius: 30,
+            marginRight: 12,
+            backgroundColor: colors.warm.beige,
+          }}
+          defaultSource={{ uri: 'https://picsum.photos/200' }}
+        />
+        <View style={{ flex: 1, paddingRight: 36 }}>
+          <Text style={commonStyles.cardTitle}>{employee.fullName}</Text>
+          <View style={[commonStyles.flexRow, { marginTop: 4, flexWrap: 'wrap' }]}>
+            <Ionicons name="star" size={16} color={colors.feedback.warning} />
+            <Text style={[commonStyles.cardDescription, { marginLeft: 4 }]}>
+              {employee.rating === 'HIGHEST' ? '5.0' : employee.rating}
+            </Text>
+            <Text style={[commonStyles.cardDescription, { marginLeft: 4 }]}>
+              ({employee.completedJobs} công việc)
             </Text>
           </View>
+          <Text
+            style={[
+              commonStyles.cardDescription,
+              {
+                marginTop: 4,
+                color: employee.status === 'AVAILABLE' ? successColor : warningColor,
+                fontWeight: '500',
+              },
+            ]}
+          >
+            {employee.status}
+          </Text>
         </View>
-        {selectedEmployeeId === employee.employeeId && (
-          <Ionicons name="checkmark-circle" size={24} color={accentColor} />
-        )}
       </View>
       
       {/* Skills */}
@@ -242,19 +239,74 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
       <ProgressIndicator currentStep={BookingStep.EMPLOYEE_SELECTION} />
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-        {/* Service Info Summary */}
-        <View style={[commonStyles.card, { margin: 20, marginBottom: 12 }]}>
-          <Text style={commonStyles.cardTitle}>{selectedService?.name}</Text>
-          <Text style={[commonStyles.cardDescription, { marginTop: 8 }]}>
-            📅 {selectedDate} • ⏰ {selectedTime}
-          </Text>
-          <Text style={[commonStyles.cardDescription, { marginTop: 4 }]}>
-            📍 {selectedLocation?.fullAddress}
-          </Text>
-        </View>
+        {/* Service Summary */}
+        {selectedService && (
+          <View style={[commonStyles.card, { margin: 20, marginBottom: 12 }]}>
+            <Text style={[commonStyles.cardDescription, { marginBottom: 4 }]}>Dịch vụ đã chọn</Text>
+            <Text style={commonStyles.cardTitle}>{selectedService.name}</Text>
+            {selectedService.basePrice && (
+              <Text style={[commonStyles.cardPrice, { marginTop: 4 }]}>
+                {selectedService.basePrice.toLocaleString('vi-VN')}đ
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Time & Date Summary */}
+        {selectedDate && selectedTime && (
+          <View style={[commonStyles.card, { margin: 20, marginTop: 0, marginBottom: 12 }]}>
+            <View style={commonStyles.flexRowBetween}>
+              <View style={{ flex: 1 }}>
+                <Text style={[commonStyles.cardDescription, { marginBottom: 4 }]}>Ngày thực hiện</Text>
+                <View style={[commonStyles.flexRow, { marginTop: 4 }]}>
+                  <Ionicons name="calendar-outline" size={16} color={colors.highlight.teal} />
+                  <Text style={[commonStyles.cardTitle, { marginLeft: 6, fontSize: 15 }]}>
+                    {new Date(selectedDate).toLocaleDateString('vi-VN', {
+                      weekday: 'short',
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric'
+                    })}
+                  </Text>
+                </View>
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[commonStyles.cardDescription, { marginBottom: 4 }]}>Giờ bắt đầu</Text>
+                <View style={[commonStyles.flexRow, { marginTop: 4 }]}>
+                  <Ionicons name="time-outline" size={16} color={colors.highlight.teal} />
+                  <Text style={[commonStyles.cardTitle, { marginLeft: 6, fontSize: 15 }]}>
+                    {selectedTime}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Location Summary */}
+        {selectedLocation && (
+          <View style={[commonStyles.card, { margin: 20, marginTop: 0, marginBottom: 12 }]}>
+            <Text style={[commonStyles.cardDescription, { marginBottom: 4 }]}>Địa chỉ thực hiện</Text>
+            <View style={[commonStyles.flexRow, { marginTop: 4 }]}>
+              <Ionicons name="location-outline" size={16} color={colors.highlight.teal} style={{ marginTop: 2 }} />
+              <View style={{ flex: 1, marginLeft: 6 }}>
+                <Text style={[commonStyles.cardTitle, { fontSize: 15 }]}>
+                  {selectedLocation.fullAddress}
+                </Text>
+                {(selectedLocation.ward || selectedLocation.city) && (
+                  <Text style={[commonStyles.cardDescription, { marginTop: 4 }]}>
+                    {[selectedLocation.ward, selectedLocation.city]
+                      .filter(item => item && item.trim())
+                      .join(', ')}
+                  </Text>
+                )}
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Section Header */}
-        <View style={[commonStyles.section, { margin: 20, marginTop: 0, paddingTop: 12 }]}>
+        <View style={[commonStyles.section, { margin: 20, marginTop: 0, paddingTop: 0 }]}>
           <Text style={commonStyles.sectionTitle}>Nhân viên được đề xuất</Text>
           <Text style={commonStyles.sectionSubtitle}>
             Bạn có thể chọn nhân viên cụ thể hoặc bỏ qua để hệ thống tự động phân công
@@ -291,22 +343,20 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
 
       {/* Bottom Button Container */}
       <View style={commonStyles.buttonContainer}>
-        <View style={commonStyles.flexRow}>
-          <TouchableOpacity 
-            onPress={handleSkip} 
-            style={[commonStyles.secondaryButton, { flex: 1, marginRight: 8 }]}
-          >
-            <Text style={commonStyles.secondaryButtonText}>Bỏ qua</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={onNext}
-            style={[commonStyles.primaryButton, { flex: 1, marginLeft: 8 }]}
-          >
-            <Text style={commonStyles.primaryButtonText}>
-              {selectedEmployeeId ? "Tiếp tục" : "Hệ thống phân công"}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          onPress={onNext}
+          style={[commonStyles.primaryButton, commonStyles.flexRow, { justifyContent: 'center' }]}
+        >
+          <Text style={commonStyles.primaryButtonText}>
+            {selectedEmployeeId ? "Tiếp tục với nhân viên đã chọn" : "Tiếp tục - Hệ thống tự phân công"}
+          </Text>
+          <Ionicons
+            name="arrow-forward"
+            size={20}
+            color={colors.neutral.white}
+            style={{ marginLeft: 8 }}
+          />
+        </TouchableOpacity>
       </View>
     </View>
   );
