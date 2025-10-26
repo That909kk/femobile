@@ -142,7 +142,8 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
     if (!service.id) {
       return;
     }
-    navigation.navigate('ServiceDetail', { serviceId: service.id });
+    // Navigate to Booking screen with pre-selected service
+    navigation.navigate('Booking', { serviceId: service.id });
   };
 
   const handleEmployeePress = (employee: Employee) => {

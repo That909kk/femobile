@@ -5,9 +5,10 @@ import { useEnsureValidToken } from '../../../hooks';
 
 interface BookingScreenProps {
   navigation: any;
+  route?: any;
 }
 
-export const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
+export const BookingScreen: React.FC<BookingScreenProps> = ({ navigation, route }) => {
   // Ensure token is valid when component mounts
   useEnsureValidToken();
 
@@ -15,9 +16,16 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
     navigation.goBack();
   };
 
+  // Get serviceId from route params if available
+  const initialServiceId = route?.params?.serviceId;
+
   return (
     <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-      <BookingNavigator navigation={navigation} onClose={handleClose} />
+      <BookingNavigator 
+        navigation={navigation} 
+        onClose={handleClose} 
+        initialServiceId={initialServiceId}
+      />
     </SafeAreaView>
   );
 };

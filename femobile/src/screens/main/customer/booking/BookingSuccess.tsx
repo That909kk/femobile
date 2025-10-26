@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Share,
   Animated,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../../styles';
@@ -72,6 +73,10 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
     } catch (error) {
       console.log('Error sharing:', error);
     }
+  };
+
+  const handleCancelBooking = () => {
+    Alert.alert('Thông báo', 'Chức năng đang được phát triển');
   };
 
   const formatDateTime = (dateTimeString: string) => {
@@ -153,6 +158,14 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
               Chúng tôi sẽ liên hệ với bạn để xác nhận chi tiết dịch vụ trước khi thực hiện.
             </Text>
           </View>
+        </Animated.View>
+
+        {/* Cancel Booking Button */}
+        <Animated.View style={{ opacity: fadeAnim, width: '100%', marginTop: responsiveSpacing.md }}>
+          <TouchableOpacity style={styles.cancelButton} onPress={handleCancelBooking}>
+            <Ionicons name="close-circle-outline" size={20} color={colors.feedback.error} />
+            <Text style={styles.cancelText}>Hủy đặt</Text>
+          </TouchableOpacity>
         </Animated.View>
 
         {/* Share Button */}
@@ -293,6 +306,23 @@ const styles = StyleSheet.create({
     color: colors.primary.navy,
     lineHeight: responsiveFontSize.caption * 1.5,
     marginLeft: responsiveSpacing.sm,
+  },
+  cancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: responsiveSpacing.md,
+    paddingHorizontal: responsiveSpacing.lg,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.feedback.error,
+    backgroundColor: colors.neutral.white,
+  },
+  cancelText: {
+    fontSize: responsiveFontSize.body,
+    color: colors.feedback.error,
+    fontWeight: '600',
+    marginLeft: responsiveSpacing.xs,
   },
   shareButton: {
     flexDirection: 'row',

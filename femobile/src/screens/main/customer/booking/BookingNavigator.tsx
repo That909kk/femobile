@@ -31,11 +31,13 @@ export enum BookingStep {
 interface BookingNavigatorProps {
   onClose?: () => void;
   navigation?: any;
+  initialServiceId?: string;
 }
 
 export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
   onClose,
-  navigation
+  navigation,
+  initialServiceId
 }) => {
   const { userInfo } = useUserInfo();
   const { isAuthenticated, user: authUser } = useAuthStore();
@@ -227,6 +229,13 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
       
       // Set booking result and navigate to success screen
       setBookingResult(response);
+      
+      // Clear serviceId from route params immediately after successful booking
+      // This ensures if user navigates via bottom tab, no service will be pre-selected
+      if (navigation) {
+        navigation.setParams({ serviceId: undefined });
+      }
+      
       goToNextStep(); // Navigate to SUCCESS step which shows BookingSuccess component
       
     } catch (error: any) {
@@ -290,6 +299,8 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
     if (onClose) {
       onClose();
     } else if (navigation) {
+      // Reset the Booking screen params before navigating away
+      navigation.setParams({ serviceId: undefined });
       navigation.navigate('CustomerOrders');
     }
   };
@@ -299,7 +310,7 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
     setCurrentStep(BookingStep.SERVICE_SELECTION);
     setSelectedService(null);
     setSelectedOptions([]);
-  setSelectedQuantity(1);
+    setSelectedQuantity(1);
     setSelectedLocation(preloadedDefaultAddress); // Keep default address
     setSelectedDate('');
     setSelectedTime('');
@@ -309,7 +320,13 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
     setBookingResult(null);
     setBookingNote('');
     setPromoCode('');
+    
+    // Clear the initial serviceId param if exists
+    if (navigation) {
+      navigation.setParams({ serviceId: undefined });
+    }
     // Keep payment method selection
+    // No need to navigate - just reset state to SERVICE_SELECTION step
   };
 
   const handleGoHome = () => {
@@ -331,6 +348,8 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
     if (onClose) {
       onClose();
     } else if (navigation) {
+      // Reset the Booking screen params before navigating away
+      navigation.setParams({ serviceId: undefined });
       navigation.navigate('CustomerHome');
     }
   };
@@ -344,6 +363,7 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
             selectedOptions={selectedOptions}
             onNext={handleServiceSelection}
             onClose={onClose || (() => navigation.goBack())}
+            initialServiceId={initialServiceId}
           />
         );
 

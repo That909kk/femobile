@@ -46,6 +46,7 @@ interface ServiceSelectionProps {
     quantity?: number
   ) => void;
   onClose: () => void;
+  initialServiceId?: string;
 }
 
 // Memoized Service Card Component to prevent unnecessary re-renders
@@ -134,7 +135,8 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
   selectedService,
   selectedOptions,
   onNext,
-  onClose
+  onClose,
+  initialServiceId
 }) => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [services, setServices] = useState<FullService[]>([]);
@@ -163,6 +165,19 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  // Auto-select service if initialServiceId is provided
+  useEffect(() => {
+    if (initialServiceId && allServices.length > 0 && !currentSelectedService) {
+      const serviceToSelect = allServices.find(s => 
+        String(s.serviceId) === String(initialServiceId)
+      );
+      if (serviceToSelect) {
+        console.log('🎯 Auto-selecting service:', serviceToSelect.name);
+        handleServiceSelect(serviceToSelect);
+      }
+    }
+  }, [initialServiceId, allServices, currentSelectedService]);
 
   // Debounce search text
   useEffect(() => {
