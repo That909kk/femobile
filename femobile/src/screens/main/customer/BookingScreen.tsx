@@ -16,7 +16,7 @@ export const BookingScreen: React.FC<BookingScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
+    <SafeAreaView style={{ flex: 1 }} edges={['top']}>
       <BookingNavigator navigation={navigation} onClose={handleClose} />
     </SafeAreaView>
   );

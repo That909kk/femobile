@@ -46,9 +46,20 @@ class HttpClient {
         }
 
         if (__DEV__) {
+          // Build full URL with query params for logging
+          let fullUrl = `${config.baseURL ?? API_CONFIG.BASE_URL}${config.url}`;
+          if (config.params) {
+            const searchParams = new URLSearchParams();
+            Object.keys(config.params).forEach(key => {
+              searchParams.append(key, config.params[key]);
+            });
+            fullUrl += `?${searchParams.toString()}`;
+          }
+          
           console.log('[httpClient] request', {
             method: config.method?.toUpperCase(),
-            url: `${config.baseURL ?? API_CONFIG.BASE_URL}${config.url}`,
+            url: fullUrl,
+            params: config.params,
           });
         }
 

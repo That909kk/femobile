@@ -103,8 +103,8 @@ export const MainTabNavigator = () => {
           borderTopWidth: 1,
           borderTopColor: COLORS.border,
           paddingTop: 8,
-          paddingBottom: 8,
-          height: 70,
+          paddingBottom: 24, // Increased for iOS home indicator
+          height: 86, // Increased to accommodate bottom padding
           elevation: 10,
           shadowColor: COLORS.shadow,
           shadowOffset: {

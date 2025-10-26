@@ -1,4 +1,5 @@
 import { httpClient } from './httpClient';
+import type { ApiResponse } from '../types/auth';
 
 // Schedule status types
 export type ScheduleStatus = 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
@@ -30,12 +31,6 @@ export interface ScheduleStats {
   completedJobs: number;
   inProgressJobs: number;
   todayRevenue: number;
-}
-
-export interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
 }
 
 class EmployeeScheduleService {
@@ -188,13 +183,15 @@ class EmployeeScheduleService {
     city?: string;
   }): Promise<ApiResponse<any[]>> {
     try {
-      const queryParams = new URLSearchParams();
-      if (params?.status) queryParams.append('status', params.status);
-      if (params?.limit) queryParams.append('limit', params.limit.toString());
-      if (params?.city) queryParams.append('city', params.city);
+      // Build URL manually to avoid encoding Vietnamese city names
+      const queryParts: string[] = [];
+      if (params?.status) queryParts.push(`status=${params.status}`);
+      if (params?.limit) queryParts.push(`limit=${params.limit}`);
+      if (params?.city) queryParts.push(`city=${params.city}`);
 
-      const url = `/employee-schedule${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      const response = await httpClient.get<ApiResponse<any[]>>(url);
+      const url = `/employee-schedule${queryParts.length > 0 ? '?' + queryParts.join('&') : ''}`;
+      
+      const response = await httpClient.get<any[]>(url);
       return response;
     } catch (error) {
       console.error('Error getting available employees:', error);

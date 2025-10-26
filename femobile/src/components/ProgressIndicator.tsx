@@ -141,7 +141,7 @@ export const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
             colors={[COLORS.primary, stepColors[currentStep - 1] || COLORS.primary]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={{ flex: 1, borderRadius: 2 }}
+            style={{ flex: 1, borderRadius: 3 }}
           />
         </Animated.View>
       </View>
@@ -174,25 +174,27 @@ export const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
               >
                 {status === 'current' ? (
                   <LinearGradient
-                    colors={[stepColor, stepColor + '80']}
+                    colors={[stepColor, stepColor + 'CC']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
                     style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 16,
+                      width: 44,
+                      height: 44,
+                      borderRadius: 22,
                       justifyContent: 'center',
                       alignItems: 'center',
                     }}
                   >
                     <Ionicons
                       name={stepIcon as any}
-                      size={16}
+                      size={20}
                       color={COLORS.surface}
                     />
                   </LinearGradient>
                 ) : (
                   <Ionicons
                     name={stepIcon as any}
-                    size={16}
+                    size={20}
                     color={status === 'upcoming' ? stepColor : COLORS.surface}
                   />
                 )}

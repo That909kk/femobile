@@ -138,15 +138,17 @@ class ServiceService {
    * Search services by keyword
    */
   async searchServices(params: ServiceSearchParams) {
-    const queryParams = new URLSearchParams();
-    if (params.keyword) queryParams.append('keyword', params.keyword);
-    if (params.categoryId) queryParams.append('categoryId', params.categoryId.toString());
-    if (params.minPrice) queryParams.append('minPrice', params.minPrice.toString());
-    if (params.maxPrice) queryParams.append('maxPrice', params.maxPrice.toString());
-    if (params.page) queryParams.append('page', params.page.toString());
-    if (params.limit) queryParams.append('limit', params.limit.toString());
+    // Build URL manually to avoid encoding Vietnamese keywords
+    const queryParts: string[] = [];
+    if (params.keyword) queryParts.push(`keyword=${params.keyword}`);
+    if (params.categoryId) queryParts.push(`categoryId=${params.categoryId}`);
+    if (params.minPrice) queryParts.push(`minPrice=${params.minPrice}`);
+    if (params.maxPrice) queryParts.push(`maxPrice=${params.maxPrice}`);
+    if (params.page) queryParts.push(`page=${params.page}`);
+    if (params.limit) queryParts.push(`limit=${params.limit}`);
 
-    const url = `${this.BASE_PATH}/search${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const url = `${this.BASE_PATH}/search${queryParts.length > 0 ? '?' + queryParts.join('&') : ''}`;
+    
     const response = await httpClient.get<{
       services: Service[];
       totalCount: number;
@@ -194,13 +196,9 @@ class ServiceService {
     district: string;
     city: string;
   }) {
-    const queryParams = new URLSearchParams({
-      serviceId: params.serviceId.toString(),
-      bookingTime: params.bookingTime,
-      district: params.district,
-      city: params.city,
-    });
-
+    // Build URL manually without encoding Vietnamese characters
+    const url = `${this.BASE_PATH}/suitable?serviceId=${params.serviceId}&bookingTime=${params.bookingTime}&district=${params.district}&city=${params.city}`;
+    
     const response = await httpClient.get<{
       employees: SuitableEmployee[];
       totalAvailable: number;
@@ -210,7 +208,7 @@ class ServiceService {
         recommendedStaff: number;
         estimatedDuration: string;
       };
-    }>(`${this.BASE_PATH}/suitable?${queryParams.toString()}`);
+    }>(url);
     return response;
   }
 
@@ -223,18 +221,16 @@ class ServiceService {
     ward: string;
     city: string;
   }) {
-    const queryParams = new URLSearchParams({
-      serviceId: params.serviceId.toString(),
-      bookingTime: params.bookingTime,
-      ward: params.ward,
-      city: params.city,
-    });
-
-    const response = await httpClient.get<{
-      success: boolean;
-      message: string;
-      data: SuitableEmployee[];
-    }>(`${this.BASE_PATH}/employee/suitable?${queryParams.toString()}`);
+    console.log('[getSuitableEmployees] Calling API with params:', params);
+    
+    // Build URL manually without encoding Vietnamese characters
+    const url = `${this.BASE_PATH}/employee/suitable?serviceId=${params.serviceId}&bookingTime=${params.bookingTime}&ward=${params.ward}&city=${params.city}`;
+    
+    console.log('[getSuitableEmployees] URL:', url);
+    
+    const response = await httpClient.get<SuitableEmployee[]>(url);
+    
+    console.log('[getSuitableEmployees] API response:', response);
     return response;
   }
 

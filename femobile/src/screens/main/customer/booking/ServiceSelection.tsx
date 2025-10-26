@@ -25,6 +25,8 @@ import {
   ServiceOption,
   CalculatePriceRequest,
 } from '../../../../types/booking';
+import { ProgressIndicator } from './ProgressIndicator';
+import { BookingStep } from './BookingNavigator';
 
 interface SelectedOption {
   optionId: number;
@@ -67,6 +69,8 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
   const [searchText, setSearchText] = useState('');
   
   const [quantity, setQuantity] = useState<number>(1);
+  // State for QUANTITY_INPUT options: optionId -> { enabled: boolean, value: number }
+  const [quantityInputs, setQuantityInputs] = useState<{ [optionId: number]: { enabled: boolean; value: number } }>({});
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -103,7 +107,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
       loadServiceOptions(currentSelectedService.serviceId);
       calculatePrice();
     }
-  }, [currentSelectedService, selectedChoices, quantity]);
+  }, [currentSelectedService, selectedChoices, quantity, quantityInputs]);
 
   useEffect(() => {
     filterServices();
@@ -237,6 +241,16 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
     try {
       const selectedChoiceIds = Object.values(selectedChoices).flat();
       
+      // Add choices from QUANTITY_INPUT options
+      Object.entries(quantityInputs).forEach(([optionId, inputData]) => {
+        if (inputData.enabled && inputData.value > 0) {
+          const option = serviceOptions.find((opt) => opt.optionId === Number(optionId));
+          if (option && option.optionType === 'QUANTITY_INPUT' && option.choices[0]) {
+            selectedChoiceIds.push(option.choices[0].choiceId);
+          }
+        }
+      });
+      
       const request: CalculatePriceRequest = {
         serviceId: currentSelectedService.serviceId,
         selectedChoiceIds: selectedChoiceIds,
@@ -280,6 +294,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
       });
       
       // Only show error if it's not a timeout and there are selected choices
+      const selectedChoiceIds = Object.values(selectedChoices).flat();
       if (error?.message !== 'timeout of 20000ms exceeded' && selectedChoiceIds.length > 0) {
         console.warn('Failed to calculate accurate price, using base price');
       }
@@ -315,6 +330,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
     setShowOptionsModal(true);
     setQuantity(1);
     setSelectedChoices({});
+    setQuantityInputs({}); // Reset quantity inputs when selecting a new service
   };
 
   const handleChoiceChange = (optionId: number, choiceId: number, isMultiple: boolean) => {
@@ -364,6 +380,36 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
       });
     });
 
+    // Handle QUANTITY_INPUT options
+    Object.entries(quantityInputs).forEach(([optionId, inputData]) => {
+      if (!inputData.enabled || inputData.value <= 0) {
+        return;
+      }
+
+      const option = serviceOptions.find((opt) => opt.optionId === Number(optionId));
+      if (!option || option.optionType !== 'QUANTITY_INPUT') {
+        return;
+      }
+
+      // For QUANTITY_INPUT, we need to find the choice with the quantity value
+      const choice = option.choices[0]; // Typically QUANTITY_INPUT has one choice
+      if (choice) {
+        const rawAdjustment = (choice as any).priceAdjustment;
+        const priceAdjustment =
+          typeof rawAdjustment === 'number'
+            ? rawAdjustment
+            : Number(rawAdjustment) || 0;
+
+        options.push({
+          optionId: option.optionId,
+          choiceId: choice.choiceId,
+          optionName: option.optionName,
+          choiceName: `${choice.choiceName}: ${inputData.value}`,
+          priceAdjustment: priceAdjustment * inputData.value, // Multiply by quantity
+        });
+      }
+    });
+
   setCurrentSelectedOptions(options);
   return options;
   };
@@ -374,19 +420,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
       return;
     }
 
-    const requiredOptions = serviceOptions.filter(option => 
-      option.isRequired && 
-      option.optionType !== 'QUANTITY_INPUT' && 
-      option.optionType !== 'MULTIPLE_CHOICE_CHECKBOX'
-    );
-    const missingOptions = requiredOptions.filter(option => {
-      return !selectedChoices[option.optionId] || selectedChoices[option.optionId].length === 0;
-    });
-
-    if (missingOptions.length > 0) {
-      Alert.alert('Thông báo', `Vui lòng chọn: ${missingOptions.map(opt => opt.optionName).join(', ')}`);
-      return;
-    }
+    // Removed required options validation - users can continue without selecting options
 
     if (quantity < 1) {
       Alert.alert('Thông báo', 'Số lượng phải lớn hơn 0');
@@ -426,6 +460,9 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
           <Text style={styles.headerSubtitle}>Khám phá dịch vụ hoàn hảo cho bạn</Text>
         </View>
       </View>
+
+      {/* Progress Indicator */}
+      <ProgressIndicator currentStep={BookingStep.SERVICE_SELECTION} />
 
       {/* Smart Search */}
       <Animated.View style={[styles.searchSection, { opacity: fadeAnim }]}>
@@ -548,7 +585,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
 
                   {isSelected && (
                     <View style={styles.selectedBadge}>
-                      <Ionicons name="checkmark-circle" size={24} color={colors.highlight.teal} />
+                      <Ionicons name="checkmark-circle" size={28} color={colors.neutral.white} />
                     </View>
                   )}
                 </TouchableOpacity>
@@ -617,34 +654,118 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
                         )}
                       </Text>
                       
-                      {option.choices.map((choice: any) => {
-                        const isSelected = selectedChoices[option.optionId]?.includes(choice.choiceId) || false;
-                        const isMultiple = option.optionType === 'MULTIPLE_CHOICE_CHECKBOX';
-                        
-                        return (
+                      {option.optionType === 'QUANTITY_INPUT' ? (
+                        // Render QUANTITY_INPUT with checkbox and input field
+                        <View style={styles.quantityInputContainer}>
                           <TouchableOpacity
-                            key={choice.choiceId}
-                            style={[styles.choiceCard, isSelected && styles.choiceCardSelected]}
-                            onPress={() => handleChoiceChange(option.optionId, choice.choiceId, isMultiple)}
+                            style={styles.quantityInputCheckboxRow}
+                            onPress={() => {
+                              setQuantityInputs(prev => ({
+                                ...prev,
+                                [option.optionId]: {
+                                  enabled: !prev[option.optionId]?.enabled,
+                                  value: prev[option.optionId]?.value || 1
+                                }
+                              }));
+                            }}
                             activeOpacity={0.7}
                           >
-                            <View style={styles.choiceContent}>
-                              <Text style={[styles.choiceText, isSelected && styles.choiceTextSelected]}>
-                                {choice.choiceName}
-                              </Text>
-                              <View style={[isMultiple ? styles.checkbox : styles.radio, isSelected && styles.checkboxSelected]}>
-                                {isSelected && (
-                                  <Ionicons 
-                                    name={isMultiple ? "checkmark" : "ellipse"} 
-                                    size={isMultiple ? 16 : 12} 
-                                    color={colors.neutral.white} 
-                                  />
-                                )}
+                            <View style={[
+                              styles.checkbox,
+                              quantityInputs[option.optionId]?.enabled && styles.checkboxSelected
+                            ]}>
+                              {quantityInputs[option.optionId]?.enabled && (
+                                <Ionicons name="checkmark" size={16} color={colors.neutral.white} />
+                              )}
+                            </View>
+                            <Text style={styles.quantityInputLabel}>
+                              {option.choices[0]?.choiceName || 'Nhập số lượng'}
+                            </Text>
+                          </TouchableOpacity>
+                          
+                          {quantityInputs[option.optionId]?.enabled && (
+                            <View style={styles.quantityInputField}>
+                              <TextInput
+                                style={styles.quantityInputText}
+                                keyboardType="numeric"
+                                placeholder="Nhập số lượng"
+                                placeholderTextColor={colors.neutral.textSecondary}
+                                value={quantityInputs[option.optionId]?.value?.toString() || ''}
+                                onChangeText={(text) => {
+                                  const value = parseInt(text) || 0;
+                                  setQuantityInputs(prev => ({
+                                    ...prev,
+                                    [option.optionId]: {
+                                      enabled: true,
+                                      value: Math.max(0, value)
+                                    }
+                                  }));
+                                }}
+                              />
+                              <View style={styles.quantityInputButtons}>
+                                <TouchableOpacity
+                                  style={styles.quantityInputButton}
+                                  onPress={() => {
+                                    setQuantityInputs(prev => ({
+                                      ...prev,
+                                      [option.optionId]: {
+                                        enabled: true,
+                                        value: Math.max(0, (prev[option.optionId]?.value || 1) - 1)
+                                      }
+                                    }));
+                                  }}
+                                >
+                                  <Ionicons name="remove" size={20} color={colors.highlight.teal} />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={styles.quantityInputButton}
+                                  onPress={() => {
+                                    setQuantityInputs(prev => ({
+                                      ...prev,
+                                      [option.optionId]: {
+                                        enabled: true,
+                                        value: (prev[option.optionId]?.value || 0) + 1
+                                      }
+                                    }));
+                                  }}
+                                >
+                                  <Ionicons name="add" size={20} color={colors.highlight.teal} />
+                                </TouchableOpacity>
                               </View>
                             </View>
-                          </TouchableOpacity>
-                        );
-                      })}
+                          )}
+                        </View>
+                      ) : (
+                        // Render regular choices (radio/checkbox)
+                        option.choices.map((choice: any) => {
+                          const isSelected = selectedChoices[option.optionId]?.includes(choice.choiceId) || false;
+                          const isMultiple = option.optionType === 'MULTIPLE_CHOICE_CHECKBOX';
+                          
+                          return (
+                            <TouchableOpacity
+                              key={choice.choiceId}
+                              style={[styles.choiceCard, isSelected && styles.choiceCardSelected]}
+                              onPress={() => handleChoiceChange(option.optionId, choice.choiceId, isMultiple)}
+                              activeOpacity={0.7}
+                            >
+                              <View style={styles.choiceContent}>
+                                <Text style={[styles.choiceText, isSelected && styles.choiceTextSelected]}>
+                                  {choice.choiceName}
+                                </Text>
+                                <View style={[isMultiple ? styles.checkbox : styles.radio, isSelected && styles.checkboxSelected]}>
+                                  {isSelected && (
+                                    <Ionicons 
+                                      name={isMultiple ? "checkmark" : "ellipse"} 
+                                      size={isMultiple ? 16 : 12} 
+                                      color={colors.neutral.white} 
+                                    />
+                                  )}
+                                </View>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })
+                      )}
                     </View>
                   ))}
                 </View>
@@ -659,7 +780,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
                     onPress={() => setQuantity(Math.max(1, quantity - 1))}
                     disabled={quantity === 1}
                   >
-                    <Ionicons name="remove" size={24} color={quantity === 1 ? colors.neutral.border : colors.highlight.teal} />
+                    <Ionicons name="remove" size={24} color={quantity === 1 ? colors.neutral.textSecondary : colors.neutral.white} />
                   </TouchableOpacity>
                   <View style={styles.quantityDisplay}>
                     <Text style={styles.quantityText}>{quantity}</Text>
@@ -668,7 +789,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
                     style={styles.quantityButton}
                     onPress={() => setQuantity(quantity + 1)}
                   >
-                    <Ionicons name="add" size={24} color={colors.highlight.teal} />
+                    <Ionicons name="add" size={24} color={colors.neutral.white} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -723,88 +844,100 @@ const styles = StyleSheet.create({
     marginTop: responsiveSpacing.md,
     fontSize: responsiveFontSize.body,
     color: colors.neutral.textSecondary,
+    fontWeight: '500',
   },
   
-  // Header
+  // Header - matching CustomerHomeScreen
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: responsiveSpacing.md,
-    paddingVertical: responsiveSpacing.md,
+    paddingHorizontal: responsiveSpacing.lg,
+    paddingTop: responsiveSpacing.xl,
+    paddingBottom: responsiveSpacing.md,
     backgroundColor: colors.warm.beige,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.neutral.border,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.neutral.white,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: responsiveSpacing.sm,
+    marginRight: responsiveSpacing.md,
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
     shadowColor: colors.primary.navy,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
   headerContent: {
     flex: 1,
   },
   headerTitle: {
     fontSize: responsiveFontSize.heading2,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.primary.navy,
+    letterSpacing: 0.3,
   },
   headerSubtitle: {
     fontSize: responsiveFontSize.caption,
     color: colors.neutral.textSecondary,
-    marginTop: 2,
+    marginTop: 4,
+    fontWeight: '400',
   },
 
-  // Search
+  // Search - matching CustomerHomeScreen card style
   searchSection: {
-    paddingHorizontal: responsiveSpacing.md,
-    paddingVertical: responsiveSpacing.sm,
+    paddingHorizontal: responsiveSpacing.lg,
+    paddingTop: responsiveSpacing.md,
+    paddingBottom: responsiveSpacing.sm,
     backgroundColor: colors.warm.beige,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: responsiveSpacing.md,
-    paddingVertical: responsiveSpacing.sm,
+    paddingHorizontal: responsiveSpacing.md + 2,
+    paddingVertical: responsiveSpacing.md - 2,
     backgroundColor: colors.neutral.white,
-    borderRadius: 12,
+    borderRadius: 16,
     shadowColor: colors.primary.navy,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
   },
   searchInput: {
     flex: 1,
     marginLeft: responsiveSpacing.sm,
     fontSize: responsiveFontSize.body,
     color: colors.neutral.textPrimary,
+    fontWeight: '400',
   },
 
-  // Categories
+  // Categories - matching CustomerHomeScreen style
   categorySection: {
-    paddingVertical: responsiveSpacing.sm,
+    paddingVertical: responsiveSpacing.md,
     backgroundColor: colors.neutral.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.neutral.border,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
   },
   categoryScrollContent: {
-    paddingHorizontal: responsiveSpacing.md,
+    paddingHorizontal: responsiveSpacing.lg,
+    gap: responsiveSpacing.sm,
   },
   categoryTab: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: responsiveSpacing.md,
-    paddingVertical: responsiveSpacing.sm,
-    marginRight: responsiveSpacing.sm,
+    paddingHorizontal: responsiveSpacing.md + 4,
+    paddingVertical: responsiveSpacing.sm + 2,
+    marginRight: responsiveSpacing.xs,
     borderRadius: 20,
     backgroundColor: colors.neutral.background,
     borderWidth: 1,
@@ -813,24 +946,31 @@ const styles = StyleSheet.create({
   categoryTabActive: {
     backgroundColor: colors.highlight.teal,
     borderColor: colors.highlight.teal,
+    shadowColor: colors.highlight.teal,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
   categoryTabText: {
     fontSize: responsiveFontSize.caption,
     color: colors.neutral.textSecondary,
     fontWeight: '500',
-    marginLeft: 4,
+    marginLeft: 6,
   },
   categoryTabTextActive: {
     color: colors.neutral.white,
+    fontWeight: '600',
   },
 
-  // Services
+  // Services - matching CustomerHomeScreen card style
   servicesContainer: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: colors.neutral.background,
   },
   servicesContent: {
-    padding: responsiveSpacing.md,
+    padding: responsiveSpacing.lg,
+    paddingTop: responsiveSpacing.md,
     flexGrow: 1,
   },
   emptyContainer: {
@@ -849,85 +989,92 @@ const styles = StyleSheet.create({
     fontSize: responsiveFontSize.body,
     color: colors.neutral.textSecondary,
     marginTop: responsiveSpacing.xs,
+    opacity: 0.7,
   },
   serviceCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.neutral.white,
     borderRadius: 16,
-    padding: responsiveSpacing.md,
+    padding: responsiveSpacing.md + 4,
     marginBottom: responsiveSpacing.md,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
+    borderWidth: 0,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
     position: 'relative',
+    overflow: 'hidden',
   },
   serviceCardSelected: {
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: colors.highlight.teal,
-    backgroundColor: '#E0F2F1',
-    shadowOpacity: 0.2,
-    elevation: 8,
+    backgroundColor: colors.neutral.white,
+    shadowOpacity: 0.15,
+    elevation: 6,
   },
   serviceCardHeader: {
     flexDirection: 'row',
-    marginBottom: responsiveSpacing.sm,
+    marginBottom: responsiveSpacing.md,
   },
   serviceIconWrapper: {
     position: 'relative',
-    marginRight: responsiveSpacing.sm,
+    marginRight: responsiveSpacing.md,
   },
   serviceIcon: {
     width: 70,
     height: 70,
-    borderRadius: 12,
+    borderRadius: 16,
     backgroundColor: colors.warm.beige,
   },
   staffBadge: {
     position: 'absolute',
-    top: -4,
-    right: -4,
+    top: -6,
+    right: -6,
     backgroundColor: colors.highlight.teal,
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     flexDirection: 'row',
     alignItems: 'center',
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   staffBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     color: colors.neutral.white,
     fontWeight: '700',
     marginLeft: 2,
   },
   serviceInfo: {
     flex: 1,
+    justifyContent: 'center',
   },
   serviceName: {
     fontSize: responsiveFontSize.body,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.primary.navy,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   serviceCategory: {
-    fontSize: responsiveFontSize.caption - 2,
+    fontSize: responsiveFontSize.caption,
     color: colors.highlight.teal,
     fontWeight: '500',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   serviceDescription: {
     fontSize: responsiveFontSize.caption,
     color: colors.neutral.textSecondary,
-    lineHeight: responsiveFontSize.caption * 1.4,
+    lineHeight: responsiveFontSize.caption * 1.5,
   },
   serviceFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: responsiveSpacing.sm,
-    paddingTop: responsiveSpacing.sm,
+    marginTop: responsiveSpacing.sm + 4,
+    paddingTop: responsiveSpacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.neutral.border,
   },
@@ -936,35 +1083,37 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   priceLabel: {
-    fontSize: responsiveFontSize.caption - 2,
+    fontSize: responsiveFontSize.caption - 1,
     color: colors.neutral.textSecondary,
-    marginRight: 4,
+    marginRight: 6,
+    fontWeight: '400',
   },
   servicePrice: {
     fontSize: responsiveFontSize.heading3,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.highlight.teal,
   },
   durationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.neutral.background,
-    paddingHorizontal: responsiveSpacing.sm,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: responsiveSpacing.sm + 4,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
   serviceDuration: {
-    fontSize: responsiveFontSize.caption - 1,
-    color: colors.neutral.textSecondary,
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textPrimary,
     marginLeft: 4,
+    fontWeight: '500',
   },
   selectedBadge: {
     position: 'absolute',
-    top: responsiveSpacing.sm,
-    right: responsiveSpacing.sm,
+    top: responsiveSpacing.md,
+    right: responsiveSpacing.md,
   },
 
-  // Modal
+  // Modal - matching CustomerHomeScreen style
   modalContainer: {
     flex: 1,
     backgroundColor: colors.neutral.background,
@@ -972,49 +1121,58 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: responsiveSpacing.md,
-    paddingVertical: responsiveSpacing.md,
+    paddingHorizontal: responsiveSpacing.lg,
+    paddingTop: responsiveSpacing.xl,
+    paddingBottom: responsiveSpacing.md,
     backgroundColor: colors.warm.beige,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.neutral.border,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
   },
   modalCloseButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.neutral.white,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: responsiveSpacing.sm,
+    marginRight: responsiveSpacing.md,
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
   modalHeaderContent: {
     flex: 1,
   },
   modalTitle: {
     fontSize: responsiveFontSize.heading2,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.primary.navy,
   },
   modalSubtitle: {
     fontSize: responsiveFontSize.caption,
     color: colors.neutral.textSecondary,
-    marginTop: 2,
+    marginTop: 4,
+    fontWeight: '400',
   },
   modalContent: {
     flex: 1,
-    padding: responsiveSpacing.md,
+    padding: responsiveSpacing.lg,
   },
   serviceInfoCard: {
     backgroundColor: colors.neutral.white,
     borderRadius: 16,
-    padding: responsiveSpacing.lg,
-    marginBottom: responsiveSpacing.md,
+    padding: responsiveSpacing.lg + 4,
+    marginBottom: responsiveSpacing.lg,
     alignItems: 'center',
     shadowColor: colors.primary.navy,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
   },
   modalServiceIcon: {
     width: 100,
@@ -1026,12 +1184,16 @@ const styles = StyleSheet.create({
     fontSize: responsiveFontSize.body,
     color: colors.neutral.textSecondary,
     textAlign: 'center',
-    marginBottom: responsiveSpacing.md,
+    marginBottom: responsiveSpacing.lg,
     lineHeight: responsiveFontSize.body * 1.5,
+    fontWeight: '400',
   },
   serviceMetrics: {
     flexDirection: 'row',
     width: '100%',
+    backgroundColor: colors.neutral.background,
+    borderRadius: 12,
+    padding: responsiveSpacing.md,
   },
   metricItem: {
     flex: 1,
@@ -1040,53 +1202,55 @@ const styles = StyleSheet.create({
   metricDivider: {
     width: 1,
     backgroundColor: colors.neutral.border,
-    marginHorizontal: responsiveSpacing.sm,
+    marginHorizontal: responsiveSpacing.md,
   },
   metricLabel: {
-    fontSize: responsiveFontSize.caption - 1,
+    fontSize: responsiveFontSize.caption,
     color: colors.neutral.textSecondary,
-    marginTop: 4,
+    marginTop: 6,
+    fontWeight: '400',
   },
   metricValue: {
     fontSize: responsiveFontSize.body,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.primary.navy,
-    marginTop: 2,
+    marginTop: 4,
   },
 
-  // Options
+  // Options - matching CustomerHomeScreen card style
   optionsSection: {
     marginBottom: responsiveSpacing.md,
   },
   sectionTitle: {
     fontSize: responsiveFontSize.heading3,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.primary.navy,
-    marginBottom: responsiveSpacing.sm,
+    marginBottom: responsiveSpacing.md,
   },
   optionGroup: {
     backgroundColor: colors.neutral.white,
     borderRadius: 16,
-    padding: responsiveSpacing.md,
+    padding: responsiveSpacing.lg,
     marginBottom: responsiveSpacing.md,
     shadowColor: colors.primary.navy,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
   },
   optionTitle: {
     fontSize: responsiveFontSize.body,
     fontWeight: '600',
     color: colors.primary.navy,
-    marginBottom: responsiveSpacing.sm,
+    marginBottom: responsiveSpacing.md,
   },
   required: {
     color: colors.feedback.error,
+    fontWeight: '600',
   },
   choiceCard: {
     borderRadius: 12,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: colors.neutral.border,
     backgroundColor: colors.neutral.background,
     marginBottom: responsiveSpacing.sm,
@@ -1095,17 +1259,19 @@ const styles = StyleSheet.create({
   choiceCardSelected: {
     borderColor: colors.highlight.teal,
     backgroundColor: colors.warm.beige,
+    borderWidth: 2,
   },
   choiceContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: responsiveSpacing.sm,
+    padding: responsiveSpacing.md,
   },
   choiceText: {
     fontSize: responsiveFontSize.body,
     color: colors.neutral.textPrimary,
     flex: 1,
+    fontWeight: '400',
   },
   choiceTextSelected: {
     color: colors.highlight.teal,
@@ -1136,59 +1302,68 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // Quantity
+  // Quantity - matching CustomerHomeScreen style
   quantitySection: {
     backgroundColor: colors.neutral.white,
     borderRadius: 16,
-    padding: responsiveSpacing.md,
+    padding: responsiveSpacing.lg,
     marginBottom: responsiveSpacing.md,
     shadowColor: colors.primary.navy,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
   },
   quantityControl: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: responsiveSpacing.sm,
   },
   quantityButton: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: colors.warm.beige,
+    backgroundColor: colors.highlight.teal,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.highlight.teal,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
   quantityButtonDisabled: {
     backgroundColor: colors.neutral.background,
-    borderColor: colors.neutral.border,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   quantityDisplay: {
     marginHorizontal: responsiveSpacing.xl,
     minWidth: 60,
     alignItems: 'center',
+    backgroundColor: colors.neutral.background,
+    paddingVertical: responsiveSpacing.sm,
+    paddingHorizontal: responsiveSpacing.md,
+    borderRadius: 12,
   },
   quantityText: {
     fontSize: responsiveFontSize.heading1,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.primary.navy,
   },
 
-  // Price Summary
+  // Price Summary - matching CustomerHomeScreen card style
   priceSummary: {
     backgroundColor: colors.neutral.white,
     borderRadius: 16,
-    padding: responsiveSpacing.md,
+    padding: responsiveSpacing.lg,
     marginBottom: responsiveSpacing.md,
     shadowColor: colors.primary.navy,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -1199,6 +1374,7 @@ const styles = StyleSheet.create({
   summaryLabel: {
     fontSize: responsiveFontSize.body,
     color: colors.neutral.textSecondary,
+    fontWeight: '400',
   },
   summaryValue: {
     fontSize: responsiveFontSize.body,
@@ -1208,7 +1384,7 @@ const styles = StyleSheet.create({
   summaryDivider: {
     height: 1,
     backgroundColor: colors.neutral.border,
-    marginVertical: responsiveSpacing.sm,
+    marginVertical: responsiveSpacing.md,
   },
   totalRow: {
     flexDirection: 'row',
@@ -1217,21 +1393,26 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     fontSize: responsiveFontSize.heading3,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.primary.navy,
   },
   totalValue: {
     fontSize: responsiveFontSize.heading2,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.highlight.teal,
   },
 
-  // Modal Footer
+  // Modal Footer - matching CustomerHomeScreen button style
   modalFooter: {
-    padding: responsiveSpacing.md,
+    padding: responsiveSpacing.lg,
     backgroundColor: colors.neutral.white,
     borderTopWidth: 1,
     borderTopColor: colors.neutral.border,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   confirmButton: {
     flexDirection: 'row',
@@ -1240,16 +1421,66 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.highlight.teal,
+    shadowColor: colors.primary.navy,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 4,
   },
   confirmButtonText: {
     color: colors.neutral.white,
     fontSize: responsiveFontSize.body,
-    fontWeight: '700',
+    fontWeight: '600',
     marginRight: responsiveSpacing.sm,
+  },
+
+  // Quantity Input Styles
+  quantityInputContainer: {
+    marginTop: responsiveSpacing.sm,
+  },
+  quantityInputCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: responsiveSpacing.sm,
+  },
+  quantityInputLabel: {
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textPrimary,
+    marginLeft: responsiveSpacing.sm,
+    flex: 1,
+    fontWeight: '400',
+  },
+  quantityInputField: {
+    marginTop: responsiveSpacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.neutral.background,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.highlight.teal,
+    paddingHorizontal: responsiveSpacing.md,
+    paddingVertical: responsiveSpacing.sm,
+  },
+  quantityInputText: {
+    flex: 1,
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textPrimary,
+    fontWeight: '500',
+    paddingVertical: responsiveSpacing.xs,
+  },
+  quantityInputButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: responsiveSpacing.xs,
+  },
+  quantityInputButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: colors.warm.beige,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.highlight.teal,
   },
 });

@@ -1,6 +1,33 @@
 import { StyleSheet } from 'react-native';
 import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../../styles';
 
+// Design tokens
+export const DESIGN_TOKENS = {
+  spacing: {
+    xs: responsiveSpacing.xs,
+    sm: responsiveSpacing.sm,
+    md: responsiveSpacing.md,
+    lg: responsiveSpacing.lg,
+    xl: responsiveSpacing.xl,
+  },
+  borderRadius: {
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 20,
+    full: 999,
+  },
+};
+
+// Booking step colors
+export const BookingColors = {
+  step1: colors.highlight.teal,
+  step2: '#FF8A65', // Coral
+  step3: '#9B86BD', // Lavender
+  step4: colors.primary.navy,
+  step5: colors.feedback.success,
+};
+
 export const commonStyles = StyleSheet.create({
   // Container
   container: {
@@ -327,18 +354,67 @@ export const commonStyles = StyleSheet.create({
 
   // Progress Indicator
   progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: responsiveSpacing.md,
-    paddingVertical: responsiveSpacing.sm,
+    paddingHorizontal: responsiveSpacing.lg,
+    paddingVertical: responsiveSpacing.lg,
     backgroundColor: colors.neutral.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.neutral.border,
+    borderRadius: 16,
+    marginHorizontal: responsiveSpacing.md,
+    marginTop: responsiveSpacing.md,
+    marginBottom: responsiveSpacing.sm,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  progressTrack: {
+    height: 6,
+    backgroundColor: colors.neutral.border + '40',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: responsiveSpacing.lg,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  progressSteps: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
   progressStep: {
     alignItems: 'center',
     flex: 1,
+  },
+  progressStepIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: responsiveSpacing.xs,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  progressStepIconActive: {
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  progressStepIconCompleted: {
+    shadowColor: colors.feedback.success,
+  },
+  progressStepText: {
+    fontSize: responsiveFontSize.caption - 1,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  progressStepTextActive: {
+    fontWeight: '700',
   },
   progressDot: {
     width: 28,
@@ -379,3 +455,6 @@ export const commonStyles = StyleSheet.create({
     backgroundColor: colors.feedback.success,
   },
 });
+
+// Export as BookingStyles for compatibility
+export const BookingStyles = commonStyles;

@@ -8,6 +8,7 @@ export { employeeRequestService } from './employeeRequestService';
 export { employeeScheduleService } from './employeeScheduleService';
 export { paymentService } from './paymentService';
 export { employeeAssignmentService } from './employeeAssignmentService';
+export { addressService } from './addressService';
 
 export type { UserInfo, CustomerData, EmployeeData } from './userInfoService';
 
@@ -29,6 +30,8 @@ export type {
   Assignment,
   CustomerBookingsResponse
 } from './bookingService';
+
+export type { Province, Commune } from './addressService';
 
 // Export booking types from types folder
 export type {

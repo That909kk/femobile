@@ -12,6 +12,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../../styles';
 import { BookingResponse } from '../../../../types/booking';
 import { commonStyles } from './styles';
+import { ProgressIndicator } from './ProgressIndicator';
+import { BookingStep } from './BookingNavigator';
 
 interface BookingSuccessProps {
   bookingData: BookingResponse;
@@ -90,6 +92,9 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
 
   return (
     <View style={styles.container}>
+      {/* Progress Indicator */}
+      <ProgressIndicator currentStep={BookingStep.SUCCESS} />
+      
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Success Icon với Animation */}
         <Animated.View style={[styles.successIconContainer, { 

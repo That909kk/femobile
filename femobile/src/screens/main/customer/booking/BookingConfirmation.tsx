@@ -19,11 +19,12 @@ import {
   type Service,
   type PaymentMethod,
   type BookingRequest,
-  type BookingValidationRequest,
   type Employee,
 } from '../../../../services';
 import { type LocationData, type SelectedOption } from './types';
 import { commonStyles } from './styles';
+import { ProgressIndicator } from './ProgressIndicator';
+import { BookingStep } from './BookingNavigator';
 
 interface BookingConfirmationProps {
   selectedService: Service | null;
@@ -174,7 +175,24 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
       const promoValue = trimmedPromoCode.length > 0 ? trimmedPromoCode : null;
       const noteValue = trimmedNote.length > 0 ? trimmedNote : undefined;
 
-      const choiceIds = Array.from(new Set(selectedOptions.map((option) => option.choiceId)));
+      const choiceIds = Array.from(new Set(selectedOptions.map((option) => option.choiceId)))
+        .filter((id) => id !== null && id !== undefined && !isNaN(id));
+      
+      console.log('📋 Selected options for booking:', {
+        selectedOptions,
+        choiceIds,
+        serviceId: selectedService.serviceId,
+      });
+      
+      // Validate that we have valid choice IDs
+      if (selectedOptions.length > 0 && choiceIds.length === 0) {
+        Alert.alert(
+          'Lỗi dữ liệu',
+          'Không tìm thấy tùy chọn dịch vụ hợp lệ. Vui lòng chọn lại dịch vụ.'
+        );
+        return;
+      }
+      
       const addressId = selectedAddress.addressId ? String(selectedAddress.addressId) : undefined;
       const newAddressPayload = selectedAddress.addressId
         ? null
@@ -203,66 +221,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
       const baseUnitPrice =
         normalizedQuantity > 0 ? baseExpectedPrice / normalizedQuantity : baseExpectedPrice;
 
-      const validationPayload: BookingValidationRequest = {
-        addressId,
-        newAddress: newAddressPayload,
-        bookingTime: bookingDateTime,
-        note: noteValue,
-        promoCode: promoValue,
-        bookingDetails: [
-          {
-            serviceId: selectedService.serviceId,
-            quantity: normalizedQuantity,
-            expectedPrice: baseExpectedPrice,
-            expectedPricePerUnit: baseUnitPrice,
-            selectedChoiceIds: choiceIds,
-          },
-        ],
-        assignments: assignmentsPayload,
-        paymentMethodId: selectedPaymentMethodId,
-      };
-
-      const validationResult = await bookingService.validateBooking(validationPayload);
-      const validationPassed = validationResult.valid ?? validationResult.isValid ?? false;
-
-      if (!validationPassed) {
-        const issues: string[] = [];
-        if (validationResult.errors?.length) {
-          issues.push(...validationResult.errors);
-        }
-        if (validationResult.conflicts?.length) {
-          validationResult.conflicts.forEach((conflict) => {
-            const conflictLabel = conflict.reason
-              ? `${conflict.employeeId}: ${conflict.reason}`
-              : `${conflict.employeeId}: Xung đột lịch làm việc`;
-            issues.push(`Nhân viên ${conflictLabel}`);
-          });
-        }
-
-        if (issues.length === 0) {
-          issues.push('Thông tin đặt lịch không hợp lệ. Vui lòng kiểm tra và thử lại.');
-        }
-
-        Alert.alert('Không thể xác nhận', issues.join('\n'));
-        return;
-      }
-
-      const validatedServiceTotal = validationResult.serviceValidations?.reduce((sum, item) => {
-        if (typeof item.calculatedPrice === 'number') {
-          return sum + item.calculatedPrice;
-        }
-        return sum;
-      }, 0);
-
-      const finalTotalAmount =
-        typeof validationResult.calculatedTotalAmount === 'number'
-          ? validationResult.calculatedTotalAmount
-          : validatedServiceTotal ?? baseExpectedPrice;
-      const finalUnitPrice =
-        normalizedQuantity > 0 ? finalTotalAmount / normalizedQuantity : finalTotalAmount;
-
-      setFinalPrice(finalTotalAmount);
-
+      // Tạo booking data trực tiếp mà không cần validate API trước
       const bookingData: BookingRequest = {
         addressId,
         newAddress: newAddressPayload,
@@ -271,8 +230,8 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
           {
             serviceId: selectedService.serviceId,
             quantity: normalizedQuantity,
-            expectedPrice: finalTotalAmount,
-            expectedPricePerUnit: finalUnitPrice,
+            expectedPrice: baseExpectedPrice,
+            expectedPricePerUnit: baseUnitPrice,
             selectedChoiceIds: choiceIds,
           },
         ],
@@ -285,9 +244,62 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
         bookingData.note = noteValue;
       }
 
+      console.log('🚀 Creating booking with data:', bookingData);
+
+      // Gọi trực tiếp API tạo booking, backend sẽ validate và trả về lỗi nếu có
+      console.log('🚀 Creating booking with data:', bookingData);
+
+      // Gọi trực tiếp API tạo booking, backend sẽ validate và trả về lỗi nếu có
       await onConfirm(bookingData);
-    } catch (error) {
-      Alert.alert('Lỗi', 'Có lỗi xảy ra. Vui lòng thử lại.');
+    } catch (error: any) {
+      console.error('❌ Booking confirmation error:', error);
+      
+      let errorMessage = 'Có lỗi xảy ra. Vui lòng thử lại.';
+      let errorTitle = 'Lỗi';
+      
+      // Xử lý lỗi từ backend response
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        
+        // Xử lý validation errors
+        if (errorData.validationErrors && Array.isArray(errorData.validationErrors) && errorData.validationErrors.length > 0) {
+          errorTitle = 'Thông tin không hợp lệ';
+          errorMessage = errorData.validationErrors.join('\n');
+        }
+        // Xử lý conflicts (employee conflicts, scheduling conflicts)
+        else if (errorData.conflicts && Array.isArray(errorData.conflicts) && errorData.conflicts.length > 0) {
+          errorTitle = 'Xung đột lịch hẹn';
+          const conflictMessages = errorData.conflicts.map((conflict: any) => {
+            if (conflict.reason) {
+              return `Nhân viên ${conflict.employeeId}: ${conflict.reason}`;
+            }
+            return `Nhân viên ${conflict.employeeId}: Xung đột lịch làm việc`;
+          });
+          errorMessage = conflictMessages.join('\n');
+        }
+        // Xử lý errors array
+        else if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+          errorTitle = 'Lỗi đặt lịch';
+          errorMessage = errorData.errors.join('\n');
+        }
+        // Xử lý message từ backend
+        else if (errorData.message) {
+          errorMessage = errorData.message;
+          
+          // Tùy chỉnh title dựa trên error code
+          if (errorData.errorCode === 'BOOKING_CREATION_FAILED') {
+            errorTitle = 'Không thể tạo đặt lịch';
+          } else if (errorData.errorCode === 'VALIDATION_ERROR') {
+            errorTitle = 'Thông tin không hợp lệ';
+          } else if (errorData.errorCode) {
+            errorTitle = 'Lỗi đặt lịch';
+          }
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert(errorTitle, errorMessage);
     } finally {
       setIsProcessing(false);
     }
@@ -311,6 +323,9 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
           </Text>
         </View>
       </View>
+
+      {/* Progress Indicator */}
+      <ProgressIndicator currentStep={BookingStep.CONFIRMATION} />
 
       <ScrollView
         style={{ flex: 1 }}

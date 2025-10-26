@@ -14,6 +14,8 @@ import { colors } from '../../../../styles';
 import { serviceService, type Service, type Employee } from '../../../../services';
 import { type LocationData } from './types';
 import { commonStyles } from './styles';
+import { ProgressIndicator } from './ProgressIndicator';
+import { BookingStep } from './BookingNavigator';
 
 interface EmployeeSelectionProps {
   selectedService: Service | null;
@@ -70,6 +72,13 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
       // Format booking time for API
       const bookingDateTime = `${selectedDate}T${selectedTime}:00`;
       
+      console.log('[EmployeeSelection] Loading suitable employees with:', {
+        serviceId: selectedService.serviceId,
+        bookingTime: bookingDateTime,
+        ward: selectedLocation.ward,
+        city: selectedLocation.city,
+      });
+      
       const response = await serviceService.getSuitableEmployees({
         serviceId: selectedService.serviceId,
         bookingTime: bookingDateTime,
@@ -77,22 +86,22 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
         city: selectedLocation.city,
       });
 
-      if (response && response.data && Array.isArray(response.data)) {
-        // Extract the employee data array from response
+      console.log('[EmployeeSelection] Response received:', response);
+
+      // httpClient.get returns ApiResponse<T> where T is SuitableEmployee[]
+      if (response.success && response.data && Array.isArray(response.data)) {
         setSuitableEmployees(response.data);
-      } else if (response && response.data) {
-        // Handle case where response.data is the response object itself
-        if (response.data.success && response.data.data) {
-          setSuitableEmployees(response.data.data);
-        } else {
-          setError(response.data.message || 'Không thể tải danh sách nhân viên');
-        }
+        console.log('[EmployeeSelection] Set employees:', response.data.length);
       } else {
-        setError('Không thể tải danh sách nhân viên');
+        const errorMsg = response.message || 'Không thể tải danh sách nhân viên';
+        setError(errorMsg);
+        console.warn('[EmployeeSelection] Error response:', errorMsg);
+        setSuitableEmployees([]);
       }
     } catch (err) {
-      console.error('Error loading suitable employees:', err);
+      console.error('[EmployeeSelection] Error loading suitable employees:', err);
       setError('Có lỗi xảy ra khi tải danh sách nhân viên');
+      setSuitableEmployees([]);
     } finally {
       setLoading(false);
     }
@@ -228,6 +237,9 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
           <Text style={commonStyles.headerSubtitle}>Tìm nhân viên phù hợp</Text>
         </View>
       </View>
+
+      {/* Progress Indicator */}
+      <ProgressIndicator currentStep={BookingStep.EMPLOYEE_SELECTION} />
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
         {/* Service Info Summary */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,18 +9,27 @@ import {
   Alert,
   StatusBar,
   Dimensions,
-  ActivityIndicator
+  ActivityIndicator,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
-import { bookingService } from '../../../../services';
+import { bookingService, addressService, type Province, type Commune } from '../../../../services';
 import { useUserInfo } from '../../../../hooks';
 import { STORAGE_KEYS } from '../../../../constants';
 import { useAuthStore } from '../../../../store/authStore';
 import { colors } from '../../../../styles';
 import { type LocationData } from './types';
 import { commonStyles } from './styles';
+import { ProgressIndicator } from './ProgressIndicator';
+import { BookingStep } from './BookingNavigator';
+import { AddressPicker } from '../../../../components';
 
 interface MapRegion {
   latitude: number;
@@ -56,7 +65,7 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
   const [manualAddress, setManualAddress] = useState<LocationData>({
     fullAddress: '',
     ward: '',
-    district: '',
+    district: '', // Giữ lại để tương thích với API backend, nhưng sẽ để trống
     city: ''
   });
   const [mapRegion, setMapRegion] = useState<MapRegion>({
@@ -71,6 +80,16 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
   const [hasTriedLoadingDefault, setHasTriedLoadingDefault] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [cachedLocation, setCachedLocation] = useState<LocationData | null>(null);
+  const [isMapModalVisible, setIsMapModalVisible] = useState(false);
+  const [tempMapLocation, setTempMapLocation] = useState<LocationData | null>(null);
+  const mapRef = useRef<MapView>(null);
+  
+  // Address picker states
+  const [provinces, setProvinces] = useState<Province[]>([]);
+  const [communes, setCommunes] = useState<Commune[]>([]);
+  const [loadingProvinces, setLoadingProvinces] = useState(false);
+  const [loadingCommunes, setLoadingCommunes] = useState(false);
+  const [selectedProvinceCode, setSelectedProvinceCode] = useState<string>('');
 
   useEffect(() => {
     console.log('🎯 LocationSelection mounted:', {
@@ -82,6 +101,9 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
     
     // Preload location permissions for faster GPS access
     preloadLocationPermissions();
+    
+    // Load provinces for manual address input
+    loadProvinces();
   }, []);
 
   // Debug auth state changes
@@ -135,6 +157,35 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
       await Location.getForegroundPermissionsAsync();
     } catch (error) {
       console.log('Preload permissions failed:', error);
+    }
+  };
+
+  const loadProvinces = async () => {
+    setLoadingProvinces(true);
+    try {
+      const provincesList = await addressService.getProvinces();
+      setProvinces(provincesList);
+      console.log('✅ Loaded provinces:', provincesList.length);
+    } catch (error) {
+      console.error('❌ Error loading provinces:', error);
+      Alert.alert('Lỗi', 'Không thể tải danh sách tỉnh/thành phố. Vui lòng thử lại.');
+    } finally {
+      setLoadingProvinces(false);
+    }
+  };
+
+  const loadCommunes = async (provinceCode: string) => {
+    setLoadingCommunes(true);
+    try {
+      const communesList = await addressService.getCommunes(provinceCode);
+      setCommunes(communesList);
+      console.log('✅ Loaded communes for province', provinceCode, ':', communesList.length);
+    } catch (error) {
+      console.error('❌ Error loading communes:', error);
+      Alert.alert('Lỗi', 'Không thể tải danh sách phường/xã. Vui lòng thử lại.');
+      setCommunes([]);
+    } finally {
+      setLoadingCommunes(false);
     }
   };
 
@@ -310,18 +361,7 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
 
       const { latitude, longitude } = location.coords;
 
-      // Set coordinates immediately for instant UI feedback
-      const quickLocationData: LocationData = {
-        fullAddress: `Tọa độ: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-        ward: '',
-        district: '',
-        city: '',
-        latitude,
-        longitude,
-        isDefault: false
-      };
-
-      setCurrentLocation(quickLocationData);
+      // Set map region
       setMapRegion({
         latitude,
         longitude,
@@ -329,7 +369,7 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
         longitudeDelta: 0.01,
       });
 
-      // Do reverse geocoding in background for better address
+      // Do reverse geocoding for address
       try {
         const [address] = await Location.reverseGeocodeAsync({
           latitude,
@@ -338,22 +378,39 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
 
         console.log('Reverse geocoded address:', address);
 
-        const fullLocationData: LocationData = {
-          fullAddress: `${address.name || ''} ${address.street || ''}, ${address.district || ''}, ${address.city || ''}, ${address.region || ''}`.trim() || quickLocationData.fullAddress,
+        const locationData: LocationData = {
+          fullAddress: [
+            address.name,
+            address.street,
+            address.district,
+            address.city || address.region
+          ].filter(Boolean).join(', '),
           ward: address.district || '',
-          district: address.subregion || '',
+          district: '', // Không dùng nữa - để trống
           city: address.city || address.region || '',
           latitude,
           longitude,
           isDefault: false
         };
 
-        setCurrentLocation(fullLocationData);
-        setCachedLocation(fullLocationData); // Cache for future use
-        console.log('Address resolved and updated:', fullLocationData);
+        setCurrentLocation(locationData);
+        setCachedLocation(locationData);
+        console.log('Address resolved and updated:', locationData);
       } catch (geocodeError) {
-        console.log('Reverse geocoding failed, keeping coordinate display:', geocodeError);
-        setCachedLocation(quickLocationData); // Cache coordinates at least
+        console.log('Reverse geocoding failed:', geocodeError);
+        
+        const coordinateLocationData: LocationData = {
+          fullAddress: `Tọa độ: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+          ward: '',
+          district: '',
+          city: '',
+          latitude,
+          longitude,
+          isDefault: false
+        };
+        
+        setCurrentLocation(coordinateLocationData);
+        setCachedLocation(coordinateLocationData);
       }
     } catch (error) {
       console.error('Error getting current location:', error);
@@ -367,6 +424,7 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
     const { latitude, longitude } = event.nativeEvent.coordinate;
     console.log('Map pressed at:', { latitude, longitude });
     
+    setLoading(true);
     try {
       const [address] = await Location.reverseGeocodeAsync({
         latitude,
@@ -374,16 +432,21 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
       });
 
       const locationData: LocationData = {
-        fullAddress: `${address.name || ''} ${address.street || ''}, ${address.district || ''}, ${address.city || ''}, ${address.region || ''}`.trim(),
+        fullAddress: [
+          address.name,
+          address.street,
+          address.district,
+          address.city || address.region
+        ].filter(Boolean).join(', '),
         ward: address.district || '',
-        district: address.subregion || '',
+        district: '', // Không dùng nữa - để trống
         city: address.city || address.region || '',
         latitude,
         longitude,
         isDefault: false
       };
 
-      setCurrentLocation(locationData);
+      setTempMapLocation(locationData);
       setMapRegion({
         latitude,
         longitude,
@@ -392,7 +455,41 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
       });
     } catch (error) {
       console.error('Error reverse geocoding:', error);
+      const coordinateLocationData: LocationData = {
+        fullAddress: `Tọa độ: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+        ward: '',
+        district: '',
+        city: '',
+        latitude,
+        longitude,
+        isDefault: false
+      };
+      setTempMapLocation(coordinateLocationData);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleConfirmMapLocation = () => {
+    if (tempMapLocation) {
+      setCurrentLocation(tempMapLocation);
+      setCachedLocation(tempMapLocation);
+      setIsMapModalVisible(false);
+      setTempMapLocation(null);
+    }
+  };
+
+  const handleOpenMap = () => {
+    if (currentLocation?.latitude && currentLocation?.longitude) {
+      setTempMapLocation(currentLocation);
+      setMapRegion({
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+    }
+    setIsMapModalVisible(true);
   };
 
   const handleOptionSelect = (option: LocationOption) => {
@@ -440,9 +537,19 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
       return;
     }
 
-    if (selectedOption === 'manual' && !locationData.fullAddress?.trim()) {
-      Alert.alert('Thông báo', 'Vui lòng nhập đầy đủ thông tin địa chỉ');
-      return;
+    if (selectedOption === 'manual') {
+      if (!locationData.fullAddress?.trim()) {
+        Alert.alert('Thông báo', 'Vui lòng nhập địa chỉ cụ thể (số nhà, tên đường)');
+        return;
+      }
+      if (!locationData.city?.trim()) {
+        Alert.alert('Thông báo', 'Vui lòng chọn tỉnh/thành phố');
+        return;
+      }
+      if (!locationData.ward?.trim()) {
+        Alert.alert('Thông báo', 'Vui lòng chọn phường/xã');
+        return;
+      }
     }
 
     onNext(locationData);
@@ -517,21 +624,21 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
       {gettingLocation && (
         <View style={commonStyles.loadingContainer}>
           <ActivityIndicator size="large" color={accentColor} />
-          <Text style={commonStyles.loadingText}>
-            {currentLocation ? 'Đang tìm địa chỉ chính xác...' : 'Đang lấy vị trí hiện tại...'}
-          </Text>
+          <Text style={commonStyles.loadingText}>Đang lấy vị trí hiện tại...</Text>
         </View>
       )}
 
       {currentLocation && (
         <View style={[commonStyles.card, { marginVertical: 16 }]}>
           <Text style={commonStyles.cardTitle}>Địa chỉ được chọn:</Text>
-          <Text style={[commonStyles.cardDescription, { color: accentColor, fontWeight: '600' }]}>
+          <Text style={[commonStyles.cardDescription, { color: accentColor, fontWeight: '600', marginTop: 4 }]}>
             {currentLocation.fullAddress}
           </Text>
-          <Text style={[commonStyles.cardDescription, { fontSize: 12, marginTop: 4 }]}>
-            Tọa độ: {currentLocation.latitude?.toFixed(6)}, {currentLocation.longitude?.toFixed(6)}
-          </Text>
+          {currentLocation.latitude && currentLocation.longitude && (
+            <Text style={[commonStyles.cardDescription, { fontSize: 12, marginTop: 4, color: neutralLabelColor }]}>
+              Tọa độ: {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
+            </Text>
+          )}
         </View>
       )}
 
@@ -546,174 +653,433 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
       )}
 
       {currentLocation && (
-        <TouchableOpacity
-          style={[commonStyles.secondaryButton, commonStyles.flexRow, { justifyContent: 'center', marginTop: 12 }]}
-          onPress={getCurrentLocation}
-        >
-          <Ionicons name="refresh" size={20} color={accentColor} />
-          <Text style={[commonStyles.secondaryButtonText, { marginLeft: 6 }]}>Cập nhật vị trí</Text>
-        </TouchableOpacity>
+        <View style={{ gap: 12 }}>
+          <TouchableOpacity
+            style={[commonStyles.secondaryButton, commonStyles.flexRow, { justifyContent: 'center' }]}
+            onPress={handleOpenMap}
+          >
+            <Ionicons name="map" size={20} color={accentColor} />
+            <Text style={[commonStyles.secondaryButtonText, { marginLeft: 6 }]}>Chỉnh sửa trên bản đồ</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[commonStyles.secondaryButton, commonStyles.flexRow, { justifyContent: 'center' }]}
+            onPress={getCurrentLocation}
+          >
+            <Ionicons name="refresh" size={20} color={accentColor} />
+            <Text style={[commonStyles.secondaryButtonText, { marginLeft: 6 }]}>Cập nhật vị trí</Text>
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );
 
-  const renderManualInput = () => (
-    <View style={[commonStyles.section, { margin: 20 }]}>
-      <Text style={commonStyles.sectionTitle}>Nhập địa chỉ mới</Text>
-      
-      <View style={commonStyles.inputContainer}>
-        <Text style={commonStyles.inputLabel}>Địa chỉ đầy đủ *</Text>
-        <TextInput
-          style={[commonStyles.input, { minHeight: 80, textAlignVertical: 'top' }]}
-          value={manualAddress.fullAddress}
-          onChangeText={(text) => setManualAddress({ ...manualAddress, fullAddress: text })}
-          placeholder="Ví dụ: 123 Nguyễn Văn Linh, Phường 1, Quận 1, TP.HCM"
-          multiline
-        />
-      </View>
+  const renderManualInput = () => {
+    const provinceOptions = provinces.map(p => ({
+      label: p.name,
+      value: p.code,
+      code: p.code
+    }));
 
-      <View style={commonStyles.flexRow}>
-        <View style={[commonStyles.inputContainer, { flex: 1, marginRight: 8 }]}>
-          <Text style={commonStyles.inputLabel}>Phường/Xã</Text>
+    const communeOptions = communes.map(c => ({
+      label: c.name,
+      value: c.code,
+      code: c.code
+    }));
+
+    return (
+      <View style={[commonStyles.section, { margin: 20 }]}>
+        <Text style={commonStyles.sectionTitle}>Nhập địa chỉ mới</Text>
+        <Text style={commonStyles.sectionSubtitle}>
+          Địa chỉ được chia thành 2 cấp: Tỉnh/Thành phố và Phường/Xã
+        </Text>
+        
+        <View style={commonStyles.inputContainer}>
+          <Text style={commonStyles.inputLabel}>Địa chỉ cụ thể *</Text>
           <TextInput
-            style={commonStyles.input}
-            value={manualAddress.ward}
-            onChangeText={(text) => setManualAddress({ ...manualAddress, ward: text })}
-            placeholder="Phường 1"
+            style={[commonStyles.input, { minHeight: 100, textAlignVertical: 'top', paddingTop: 12 }]}
+            value={manualAddress.fullAddress}
+            onChangeText={(text) => setManualAddress({ ...manualAddress, fullAddress: text })}
+            placeholder="Ví dụ: 123 Nguyễn Văn Linh hoặc Số 45 Đường Lê Lợi"
+            multiline
+            numberOfLines={4}
           />
+       
         </View>
-        <View style={[commonStyles.inputContainer, { flex: 1, marginLeft: 8 }]}>
-          <Text style={commonStyles.inputLabel}>Quận/Huyện</Text>
-          <TextInput
-            style={commonStyles.input}
-            value={manualAddress.district}
-            onChangeText={(text) => setManualAddress({ ...manualAddress, district: text })}
-            placeholder="Quận 1"
-          />
-        </View>
-      </View>
 
-      <View style={commonStyles.inputContainer}>
-        <Text style={commonStyles.inputLabel}>Tỉnh/Thành phố</Text>
-        <TextInput
-          style={commonStyles.input}
-          value={manualAddress.city}
-          onChangeText={(text) => setManualAddress({ ...manualAddress, city: text })}
-          placeholder="TP. Hồ Chí Minh"
+        <AddressPicker
+          label="Tỉnh/Thành phố *"
+          placeholder="Chọn tỉnh/thành phố"
+          value={manualAddress.city || ''}
+          options={provinceOptions}
+          onSelect={(option) => {
+            setManualAddress({ 
+              ...manualAddress, 
+              city: option.label,
+              ward: '', // Reset ward when province changes
+              district: '' // Để trống vì không còn dùng
+            });
+            setSelectedProvinceCode(option.code || '');
+            if (option.code) {
+              loadCommunes(option.code);
+            }
+          }}
+          loading={loadingProvinces}
         />
-      </View>
-    </View>
-  );
 
-  return (
-    <View style={commonStyles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.warm.beige} />
-      
-      {/* Header */}
-      <View style={commonStyles.header}>
-        <TouchableOpacity onPress={onBack} style={commonStyles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.primary.navy} />
-        </TouchableOpacity>
-        <View style={commonStyles.headerContent}>
-          <Text style={commonStyles.headerTitle}>Chọn địa điểm</Text>
-          <Text style={commonStyles.headerSubtitle}>Xác định vị trí dịch vụ</Text>
-        </View>
-      </View>
+        <AddressPicker
+          label="Phường/Xã *"
+          placeholder="Chọn phường/xã"
+          value={manualAddress.ward || ''}
+          options={communeOptions}
+          onSelect={(option) => {
+            setManualAddress({ 
+              ...manualAddress, 
+              ward: option.label,
+              district: '' // Để trống vì không còn dùng
+            });
+          }}
+          loading={loadingCommunes}
+          disabled={!selectedProvinceCode}
+        />
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-        {/* Option Cards */}
-        <View style={{ paddingTop: 16 }}>
-          {renderOptionCard(
-            'default',
-            'Địa chỉ mặc định',
-            loadingDefaultAddress 
-              ? 'Đang tải địa chỉ...' 
-              : (defaultAddress ? (defaultAddress.fullAddress || 'Địa chỉ mặc định') : 'Chưa có địa chỉ mặc định - Vui lòng thêm địa chỉ'),
-            'home',
-            selectedOption === 'default' && !!defaultAddress,
-            loadingDefaultAddress || !defaultAddress // disabled if loading or no default address
-          )}
-
-          {renderOptionCard(
-            'gps',
-            'Vị trí hiện tại',
-            'Sử dụng GPS và bản đồ',
-            'location',
-            selectedOption === 'gps'
-          )}
-
-          {renderOptionCard(
-            'manual',
-            'Nhập địa chỉ mới',
-            'Nhập thủ công thông tin địa chỉ',
-            'create',
-            selectedOption === 'manual'
-          )}
-        </View>
-
-        {/* Conditional Content */}
-        {selectedOption === 'gps' && renderMapView()}
-        {selectedOption === 'manual' && renderManualInput()}
-
-        {/* Default Address Details */}
-        {selectedOption === 'default' && (
-          <View style={[commonStyles.section, { margin: 20 }]}>
-            {defaultAddress ? (
-              <>
-                <Text style={commonStyles.sectionTitle}>Thông tin địa chỉ:</Text>
-                <Text style={[commonStyles.cardTitle, { fontWeight: '600' }]}>{defaultAddress.fullAddress}</Text>
-                <Text style={commonStyles.cardDescription}>
-                  {defaultAddress.ward}, {defaultAddress.district}, {defaultAddress.city}
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={commonStyles.sectionTitle}>
-                  {loadingDefaultAddress ? 'Đang tải địa chỉ mặc định...' : 'Không tìm thấy địa chỉ mặc định'}
-                </Text>
-                {!loadingDefaultAddress && (
-                  <TouchableOpacity 
-                    style={[commonStyles.secondaryButton, { alignSelf: 'flex-start', marginTop: 8 }]}
-                    onPress={() => {
-                      setHasTriedLoadingDefault(false);
-                      loadDefaultAddress();
-                    }}
-                  >
-                    <Text style={commonStyles.secondaryButtonText}>Thử lại</Text>
-                  </TouchableOpacity>
-                )}
-              </>
-            )}
+        {!selectedProvinceCode && (
+          <Text style={styles.helperText}>
+            * Vui lòng chọn tỉnh/thành phố trước
+          </Text>
+        )}
+        
+        {manualAddress.city && manualAddress.ward && (
+          <View style={[commonStyles.card, { marginTop: 16, backgroundColor: colors.warm.beige }]}>
+            <Text style={[commonStyles.cardTitle, { fontSize: 13, marginBottom: 4 }]}>
+              Địa chỉ đầy đủ:
+            </Text>
+            <Text style={[commonStyles.cardDescription, { color: colors.primary.navy, fontWeight: '600' }]}>
+              {manualAddress.fullAddress}
+              {manualAddress.fullAddress && ', '}
+              {manualAddress.ward}, {manualAddress.city}
+            </Text>
           </View>
         )}
-      </ScrollView>
-
-      {/* Bottom Button */}
-      <View style={commonStyles.buttonContainer}>
-        <TouchableOpacity
-          style={[
-            commonStyles.primaryButton,
-            commonStyles.flexRow,
-            { justifyContent: 'center' },
-            loading && commonStyles.primaryButtonDisabled
-          ]}
-          onPress={handleNext}
-          disabled={loading}
-        >
-          {loading ? (
-            <Text style={commonStyles.primaryButtonText}>Đang tải...</Text>
-          ) : (
-            <>
-              <Text style={commonStyles.primaryButtonText}>Tiếp tục</Text>
-              <Ionicons name="arrow-forward" size={20} color="#FFF" style={{ marginLeft: 8 }} />
-            </>
-          )}
-        </TouchableOpacity>
       </View>
-    </View>
+    );
+  };
+
+  return (
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
+    >
+      <View style={commonStyles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor={colors.warm.beige} />
+        
+        {/* Header */}
+        <View style={commonStyles.header}>
+          <TouchableOpacity onPress={onBack} style={commonStyles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={colors.primary.navy} />
+          </TouchableOpacity>
+          <View style={commonStyles.headerContent}>
+            <Text style={commonStyles.headerTitle}>Chọn địa điểm</Text>
+            <Text style={commonStyles.headerSubtitle}>Xác định vị trí dịch vụ</Text>
+          </View>
+        </View>
+
+        {/* Progress Indicator */}
+        <ProgressIndicator currentStep={BookingStep.LOCATION_SELECTION} />
+
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView 
+            style={{ flex: 1 }} 
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 100 }}
+          >
+            {/* Option Cards */}
+            <View style={{ paddingTop: 16 }}>
+              {renderOptionCard(
+                'default',
+                'Địa chỉ mặc định',
+                loadingDefaultAddress 
+                  ? 'Đang tải địa chỉ...' 
+                  : (defaultAddress ? (defaultAddress.fullAddress || 'Địa chỉ mặc định') : 'Chưa có địa chỉ mặc định - Vui lòng thêm địa chỉ'),
+                'home',
+                selectedOption === 'default' && !!defaultAddress,
+                loadingDefaultAddress || !defaultAddress // disabled if loading or no default address
+              )}
+
+              {renderOptionCard(
+                'gps',
+                'Vị trí hiện tại',
+                'Sử dụng GPS và bản đồ',
+                'location',
+                selectedOption === 'gps'
+              )}
+
+              {renderOptionCard(
+                'manual',
+                'Nhập địa chỉ mới',
+                'Nhập thủ công thông tin địa chỉ',
+                'create',
+                selectedOption === 'manual'
+              )}
+            </View>
+
+            {/* Conditional Content */}
+            {selectedOption === 'gps' && renderMapView()}
+            {selectedOption === 'manual' && renderManualInput()}
+
+            {/* Default Address Details */}
+            {selectedOption === 'default' && (
+              <View style={[commonStyles.section, { margin: 20 }]}>
+                {defaultAddress ? (
+                  <>
+                    <Text style={commonStyles.sectionTitle}>Thông tin địa chỉ:</Text>
+                    <Text style={[commonStyles.cardTitle, { fontWeight: '600' }]}>{defaultAddress.fullAddress}</Text>
+                    <Text style={commonStyles.cardDescription}>
+                      {defaultAddress.ward}, {defaultAddress.city}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={commonStyles.sectionTitle}>
+                      {loadingDefaultAddress ? 'Đang tải địa chỉ mặc định...' : 'Không tìm thấy địa chỉ mặc định'}
+                    </Text>
+                    {!loadingDefaultAddress && (
+                      <TouchableOpacity 
+                        style={[commonStyles.secondaryButton, { alignSelf: 'flex-start', marginTop: 8 }]}
+                        onPress={() => {
+                          setHasTriedLoadingDefault(false);
+                          loadDefaultAddress();
+                        }}
+                      >
+                        <Text style={commonStyles.secondaryButtonText}>Thử lại</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </View>
+            )}
+          </ScrollView>
+        </TouchableWithoutFeedback>
+
+        {/* Bottom Button */}
+        <View style={commonStyles.buttonContainer}>
+          <TouchableOpacity
+            style={[
+              commonStyles.primaryButton,
+              commonStyles.flexRow,
+              { justifyContent: 'center' },
+              loading && commonStyles.primaryButtonDisabled
+            ]}
+            onPress={handleNext}
+            disabled={loading}
+          >
+            {loading ? (
+              <Text style={commonStyles.primaryButtonText}>Đang tải...</Text>
+            ) : (
+              <>
+                <Text style={commonStyles.primaryButtonText}>Tiếp tục</Text>
+                <Ionicons name="arrow-forward" size={20} color="#FFF" style={{ marginLeft: 8 }} />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Map Modal */}
+        <Modal
+          visible={isMapModalVisible}
+          animationType="slide"
+          onRequestClose={() => setIsMapModalVisible(false)}
+        >
+          <View style={styles.mapModalContainer}>
+            <View style={styles.mapModalHeader}>
+              <TouchableOpacity
+                onPress={() => {
+                  setIsMapModalVisible(false);
+                  setTempMapLocation(null);
+                }}
+                style={styles.mapModalCloseButton}
+              >
+                <Ionicons name="close" size={28} color={colors.primary.navy} />
+              </TouchableOpacity>
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <Text style={styles.mapModalTitle}>Chọn vị trí trên bản đồ</Text>
+                <Text style={styles.mapModalSubtitle}>Chạm vào bản đồ để chọn địa điểm</Text>
+              </View>
+              <View style={{ width: 28 }} />
+            </View>
+
+            {tempMapLocation && (
+              <View style={styles.mapAddressCard}>
+                <Ionicons name="location" size={20} color={accentColor} style={{ marginRight: 8 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.mapAddressText} numberOfLines={2}>
+                    {tempMapLocation.fullAddress}
+                  </Text>
+                  {tempMapLocation.latitude && tempMapLocation.longitude && (
+                    <Text style={styles.mapCoordinatesText}>
+                      {tempMapLocation.latitude.toFixed(6)}, {tempMapLocation.longitude.toFixed(6)}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+
+            <MapView
+              ref={mapRef}
+              provider={PROVIDER_GOOGLE}
+              style={styles.map}
+              initialRegion={mapRegion}
+              region={mapRegion}
+              onPress={handleMapPress}
+              showsUserLocation={true}
+              showsMyLocationButton={true}
+              showsCompass={true}
+              loadingEnabled={true}
+            >
+              {tempMapLocation?.latitude && tempMapLocation?.longitude && (
+                <Marker
+                  coordinate={{
+                    latitude: tempMapLocation.latitude,
+                    longitude: tempMapLocation.longitude,
+                  }}
+                  title="Vị trí đã chọn"
+                  description={tempMapLocation.fullAddress}
+                  pinColor={accentColor}
+                />
+              )}
+            </MapView>
+
+            {loading && (
+              <View style={styles.mapLoadingOverlay}>
+                <ActivityIndicator size="large" color={accentColor} />
+                <Text style={styles.mapLoadingText}>Đang tải địa chỉ...</Text>
+              </View>
+            )}
+
+            <View style={styles.mapModalFooter}>
+              <TouchableOpacity
+                style={[
+                  commonStyles.primaryButton,
+                  !tempMapLocation && { opacity: 0.5 }
+                ]}
+                onPress={handleConfirmMapLocation}
+                disabled={!tempMapLocation}
+              >
+                <Text style={commonStyles.primaryButtonText}>Xác nhận vị trí này</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  // Giữ lại một số styles đặc biệt cho LocationSelection
+  mapModalContainer: {
+    flex: 1,
+    backgroundColor: colors.neutral.white,
+  },
+  mapModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 12 : 44,
+    paddingBottom: 12,
+    backgroundColor: colors.warm.beige,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.border,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  mapModalCloseButton: {
+    padding: 4,
+  },
+  mapModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.primary.navy,
+  },
+  mapModalSubtitle: {
+    fontSize: 13,
+    color: colors.neutral.label,
+    marginTop: 2,
+  },
+  mapAddressCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    padding: 12,
+    marginHorizontal: 16,
+    marginVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  mapAddressText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary.navy,
+    lineHeight: 20,
+  },
+  mapCoordinatesText: {
+    fontSize: 11,
+    color: colors.neutral.label,
+    marginTop: 2,
+  },
+  map: {
+    flex: 1,
+  },
+  mapLoadingOverlay: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -50 }, { translateY: -50 }],
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  mapLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: colors.primary.navy,
+    fontWeight: '500',
+  },
+  mapModalFooter: {
+    padding: 16,
+    paddingBottom: 32,
+    backgroundColor: colors.neutral.white,
+    borderTopWidth: 1,
+    borderTopColor: colors.neutral.border,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  helperText: {
+    fontSize: 13,
+    color: colors.neutral.label,
+    fontStyle: 'italic',
+    marginTop: -8,
+    marginBottom: 12,
+  },
 });

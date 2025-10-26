@@ -218,20 +218,39 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
       console.error('❌ Booking creation error:', error);
       
       let errorMessage = 'Có lỗi xảy ra khi tạo đặt lịch. Vui lòng thử lại.';
+      let errorTitle = 'Lỗi đặt lịch';
       
       // Handle specific API errors
       if (error.response?.data) {
         const errorData = error.response.data;
-        if (errorData.message) {
+        
+        // Check for specific error codes
+        if (errorData.errorCode === 'BOOKING_CREATION_FAILED') {
+          errorTitle = 'Không thể tạo đặt lịch';
+          
+          // Check if it's a rule/option validation error
+          if (errorData.message && errorData.message.includes('RuleCondition')) {
+            errorMessage = 'Có lỗi với các tùy chọn dịch vụ đã chọn. Vui lòng:\n\n' +
+                          '1. Kiểm tra lại các tùy chọn dịch vụ\n' +
+                          '2. Thử chọn lại dịch vụ từ đầu\n' +
+                          '3. Liên hệ hỗ trợ nếu vấn đề vẫn tiếp diễn';
+          } else {
+            // Generic BOOKING_CREATION_FAILED error
+            errorMessage = 'Hệ thống không thể xử lý yêu cầu đặt lịch của bạn.\n\n' +
+                          'Vui lòng thử lại hoặc liên hệ hỗ trợ khách hàng.';
+          }
+        } else if (errorData.message) {
           errorMessage = errorData.message;
-        } else if (errorData.errors && Array.isArray(errorData.errors)) {
+        } else if (errorData.validationErrors && Array.isArray(errorData.validationErrors) && errorData.validationErrors.length > 0) {
+          errorMessage = errorData.validationErrors.join('\n');
+        } else if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
           errorMessage = errorData.errors.join('\n');
         }
       } else if (error.message) {
         errorMessage = error.message;
       }
       
-      Alert.alert('Lỗi đặt lịch', errorMessage);
+      Alert.alert(errorTitle, errorMessage);
     } finally {
       setLoading(false);
     }
@@ -366,9 +385,6 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
 
   return (
     <View style={commonStyles.container}>
-      {currentStep !== BookingStep.SUCCESS && (
-        <ProgressIndicator currentStep={currentStep} />
-      )}
       {renderCurrentStep()}
     </View>
   );

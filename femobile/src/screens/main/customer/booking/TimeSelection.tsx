@@ -15,6 +15,8 @@ import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../..
 import { type Service } from '../../../../services';
 import { type LocationData } from './types';
 import { commonStyles } from './styles';
+import { ProgressIndicator } from './ProgressIndicator';
+import { BookingStep } from './BookingNavigator';
 
 interface TimeSelectionProps {
   selectedService: Service | null;
@@ -148,6 +150,7 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
   };
 
   const handleDatePickerChange = (event: any, selectedDate?: Date) => {
+    // On Android, close picker after any change
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
     }
@@ -155,24 +158,50 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
     if (selectedDate) {
       setTempDate(selectedDate);
       
-      if (Platform.OS === 'android' || event.type === 'set') {
+      // Only process on Android OR when user explicitly confirms on iOS (dismisses picker)
+      // On iOS, onChange fires continuously while scrolling, we should not auto-close or show alerts
+      if (Platform.OS === 'android') {
         // Check if date is not in the past
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        selectedDate.setHours(0, 0, 0, 0);
+        const checkDate = new Date(selectedDate);
+        checkDate.setHours(0, 0, 0, 0);
         
-        if (selectedDate < today) {
+        if (checkDate < today) {
           Alert.alert('Lỗi', 'Không thể chọn ngày trong quá khứ');
           return;
         }
         
-        // Set the picker date (don't call onDateSelect to avoid interference with date cards)
+        // Set the picker date
         setSelectedPickerDate(selectedDate);
-        setShowDatePicker(false);
         
         const formattedDate = selectedDate.toLocaleDateString('vi-VN');
         Alert.alert('Thành công', `Đã chọn ngày ${formattedDate}`);
       }
+    } else if (event.type === 'dismissed' && Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+  };
+
+  const handleDatePickerDone = () => {
+    // This is called when iOS picker is dismissed
+    if (Platform.OS === 'ios') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const checkDate = new Date(tempDate);
+      checkDate.setHours(0, 0, 0, 0);
+      
+      if (checkDate < today) {
+        Alert.alert('Lỗi', 'Không thể chọn ngày trong quá khứ');
+        setShowDatePicker(false);
+        return;
+      }
+      
+      setSelectedPickerDate(tempDate);
+      setShowDatePicker(false);
+      
+      const formattedDate = tempDate.toLocaleDateString('vi-VN');
+      Alert.alert('Thành công', `Đã chọn ngày ${formattedDate}`);
     }
   };
 
@@ -194,14 +223,24 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
   };
 
   const openTimePicker = () => {
-    // Set initial time to 8:00 AM
+    // Set initial time based on current selection or default to 8:00 AM
     const defaultTime = new Date();
-    defaultTime.setHours(8, 0, 0, 0);
+    
+    if (selectedTime) {
+      // Parse existing selected time
+      const [hours, minutes] = selectedTime.split(':').map(Number);
+      defaultTime.setHours(hours, minutes, 0, 0);
+    } else {
+      // Default to 8:00 AM
+      defaultTime.setHours(8, 0, 0, 0);
+    }
+    
     setTempTime(defaultTime);
     setShowTimePicker(true);
   };
 
   const handleTimePickerChange = (event: any, selectedTime?: Date) => {
+    // On Android, close picker after any change
     if (Platform.OS === 'android') {
       setShowTimePicker(false);
     }
@@ -209,7 +248,8 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
     if (selectedTime) {
       setTempTime(selectedTime);
       
-      if (Platform.OS === 'android' || event.type === 'set') {
+      // Only process on Android
+      if (Platform.OS === 'android') {
         const timeString = `${selectedTime.getHours().toString().padStart(2, '0')}:${selectedTime.getMinutes().toString().padStart(2, '0')}`;
         
         // Validate if this time is valid for selected date
@@ -219,12 +259,32 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
           return;
         }
         
-        // Set the picker time (don't call onTimeSelect to avoid interference with time slots)
         setSelectedPickerTime(timeString);
-        setShowTimePicker(false);
-        
+        onTimeSelect(timeString); // Update parent state immediately
         Alert.alert('Thành công', `Đã chọn giờ ${timeString}`);
       }
+    } else if (event.type === 'dismissed' && Platform.OS === 'android') {
+      setShowTimePicker(false);
+    }
+  };
+
+  const handleTimePickerDone = () => {
+    // This is called when iOS picker is dismissed
+    if (Platform.OS === 'ios') {
+      const timeString = `${tempTime.getHours().toString().padStart(2, '0')}:${tempTime.getMinutes().toString().padStart(2, '0')}`;
+      
+      // Validate if this time is valid for selected date
+      const currentDate = selectedPickerDate || new Date(selectedDate);
+      if (!isValidBookingTime(currentDate, timeString)) {
+        Alert.alert('Lỗi', 'Thời gian này không hợp lệ. Vui lòng chọn thời gian ít nhất 30 phút từ bây giờ.');
+        setShowTimePicker(false);
+        return;
+      }
+      
+      setSelectedPickerTime(timeString);
+      onTimeSelect(timeString); // Update parent state immediately
+      setShowTimePicker(false);
+      Alert.alert('Thành công', `Đã chọn giờ ${timeString}`);
     }
   };
 
@@ -266,6 +326,9 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
         </View>
       </View>
 
+      {/* Progress Indicator */}
+      <ProgressIndicator currentStep={BookingStep.TIME_SELECTION} />
+
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
         {/* Service Summary */}
         {selectedService && (
@@ -284,7 +347,9 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
             <Text style={[commonStyles.cardDescription, { marginBottom: 4 }]}>Địa chỉ</Text>
             <Text style={commonStyles.cardTitle}>{selectedAddress.fullAddress}</Text>
             <Text style={commonStyles.cardDescription}>
-              {selectedAddress.ward}, {selectedAddress.district}, {selectedAddress.city}
+              {[selectedAddress.ward, selectedAddress.city]
+                .filter(item => item && item.trim())
+                .join(', ')}
             </Text>
           </View>
         )}
@@ -376,14 +441,39 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
           
           {/* DateTimePicker */}
           {showDatePicker && (
-            <DateTimePicker
-              value={tempDate}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={handleDatePickerChange}
-              minimumDate={new Date()} // Today or future dates only
-              maximumDate={new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)} // 1 year from now
-            />
+            <>
+              {Platform.OS === 'ios' && (
+                <View style={{ backgroundColor: colors.neutral.white, borderRadius: 12, overflow: 'hidden', marginTop: 12 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 12, borderBottomWidth: 1, borderBottomColor: colors.neutral.border }}>
+                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                      <Text style={{ color: colors.feedback.error, fontSize: 16, fontWeight: '600' }}>Hủy</Text>
+                    </TouchableOpacity>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: colors.primary.navy }}>Chọn ngày</Text>
+                    <TouchableOpacity onPress={handleDatePickerDone}>
+                      <Text style={{ color: colors.highlight.teal, fontSize: 16, fontWeight: '600' }}>Xong</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <DateTimePicker
+                    value={tempDate}
+                    mode="date"
+                    display="spinner"
+                    onChange={handleDatePickerChange}
+                    minimumDate={new Date()}
+                    maximumDate={new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)}
+                  />
+                </View>
+              )}
+              {Platform.OS === 'android' && (
+                <DateTimePicker
+                  value={tempDate}
+                  mode="date"
+                  display="default"
+                  onChange={handleDatePickerChange}
+                  minimumDate={new Date()}
+                  maximumDate={new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)}
+                />
+              )}
+            </>
           )}
         </View>
 
@@ -464,13 +554,37 @@ export const TimeSelection: React.FC<TimeSelectionProps> = ({
             
             {/* TimePicker */}
             {showTimePicker && (
-              <DateTimePicker
-                value={tempTime}
-                mode="time"
-                is24Hour={true}
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handleTimePickerChange}
-              />
+              <>
+                {Platform.OS === 'ios' && (
+                  <View style={{ backgroundColor: colors.neutral.white, borderRadius: 12, overflow: 'hidden', marginTop: 12 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 12, borderBottomWidth: 1, borderBottomColor: colors.neutral.border }}>
+                      <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                        <Text style={{ color: colors.feedback.error, fontSize: 16, fontWeight: '600' }}>Hủy</Text>
+                      </TouchableOpacity>
+                      <Text style={{ fontSize: 16, fontWeight: '600', color: colors.primary.navy }}>Chọn giờ</Text>
+                      <TouchableOpacity onPress={handleTimePickerDone}>
+                        <Text style={{ color: colors.highlight.teal, fontSize: 16, fontWeight: '600' }}>Xong</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                      value={tempTime}
+                      mode="time"
+                      is24Hour={true}
+                      display="spinner"
+                      onChange={handleTimePickerChange}
+                    />
+                  </View>
+                )}
+                {Platform.OS === 'android' && (
+                  <DateTimePicker
+                    value={tempTime}
+                    mode="time"
+                    is24Hour={true}
+                    display="default"
+                    onChange={handleTimePickerChange}
+                  />
+                )}
+              </>
             )}
           </View>
         )}
