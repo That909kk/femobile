@@ -7,7 +7,7 @@ import { EmployeeSelection } from './EmployeeSelection';
 import { BookingConfirmation } from './BookingConfirmation';
 import { BookingSuccess } from './BookingSuccess';
 import { ProgressIndicator } from './ProgressIndicator';
-import { type LocationData, type SelectedOption } from './types';
+import { type LocationData, type SelectedOption, BookingStep } from './types';
 import {
   bookingService,
   type Service,
@@ -18,15 +18,6 @@ import { type BookingRequest, type BookingResponse } from '../../../../types/boo
 import { useUserInfo } from '../../../../hooks';
 import { useAuthStore } from '../../../../store/authStore';
 import { commonStyles } from './styles';
-
-export enum BookingStep {
-  SERVICE_SELECTION = 1,
-  LOCATION_SELECTION = 2,
-  TIME_SELECTION = 3,
-  EMPLOYEE_SELECTION = 4,
-  CONFIRMATION = 5,
-  SUCCESS = 6,
-}
 
 interface BookingNavigatorProps {
   onClose?: () => void;

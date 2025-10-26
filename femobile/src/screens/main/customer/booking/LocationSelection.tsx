@@ -25,10 +25,9 @@ import { useUserInfo } from '../../../../hooks';
 import { STORAGE_KEYS } from '../../../../constants';
 import { useAuthStore } from '../../../../store/authStore';
 import { colors } from '../../../../styles';
-import { type LocationData } from './types';
+import { type LocationData, BookingStep } from './types';
 import { commonStyles } from './styles';
 import { ProgressIndicator } from './ProgressIndicator';
-import { BookingStep } from './BookingNavigator';
 import { AddressPicker } from '../../../../components';
 
 interface MapRegion {

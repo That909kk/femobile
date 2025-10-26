@@ -12,10 +12,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../../../styles';
 import { serviceService, type Service, type Employee } from '../../../../services';
-import { type LocationData } from './types';
+import { type LocationData, BookingStep } from './types';
 import { commonStyles } from './styles';
 import { ProgressIndicator } from './ProgressIndicator';
-import { BookingStep } from './BookingNavigator';
 
 interface EmployeeSelectionProps {
   selectedService: Service | null;

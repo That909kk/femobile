@@ -13,10 +13,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../../styles';
 import { type Service } from '../../../../services';
-import { type LocationData } from './types';
+import { type LocationData, BookingStep } from './types';
 import { commonStyles } from './styles';
 import { ProgressIndicator } from './ProgressIndicator';
-import { BookingStep } from './BookingNavigator';
 
 interface TimeSelectionProps {
   selectedService: Service | null;

@@ -14,7 +14,7 @@ import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../..
 import { BookingResponse } from '../../../../types/booking';
 import { commonStyles } from './styles';
 import { ProgressIndicator } from './ProgressIndicator';
-import { BookingStep } from './BookingNavigator';
+import { BookingStep } from './types';
 
 interface BookingSuccessProps {
   bookingData: BookingResponse;

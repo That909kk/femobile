@@ -1,4 +1,5 @@
-export { BookingNavigator, BookingStep } from './BookingNavigator';
+export { BookingNavigator } from './BookingNavigator';
+export { BookingStep } from './types';
 export { ServiceSelection } from './ServiceSelection';
 export { LocationSelection } from './LocationSelection';
 export { TimeSelection } from './TimeSelection';

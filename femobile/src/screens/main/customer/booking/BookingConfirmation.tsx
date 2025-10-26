@@ -21,10 +21,9 @@ import {
   type BookingRequest,
   type Employee,
 } from '../../../../services';
-import { type LocationData, type SelectedOption } from './types';
+import { type LocationData, type SelectedOption, BookingStep } from './types';
 import { commonStyles } from './styles';
 import { ProgressIndicator } from './ProgressIndicator';
-import { BookingStep } from './BookingNavigator';
 
 interface BookingConfirmationProps {
   selectedService: Service | null;

@@ -26,7 +26,7 @@ import {
   CalculatePriceRequest,
 } from '../../../../types/booking';
 import { ProgressIndicator } from './ProgressIndicator';
-import { BookingStep } from './BookingNavigator';
+import { BookingStep } from './types';
 
 interface SelectedOption {
   optionId: number;
