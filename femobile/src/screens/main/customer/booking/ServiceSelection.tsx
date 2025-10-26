@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -48,6 +48,88 @@ interface ServiceSelectionProps {
   onClose: () => void;
 }
 
+// Memoized Service Card Component to prevent unnecessary re-renders
+interface ServiceCardItemProps {
+  service: FullService;
+  isSelected: boolean;
+  shouldAnimate: boolean;
+  fadeAnim: Animated.Value;
+  scaleAnim: Animated.Value;
+  onPress: () => void;
+}
+
+const ServiceCardItem = React.memo<ServiceCardItemProps>(({ 
+  service, 
+  isSelected, 
+  shouldAnimate, 
+  fadeAnim, 
+  scaleAnim, 
+  onPress 
+}) => {
+  return (
+    <Animated.View
+      style={shouldAnimate ? {
+        opacity: fadeAnim,
+        transform: [{ scale: scaleAnim }],
+      } : {}}
+    >
+      <TouchableOpacity
+        style={[styles.serviceCard, isSelected && styles.serviceCardSelected]}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.serviceCardHeader}>
+          <View style={styles.serviceIconWrapper}>
+            <Image
+              source={{ uri: service.iconUrl || 'https://picsum.photos/60' }}
+              style={styles.serviceIcon}
+            />
+            {service.recommendedStaff > 1 && (
+              <View style={styles.staffBadge}>
+                <Ionicons name="people" size={10} color={colors.neutral.white} />
+                <Text style={styles.staffBadgeText}>{service.recommendedStaff}</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.serviceInfo}>
+            <Text style={styles.serviceName} numberOfLines={1}>
+              {service.name}
+            </Text>
+            <Text style={styles.serviceCategory}>{service.categoryName}</Text>
+            <Text style={styles.serviceDescription} numberOfLines={2}>
+              {service.description}
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.serviceFooter}>
+          <View style={styles.priceContainer}>
+            <Text style={styles.priceLabel}>Từ</Text>
+            <Text style={styles.servicePrice}>{service.formattedPrice}</Text>
+          </View>
+          <View style={styles.durationContainer}>
+            <Ionicons name="time-outline" size={14} color={colors.neutral.textSecondary} />
+            <Text style={styles.serviceDuration}>~{service.estimatedDurationHours}h</Text>
+          </View>
+        </View>
+
+        {isSelected && (
+          <View style={styles.selectedBadge}>
+            <Ionicons name="checkmark-circle" size={28} color={colors.neutral.white} />
+          </View>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison to prevent re-render unless these props change
+  return (
+    prevProps.service.serviceId === nextProps.service.serviceId &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.shouldAnimate === nextProps.shouldAnimate
+  );
+});
+
 export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
   selectedService,
   selectedOptions,
@@ -67,19 +149,46 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
   const [loadingServices, setLoadingServices] = useState(false);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [debouncedSearchText, setDebouncedSearchText] = useState('');
   
   const [quantity, setQuantity] = useState<number>(1);
   // State for QUANTITY_INPUT options: optionId -> { enabled: boolean, value: number }
   const [quantityInputs, setQuantityInputs] = useState<{ [optionId: number]: { enabled: boolean; value: number } }>({});
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const calculatePriceTimer = useRef<NodeJS.Timeout | null>(null);
+  const previousCategoryRef = useRef<number | null>(null);
+  const searchTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadInitialData();
   }, []);
 
+  // Debounce search text
   useEffect(() => {
-    if (services.length > 0) {
+    if (searchTimer.current) {
+      clearTimeout(searchTimer.current);
+    }
+
+    searchTimer.current = setTimeout(() => {
+      setDebouncedSearchText(searchText);
+    }, 300);
+
+    return () => {
+      if (searchTimer.current) {
+        clearTimeout(searchTimer.current);
+      }
+    };
+  }, [searchText]);
+
+  useEffect(() => {
+    // Only animate when category actually changes (not on search)
+    const categoryChanged = selectedCategory?.categoryId !== previousCategoryRef.current;
+    const isSearching = debouncedSearchText.trim().length > 0;
+    
+    if (services.length > 0 && categoryChanged && !isSearching) {
+      previousCategoryRef.current = selectedCategory?.categoryId ?? null;
+      
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.95);
 
@@ -100,18 +209,55 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
       fadeAnim.setValue(1);
       scaleAnim.setValue(1);
     }
-  }, [services, fadeAnim, scaleAnim]);
+  }, [services, selectedCategory, debouncedSearchText]);
 
   useEffect(() => {
     if (currentSelectedService) {
       loadServiceOptions(currentSelectedService.serviceId);
-      calculatePrice();
     }
-  }, [currentSelectedService, selectedChoices, quantity, quantityInputs]);
+  }, [currentSelectedService]);
+
+  // Debounced price calculation
+  useEffect(() => {
+    if (!currentSelectedService) return;
+
+    if (calculatePriceTimer.current) {
+      clearTimeout(calculatePriceTimer.current);
+    }
+
+    calculatePriceTimer.current = setTimeout(() => {
+      calculatePrice();
+    }, 300); // 300ms debounce
+
+    return () => {
+      if (calculatePriceTimer.current) {
+        clearTimeout(calculatePriceTimer.current);
+      }
+    };
+  }, [selectedChoices, quantity, quantityInputs]);
+
+  const filterServices = useCallback(() => {
+    let filtered = allServices;
+
+    if (selectedCategory) {
+      filtered = filtered.filter(service => 
+        service.categoryName === selectedCategory.categoryName
+      );
+    }
+
+    if (debouncedSearchText.trim()) {
+      filtered = filtered.filter(service =>
+        service.name.toLowerCase().includes(debouncedSearchText.toLowerCase()) ||
+        service.description.toLowerCase().includes(debouncedSearchText.toLowerCase())
+      );
+    }
+
+    setServices(filtered);
+  }, [selectedCategory, allServices, debouncedSearchText]);
 
   useEffect(() => {
     filterServices();
-  }, [selectedCategory, allServices, searchText]);
+  }, [filterServices]);
 
   const loadInitialData = async () => {
     setLoading(true);
@@ -301,25 +447,6 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
     }
   };
 
-  const filterServices = () => {
-    let filtered = allServices;
-
-    if (selectedCategory) {
-      filtered = filtered.filter(service => 
-        service.categoryName === selectedCategory.categoryName
-      );
-    }
-
-    if (searchText.trim()) {
-      filtered = filtered.filter(service =>
-        service.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        service.description.toLowerCase().includes(searchText.toLowerCase())
-      );
-    }
-
-    setServices(filtered);
-  };
-
   const handleCategorySelect = (category: Category) => {
     setSelectedCategory(category);
     loadServicesByCategory(category.categoryId);
@@ -333,7 +460,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
     setQuantityInputs({}); // Reset quantity inputs when selecting a new service
   };
 
-  const handleChoiceChange = (optionId: number, choiceId: number, isMultiple: boolean) => {
+  const handleChoiceChange = useCallback((optionId: number, choiceId: number, isMultiple: boolean) => {
     setSelectedChoices(prev => {
       const current = prev[optionId] || [];
       
@@ -347,7 +474,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
         return { ...prev, [optionId]: [choiceId] };
       }
     });
-  };
+  }, []);
 
   const buildSelectedOptions = () => {
     const options: SelectedOption[] = [];
@@ -465,7 +592,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
       <ProgressIndicator currentStep={BookingStep.SERVICE_SELECTION} />
 
       {/* Smart Search */}
-      <Animated.View style={[styles.searchSection, { opacity: fadeAnim }]}>
+      <View style={styles.searchSection}>
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color={colors.neutral.textSecondary} />
           <TextInput
@@ -481,7 +608,7 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
             </TouchableOpacity>
           )}
         </View>
-      </Animated.View>
+      </View>
 
       {/* Modern Category Tabs */}
       <View style={styles.categorySection}>
@@ -533,63 +660,20 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
             </Text>
           </View>
         ) : (
-          services.map((service, index) => {
+          services.map((service) => {
             const isSelected = currentSelectedService?.serviceId === service.serviceId;
+            const shouldAnimate = !debouncedSearchText.trim();
+            
             return (
-              <Animated.View
+              <ServiceCardItem
                 key={service.serviceId}
-                style={{
-                  opacity: fadeAnim,
-                  transform: [{ scale: scaleAnim }],
-                }}
-              >
-                <TouchableOpacity
-                  style={[styles.serviceCard, isSelected && styles.serviceCardSelected]}
-                  onPress={() => handleServiceSelect(service)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.serviceCardHeader}>
-                    <View style={styles.serviceIconWrapper}>
-                      <Image
-                        source={{ uri: service.iconUrl || 'https://picsum.photos/60' }}
-                        style={styles.serviceIcon}
-                      />
-                      {service.recommendedStaff > 1 && (
-                        <View style={styles.staffBadge}>
-                          <Ionicons name="people" size={10} color={colors.neutral.white} />
-                          <Text style={styles.staffBadgeText}>{service.recommendedStaff}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.serviceInfo}>
-                      <Text style={styles.serviceName} numberOfLines={1}>
-                        {service.name}
-                      </Text>
-                      <Text style={styles.serviceCategory}>{service.categoryName}</Text>
-                      <Text style={styles.serviceDescription} numberOfLines={2}>
-                        {service.description}
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.serviceFooter}>
-                    <View style={styles.priceContainer}>
-                      <Text style={styles.priceLabel}>Từ</Text>
-                      <Text style={styles.servicePrice}>{service.formattedPrice}</Text>
-                    </View>
-                    <View style={styles.durationContainer}>
-                      <Ionicons name="time-outline" size={14} color={colors.neutral.textSecondary} />
-                      <Text style={styles.serviceDuration}>~{service.estimatedDurationHours}h</Text>
-                    </View>
-                  </View>
-
-                  {isSelected && (
-                    <View style={styles.selectedBadge}>
-                      <Ionicons name="checkmark-circle" size={28} color={colors.neutral.white} />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              </Animated.View>
+                service={service}
+                isSelected={isSelected}
+                shouldAnimate={shouldAnimate}
+                fadeAnim={fadeAnim}
+                scaleAnim={scaleAnim}
+                onPress={() => handleServiceSelect(service)}
+              />
             );
           })
         )}
@@ -700,6 +784,20 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
                                       value: Math.max(0, value)
                                     }
                                   }));
+                                }}
+                                onEndEditing={(e) => {
+                                  // Ensure minimum value of 0 when user finishes editing
+                                  const text = e.nativeEvent.text;
+                                  const value = parseInt(text) || 0;
+                                  if (value < 0) {
+                                    setQuantityInputs(prev => ({
+                                      ...prev,
+                                      [option.optionId]: {
+                                        enabled: true,
+                                        value: 0
+                                      }
+                                    }));
+                                  }
                                 }}
                               />
                               <View style={styles.quantityInputButtons}>
