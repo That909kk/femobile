@@ -8,6 +8,8 @@ import {
   FlatList,
   TextInput,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../styles';
@@ -91,87 +93,94 @@ export const AddressPicker: React.FC<AddressPickerProps> = ({
         transparent={true}
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{label}</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setModalVisible(false);
-                  setSearchQuery('');
-                }}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={24} color={colors.primary.navy} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.searchContainer}>
-              <Ionicons
-                name="search"
-                size={20}
-                color={colors.neutral.label}
-                style={styles.searchIcon}
-              />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Tìm kiếm..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoFocus
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <Ionicons
-                    name="close-circle"
-                    size={20}
-                    color={colors.neutral.label}
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <FlatList
-              data={filteredOptions}
-              keyExtractor={(item) => item.value}
-              renderItem={({ item }) => (
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{label}</Text>
                 <TouchableOpacity
-                  style={[
-                    styles.optionItem,
-                    value === item.label && styles.selectedOption,
-                  ]}
-                  onPress={() => handleSelect(item)}
+                  onPress={() => {
+                    setModalVisible(false);
+                    setSearchQuery('');
+                  }}
+                  style={styles.closeButton}
                 >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      value === item.label && styles.selectedOptionText,
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                  {value === item.label && (
-                    <Ionicons
-                      name="checkmark"
-                      size={20}
-                      color={colors.highlight.teal}
-                    />
-                  )}
+                  <Ionicons name="close" size={24} color={colors.primary.navy} />
                 </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Ionicons
-                    name="search-outline"
-                    size={48}
-                    color={colors.neutral.label}
-                  />
-                  <Text style={styles.emptyText}>Không tìm thấy kết quả</Text>
-                </View>
-              }
-            />
+              </View>
+
+              <View style={styles.searchContainer}>
+                <Ionicons
+                  name="search"
+                  size={20}
+                  color={colors.neutral.label}
+                  style={styles.searchIcon}
+                />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Tìm kiếm..."
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoFocus
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')}>
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color={colors.neutral.label}
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <FlatList
+                data={filteredOptions}
+                keyExtractor={(item) => item.value}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.listContent}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.optionItem,
+                      value === item.label && styles.selectedOption,
+                    ]}
+                    onPress={() => handleSelect(item)}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        value === item.label && styles.selectedOptionText,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                    {value === item.label && (
+                      <Ionicons
+                        name="checkmark"
+                        size={20}
+                        color={colors.highlight.teal}
+                      />
+                    )}
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Ionicons
+                      name="search-outline"
+                      size={48}
+                      color={colors.neutral.label}
+                    />
+                    <Text style={styles.emptyText}>Không tìm thấy kết quả</Text>
+                  </View>
+                }
+              />
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -232,7 +241,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '80%',
+    maxHeight: '85%',
     paddingBottom: 20,
   },
   modalHeader: {
@@ -269,6 +278,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     color: colors.primary.navy,
+  },
+  listContent: {
+    flexGrow: 1,
+    paddingBottom: 20,
   },
   optionItem: {
     flexDirection: 'row',
