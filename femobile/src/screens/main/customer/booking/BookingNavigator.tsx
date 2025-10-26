@@ -63,8 +63,23 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
   const [bookingNote, setBookingNote] = useState<string>('');
   const [promoCode, setPromoCode] = useState<string>('');
 
-  // Preload default address when component mounts
+  // Preload default address when component mounts and reset booking state
   useEffect(() => {
+    // Reset to initial state when component mounts
+    // This ensures fresh start when user navigates back to booking
+    setCurrentStep(BookingStep.SERVICE_SELECTION);
+    setSelectedService(null);
+    setSelectedOptions([]);
+    setSelectedQuantity(1);
+    setSelectedDate('');
+    setSelectedTime('');
+    setSelectedEmployeeId(null);
+    setSelectedEmployee(null);
+    setTotalPrice(0);
+    setBookingResult(null);
+    setBookingNote('');
+    setPromoCode('');
+    
     if (isAuthenticated && userInfo?.id) {
       preloadDefaultAddress();
       loadPaymentMethods();
@@ -257,10 +272,25 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
   };
 
   const handleViewBookings = () => {
+    // Reset all state before navigating
+    setCurrentStep(BookingStep.SERVICE_SELECTION);
+    setSelectedService(null);
+    setSelectedOptions([]);
+    setSelectedQuantity(1);
+    setSelectedLocation(null);
+    setSelectedDate('');
+    setSelectedTime('');
+    setSelectedEmployeeId(null);
+    setSelectedEmployee(null);
+    setTotalPrice(0);
+    setBookingResult(null);
+    setBookingNote('');
+    setPromoCode('');
+    
     if (onClose) {
       onClose();
-    } else {
-      navigation?.navigate('CustomerOrders');
+    } else if (navigation) {
+      navigation.navigate('CustomerOrders');
     }
   };
 
@@ -283,9 +313,24 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
   };
 
   const handleGoHome = () => {
+    // Reset all state before going home
+    setCurrentStep(BookingStep.SERVICE_SELECTION);
+    setSelectedService(null);
+    setSelectedOptions([]);
+    setSelectedQuantity(1);
+    setSelectedLocation(null);
+    setSelectedDate('');
+    setSelectedTime('');
+    setSelectedEmployeeId(null);
+    setSelectedEmployee(null);
+    setTotalPrice(0);
+    setBookingResult(null);
+    setBookingNote('');
+    setPromoCode('');
+    
     if (onClose) {
       onClose();
-    } else {
+    } else if (navigation) {
       navigation.navigate('CustomerHome');
     }
   };

@@ -145,27 +145,49 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
           />
         </Animated.View>
 
+        {/* Additional Info */}
+        <Animated.View style={{ opacity: fadeAnim, width: '100%', marginTop: responsiveSpacing.lg }}>
+          <View style={styles.infoBox}>
+            <Ionicons name="information-circle-outline" size={20} color={colors.highlight.teal} />
+            <Text style={styles.infoBoxText}>
+              Chúng tôi sẽ liên hệ với bạn để xác nhận chi tiết dịch vụ trước khi thực hiện.
+            </Text>
+          </View>
+        </Animated.View>
+
         {/* Share Button */}
-        <Animated.View style={{ opacity: fadeAnim }}>
+        <Animated.View style={{ opacity: fadeAnim, width: '100%', marginTop: responsiveSpacing.md }}>
           <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
             <Ionicons name="share-social-outline" size={20} color={colors.highlight.teal} />
-            <Text style={styles.shareText}>Chia sẻ</Text>
+            <Text style={styles.shareText}>Chia sẻ thông tin đặt lịch</Text>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Text Link to Home */}
+        <Animated.View style={{ opacity: fadeAnim, marginTop: responsiveSpacing.lg }}>
+          <TouchableOpacity style={styles.textButton} onPress={onGoHome}>
+            <Ionicons name="home-outline" size={18} color={colors.neutral.textSecondary} />
+            <Text style={styles.textButtonText}>Về trang chủ</Text>
           </TouchableOpacity>
         </Animated.View>
       </ScrollView>
 
-      {/* Action Buttons */}
+      {/* Action Buttons - Fixed at bottom */}
       <Animated.View style={[commonStyles.buttonContainer, { opacity: fadeAnim }]}>
-        <TouchableOpacity style={commonStyles.primaryButton} onPress={onViewBookings}>
-          <Text style={commonStyles.primaryButtonText}>Xem chi tiết</Text>
+        <TouchableOpacity 
+          style={[commonStyles.primaryButton, commonStyles.flexRow, { justifyContent: 'center', marginBottom: responsiveSpacing.sm }]} 
+          onPress={onViewBookings}
+        >
+          <Ionicons name="document-text-outline" size={20} color={colors.neutral.white} />
+          <Text style={[commonStyles.primaryButtonText, { marginLeft: 8 }]}>Xem chi tiết đơn hàng</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[commonStyles.secondaryButton, { marginTop: responsiveSpacing.sm }]} onPress={onBookMore}>
-          <Text style={commonStyles.secondaryButtonText}>Đặt thêm dịch vụ</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.textButton} onPress={onGoHome}>
-          <Text style={styles.textButtonText}>Về trang chủ</Text>
+        <TouchableOpacity 
+          style={[commonStyles.secondaryButton, commonStyles.flexRow, { justifyContent: 'center' }]} 
+          onPress={onBookMore}
+        >
+          <Ionicons name="calendar-outline" size={20} color={colors.highlight.teal} />
+          <Text style={[commonStyles.secondaryButtonText, { marginLeft: 8 }]}>Đặt thêm dịch vụ</Text>
         </TouchableOpacity>
       </Animated.View>
     </View>
@@ -256,30 +278,49 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral.border,
     marginVertical: responsiveSpacing.sm,
   },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.highlight.teal + '15',
+    borderRadius: 12,
+    padding: responsiveSpacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.highlight.teal,
+  },
+  infoBoxText: {
+    flex: 1,
+    fontSize: responsiveFontSize.caption,
+    color: colors.primary.navy,
+    lineHeight: responsiveFontSize.caption * 1.5,
+    marginLeft: responsiveSpacing.sm,
+  },
   shareButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: responsiveSpacing.sm,
+    justifyContent: 'center',
+    paddingVertical: responsiveSpacing.md,
     paddingHorizontal: responsiveSpacing.lg,
     borderRadius: 12,
-    borderWidth: 2,
-    borderColor: colors.highlight.teal,
+    borderWidth: 1.5,
+    borderColor: colors.neutral.border,
     backgroundColor: colors.neutral.white,
   },
   shareText: {
     fontSize: responsiveFontSize.body,
-    color: colors.highlight.teal,
-    fontWeight: '700',
+    color: colors.neutral.textPrimary,
+    fontWeight: '600',
     marginLeft: responsiveSpacing.xs,
   },
   textButton: {
-    paddingVertical: responsiveSpacing.sm,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: responsiveSpacing.sm,
+    justifyContent: 'center',
+    paddingVertical: responsiveSpacing.sm,
   },
   textButtonText: {
     color: colors.neutral.textSecondary,
-    fontSize: responsiveFontSize.caption,
+    fontSize: responsiveFontSize.body,
     fontWeight: '600',
+    marginLeft: 6,
   },
 });
