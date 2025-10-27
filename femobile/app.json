@@ -4,7 +4,7 @@
     "slug": "mobile_housekeepingservice",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo-house-service.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "locales": {
@@ -18,7 +18,7 @@
       }
     },
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/logo-house-service.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
