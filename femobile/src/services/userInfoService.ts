@@ -146,11 +146,19 @@ class UserInfoService {
     return this.mapEmployeeToUserInfo(response.data);
   }
 
-  async uploadCustomerAvatar(customerId: string, imageFile: File | Blob): Promise<string> {
+  async uploadCustomerAvatar(customerId: string, imageUri: string): Promise<CustomerData> {
     const formData = new FormData();
-    formData.append('avatar', imageFile);
+    const filename = imageUri.split('/').pop() || `avatar-${Date.now()}.jpg`;
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1]}` : 'image/jpeg';
 
-    const response = await httpClient.post<{ avatarUrl: string }>(
+    formData.append('avatar', {
+      uri: imageUri,
+      name: filename,
+      type,
+    } as any);
+
+    const response = await httpClient.post<{ customer: CustomerData; avatarPublicId: string }>(
       `/customer/${customerId}/avatar`,
       formData,
       {
@@ -161,17 +169,25 @@ class UserInfoService {
     );
 
     if (!response.success || !response.data) {
-      throw new Error(response.message || 'Khong the tai len hinh anh');
+      throw new Error(response.message || 'Không thể tải lên hình ảnh');
     }
 
-    return response.data.avatarUrl;
+    return response.data.customer;
   }
 
-  async uploadEmployeeAvatar(employeeId: string, imageFile: File | Blob): Promise<string> {
+  async uploadEmployeeAvatar(employeeId: string, imageUri: string): Promise<EmployeeData> {
     const formData = new FormData();
-    formData.append('avatar', imageFile);
+    const filename = imageUri.split('/').pop() || `avatar-${Date.now()}.jpg`;
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1]}` : 'image/jpeg';
 
-    const response = await httpClient.post<{ avatarUrl: string }>(
+    formData.append('avatar', {
+      uri: imageUri,
+      name: filename,
+      type,
+    } as any);
+
+    const response = await httpClient.post<{ employee: EmployeeData; avatarPublicId: string }>(
       `/employee/${employeeId}/avatar`,
       formData,
       {
@@ -182,10 +198,10 @@ class UserInfoService {
     );
 
     if (!response.success || !response.data) {
-      throw new Error(response.message || 'Khong the tai len hinh anh');
+      throw new Error(response.message || 'Không thể tải lên hình ảnh');
     }
 
-    return response.data.avatarUrl;
+    return response.data.employee;
   }
 
   private mapCustomerToUserInfo(customer: CustomerData): UserInfo {

@@ -16,84 +16,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth, useEnsureValidToken, useUserInfo } from '../../hooks';
-import { userInfoService } from '../../services/userInfoService';
 import { COLORS } from '../../constants';
+import { userInfoService } from '../../services';
 
-export const ProfileScreen = () => {
+interface ProfileScreenProps {
+  navigation: any;
+}
+
+export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { user, role, logout } = useAuth();
   const { userInfo, loading: userInfoLoading, error: userInfoError, refetch } = useUserInfo();
   const [pushNotifications, setPushNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-
-  const handleAvatarUpload = async () => {
-    try {
-      // Request permission
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert(
-          'Quyền truy cập bị từ chối',
-          'Vui lòng cấp quyền truy cập thư viện ảnh để tải lên ảnh đại diện.'
-        );
-        return;
-      }
-
-      // Pick image
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (result.canceled || !result.assets || result.assets.length === 0) {
-        return;
-      }
-
-      const imageUri = result.assets[0].uri;
-
-      // Validate file size (max 5MB)
-      const response = await fetch(imageUri);
-      const blob = await response.blob();
-      const fileSizeInMB = blob.size / (1024 * 1024);
-
-      if (fileSizeInMB > 5) {
-        Alert.alert(
-          'Kích thước file quá lớn',
-          'Vui lòng chọn ảnh có kích thước nhỏ hơn 5MB.'
-        );
-        return;
-      }
-
-      setUploadingAvatar(true);
-
-      // Upload based on role
-      if (role === 'CUSTOMER' && userInfo?.id) {
-        await userInfoService.uploadCustomerAvatar(userInfo.id, imageUri);
-      } else if (role === 'EMPLOYEE' && userInfo?.id) {
-        await userInfoService.uploadEmployeeAvatar(userInfo.id, imageUri);
-      } else {
-        throw new Error('Không thể xác định vai trò người dùng');
-      }
-
-      // Refresh user info
-      await refetch();
-
-      Alert.alert(
-        'Thành công',
-        'Ảnh đại diện đã được cập nhật!'
-      );
-    } catch (error: any) {
-      console.error('[ProfileScreen] Error uploading avatar:', error);
-      Alert.alert(
-        'Lỗi',
-        error.message || 'Không thể tải lên ảnh đại diện. Vui lòng thử lại.'
-      );
-    } finally {
-      setUploadingAvatar(false);
-    }
-  };
 
   const handleRoleSwitch = (newRole: 'CUSTOMER' | 'EMPLOYEE') => {
     if (newRole === role) return;
@@ -112,6 +47,76 @@ export const ProfileScreen = () => {
         },
       ]
     );
+  };
+
+  const handleChangeAvatar = async () => {
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Cần quyền truy cập',
+          'Vui lòng cấp quyền truy cập thư viện ảnh để thay đổi ảnh đại diện.'
+        );
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const imageUri = result.assets[0].uri;
+
+      // Check file size (max 5MB)
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      const sizeInMB = blob.size / (1024 * 1024);
+
+      if (sizeInMB > 5) {
+        Alert.alert(
+          'Ảnh quá lớn',
+          'Kích thước ảnh không được vượt quá 5MB. Vui lòng chọn ảnh khác.'
+        );
+        return;
+      }
+
+      // Upload avatar
+      setUploadingAvatar(true);
+
+      if (!userInfo?.id) {
+        throw new Error('Không tìm thấy thông tin người dùng');
+      }
+
+      if (role === 'CUSTOMER') {
+        await userInfoService.uploadCustomerAvatar(userInfo.id, imageUri);
+      } else if (role === 'EMPLOYEE') {
+        await userInfoService.uploadEmployeeAvatar(userInfo.id, imageUri);
+      } else {
+        throw new Error('Vai trò không hợp lệ');
+      }
+
+      // Refresh user info
+      await refetch();
+
+      Alert.alert('Thành công', 'Cập nhật ảnh đại diện thành công!');
+    } catch (error: any) {
+      console.error('Error uploading avatar:', error);
+      Alert.alert(
+        'Lỗi',
+        error.message || 'Không thể cập nhật ảnh đại diện. Vui lòng thử lại.'
+      );
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
   
   // Ensure token is valid when component mounts
@@ -189,13 +194,13 @@ export const ProfileScreen = () => {
       id: 'edit-profile',
       title: 'Chỉnh sửa thông tin',
       icon: 'person-outline',
-      onPress: () => console.log('Edit profile'),
+      onPress: () => navigation.navigate('EditProfile'),
     },
     {
       id: 'change-password',
       title: 'Đổi mật khẩu',
       icon: 'lock-closed-outline',
-      onPress: () => console.log('Change password'),
+      onPress: () => navigation.navigate('ChangePassword'),
     },
     {
       id: 'payment-methods',
@@ -375,14 +380,9 @@ export const ProfileScreen = () => {
                 style={styles.avatar}
                 defaultSource={require('../../../assets/icon.png')}
               />
-              {uploadingAvatar && (
-                <View style={styles.uploadingOverlay}>
-                  <ActivityIndicator size="large" color={COLORS.surface} />
-                </View>
-              )}
               <TouchableOpacity 
                 style={styles.editAvatarButton}
-                onPress={handleAvatarUpload}
+                onPress={handleChangeAvatar}
                 disabled={uploadingAvatar}
               >
                 {uploadingAvatar ? (
@@ -685,17 +685,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 3,
     borderColor: COLORS.surface,
-  },
-  uploadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   userInfo: {
     alignItems: 'center',

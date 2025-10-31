@@ -175,7 +175,6 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   ResetPassword: { email: string };
   VerifyOTP: { email: string; type: 'register' | 'forgot-password' };
-  ChangePassword: undefined;
   RoleSelection: {
     username: string;
     password: string;
@@ -187,4 +186,14 @@ export type RootStackParamList = {
   MainTabs: undefined;
   OrderDetail: { bookingId: string };
   NotificationList: undefined;
+  EditProfile: undefined;
+  ChangePassword: undefined;
+};
+
+export type MainStackParamList = {
+  MainTabs: undefined;
+  OrderDetail: { bookingId: string };
+  NotificationList: undefined;
+  EditProfile: undefined;
+  ChangePassword: undefined;
 };

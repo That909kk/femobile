@@ -154,7 +154,7 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
   };
 
   const handleSeeAllServices = () => {
-    navigation.navigate('ServiceList');
+    navigation.navigate('Booking');
   };
 
   const handleSeeAllEmployees = () => {

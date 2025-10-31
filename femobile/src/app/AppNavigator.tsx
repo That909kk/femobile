@@ -12,14 +12,17 @@ import {
   VerifyOTPScreen,
   ResetPasswordScreen,
   RoleSelectionScreen,
+  EditProfileScreen,
+  ChangePasswordScreen,
 } from '../screens';
 import { OrderDetailScreen, NotificationsScreen as CustomerNotificationsScreen } from '../screens/main/customer';
 import { NotificationsScreen as EmployeeNotificationsScreen } from '../screens/main/employee';
 import { MainTabNavigator } from './MainTabNavigator';
-import type { RootStackParamList } from '../types/auth';
+import type { RootStackParamList, MainStackParamList } from '../types/auth';
 import { COLORS, ANIMATION_CONFIGS, getBaseScreenOptions } from '../constants';
 
 const Stack = createStackNavigator<RootStackParamList>();
+const MainStackNavigator = createStackNavigator<MainStackParamList>();
 
 // Define navigation flow hierarchy for better animation direction
 const NAVIGATION_HIERARCHY = {
@@ -129,7 +132,7 @@ const MainStack = () => {
   const NotificationScreen = role === 'EMPLOYEE' ? EmployeeNotificationsScreen : CustomerNotificationsScreen;
 
   return (
-    <Stack.Navigator
+    <MainStackNavigator.Navigator
       screenOptions={{
         ...getBaseScreenOptions(COLORS.background),
         headerShown: false,
@@ -137,7 +140,7 @@ const MainStack = () => {
       initialRouteName="MainTabs"
     >
       {/* Main Tab Navigator - handles role-based navigation internally */}
-      <Stack.Screen 
+      <MainStackNavigator.Screen 
         name="MainTabs" 
         component={MainTabNavigator}
         options={{
@@ -146,7 +149,7 @@ const MainStack = () => {
         }}
       />
       {/* Order Detail Screen */}
-      <Stack.Screen 
+      <MainStackNavigator.Screen 
         name="OrderDetail" 
         component={OrderDetailScreen}
         options={{
@@ -154,8 +157,26 @@ const MainStack = () => {
           ...ANIMATION_CONFIGS.slideFromRight,
         }}
       />
+      {/* Edit Profile Screen */}
+      <MainStackNavigator.Screen 
+        name="EditProfile" 
+        component={EditProfileScreen}
+        options={{
+          headerShown: false,
+          ...ANIMATION_CONFIGS.slideFromRight,
+        }}
+      />
+      {/* Change Password Screen */}
+      <MainStackNavigator.Screen 
+        name="ChangePassword" 
+        component={ChangePasswordScreen}
+        options={{
+          headerShown: false,
+          ...ANIMATION_CONFIGS.slideFromRight,
+        }}
+      />
       {/* Notifications Screen */}
-      <Stack.Screen 
+      <MainStackNavigator.Screen 
         name="NotificationList" 
         component={NotificationScreen}
         options={{
@@ -163,7 +184,7 @@ const MainStack = () => {
           ...ANIMATION_CONFIGS.slideFromRight,
         }}
       />
-    </Stack.Navigator>
+    </MainStackNavigator.Navigator>
   );
 };
 
