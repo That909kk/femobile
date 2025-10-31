@@ -1,25 +1,48 @@
 {
   "vi": {
-    "title": "Chon vai tro",
-    "subtitle": "Tai khoan cua ban co nhieu vai tro. Vui long chon vai tro de tiep tuc.",
+    "title": "Chọn vai trò",
+    "subtitle": "Tài khoản của bạn có nhiều vai trò. Vui lòng chọn vai trò để tiếp tục.",
     "actions": {
-      "continue": "Tiep tuc",
-      "back": "Quay lai"
+      "continue": "Tiếp tục",
+      "back": "Quay lại"
     },
     "roles": {
-      "CUSTOMER": "Khach hang",
-      "EMPLOYEE": "Nhan vien",
-      "ADMIN": "Quan tri vien"
+      "CUSTOMER": "Khách hàng",
+      "EMPLOYEE": "Nhân viên lao động",
+      "ADMIN": "Quản trị viên"
     },
     "roleDescriptions": {
-      "CUSTOMER": "Dat dich vu, theo doi don hang va thanh toan minh bach",
-      "EMPLOYEE": "Nhan ca phu hop ky nang, quan ly lich lam va thu nhap",
-      "ADMIN": "Quan ly he thong tren nen tang web"
+      "CUSTOMER": "Đặt dịch vụ, theo dõi đơn hàng và thanh toán minh bạch",
+      "EMPLOYEE": "Nhận ca phù hợp kỹ năng, quản lý lịch làm và thu nhập",
+      "ADMIN": "Quản lý hệ thống trên nền tảng web"
     },
     "messages": {
-      "selectRole": "Vui long chon mot vai tro",
-      "loading": "Dang xu ly...",
-      "error": "Co loi xay ra, vui long thu lai"
+      "selectRole": "Vui lòng chọn một vai trò",
+      "loading": "Đang xử lý...",
+      "error": "Có lỗi xảy ra, vui lòng thử lại"
+    }
+  },
+  "en": {
+    "title": "Chọn vai trò",
+    "subtitle": "Tài khoản của bạn có nhiều vai trò. Vui lòng chọn vai trò để tiếp tục.",
+    "actions": {
+      "continue": "Tiếp tục",
+      "back": "Quay lại"
+    },
+    "roles": {
+      "CUSTOMER": "Khách hàng",
+      "EMPLOYEE": "Nhân viên lao động",
+      "ADMIN": "Quản trị viên"
+    },
+    "roleDescriptions": {
+      "CUSTOMER": "Đặt dịch vụ, theo dõi đơn hàng và thanh toán minh bạch",
+      "EMPLOYEE": "Nhận ca phù hợp kỹ năng, quản lý lịch làm và thu nhập",
+      "ADMIN": "Quản lý hệ thống trên nền tảng web"
+    },
+    "messages": {
+      "selectRole": "Vui lòng chọn một vai trò",
+      "loading": "Đang xử lý...",
+      "error": "Có lỗi xảy ra, vui lòng thử lại"
     }
   }
 }

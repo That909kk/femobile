@@ -9,11 +9,14 @@ import {
   Switch,
   Alert,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth, useEnsureValidToken, useUserInfo } from '../../hooks';
+import { userInfoService } from '../../services/userInfoService';
 import { COLORS } from '../../constants';
 
 export const ProfileScreen = () => {
@@ -21,6 +24,76 @@ export const ProfileScreen = () => {
   const { userInfo, loading: userInfoLoading, error: userInfoError, refetch } = useUserInfo();
   const [pushNotifications, setPushNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const handleAvatarUpload = async () => {
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Quyền truy cập bị từ chối',
+          'Vui lòng cấp quyền truy cập thư viện ảnh để tải lên ảnh đại diện.'
+        );
+        return;
+      }
+
+      // Pick image
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const imageUri = result.assets[0].uri;
+
+      // Validate file size (max 5MB)
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      const fileSizeInMB = blob.size / (1024 * 1024);
+
+      if (fileSizeInMB > 5) {
+        Alert.alert(
+          'Kích thước file quá lớn',
+          'Vui lòng chọn ảnh có kích thước nhỏ hơn 5MB.'
+        );
+        return;
+      }
+
+      setUploadingAvatar(true);
+
+      // Upload based on role
+      if (role === 'CUSTOMER' && userInfo?.id) {
+        await userInfoService.uploadCustomerAvatar(userInfo.id, imageUri);
+      } else if (role === 'EMPLOYEE' && userInfo?.id) {
+        await userInfoService.uploadEmployeeAvatar(userInfo.id, imageUri);
+      } else {
+        throw new Error('Không thể xác định vai trò người dùng');
+      }
+
+      // Refresh user info
+      await refetch();
+
+      Alert.alert(
+        'Thành công',
+        'Ảnh đại diện đã được cập nhật!'
+      );
+    } catch (error: any) {
+      console.error('[ProfileScreen] Error uploading avatar:', error);
+      Alert.alert(
+        'Lỗi',
+        error.message || 'Không thể tải lên ảnh đại diện. Vui lòng thử lại.'
+      );
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const handleRoleSwitch = (newRole: 'CUSTOMER' | 'EMPLOYEE') => {
     if (newRole === role) return;
@@ -302,8 +375,21 @@ export const ProfileScreen = () => {
                 style={styles.avatar}
                 defaultSource={require('../../../assets/icon.png')}
               />
-              <TouchableOpacity style={styles.editAvatarButton}>
-                <Ionicons name="camera" size={16} color={COLORS.surface} />
+              {uploadingAvatar && (
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="large" color={COLORS.surface} />
+                </View>
+              )}
+              <TouchableOpacity 
+                style={styles.editAvatarButton}
+                onPress={handleAvatarUpload}
+                disabled={uploadingAvatar}
+              >
+                {uploadingAvatar ? (
+                  <ActivityIndicator size="small" color={COLORS.surface} />
+                ) : (
+                  <Ionicons name="camera" size={16} color={COLORS.surface} />
+                )}
               </TouchableOpacity>
             </View>
             <View style={styles.userInfo}>
@@ -599,6 +685,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 3,
     borderColor: COLORS.surface,
+  },
+  uploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   userInfo: {
     alignItems: 'center',

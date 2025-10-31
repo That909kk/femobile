@@ -159,7 +159,9 @@ class HttpClient {
   async get<T = any>(url: string, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
     try {
       const response: AxiosResponse<RawApiResponse<T>> = await this.instance.get(url, config);
-      return this.normalizeSuccess<T>(response.data);
+      const normalized = this.normalizeSuccess<T>(response.data);
+      normalized.status = response.status;
+      return normalized;
     } catch (error: any) {
       if (__DEV__) {
         console.warn('[httpClient] GET error', {
@@ -171,12 +173,15 @@ class HttpClient {
       }
 
       if (error.response?.data) {
-        return this.normalizeError<T>(error.response.data, this.buildFallbackMessage(error));
+        const normalized = this.normalizeError<T>(error.response.data, this.buildFallbackMessage(error));
+        normalized.status = error.response.status;
+        return normalized;
       }
 
       return {
         success: false,
         message: this.buildFallbackMessage(error),
+        status: error.response?.status,
       };
     }
   }
@@ -192,7 +197,9 @@ class HttpClient {
         data,
         config,
       );
-      return this.normalizeSuccess<T>(response.data);
+      const normalized = this.normalizeSuccess<T>(response.data);
+      normalized.status = response.status;
+      return normalized;
     } catch (error: any) {
       if (__DEV__) {
         console.warn('[httpClient] POST error', {
@@ -204,12 +211,15 @@ class HttpClient {
       }
 
       if (error.response?.data) {
-        return this.normalizeError<T>(error.response.data, this.buildFallbackMessage(error));
+        const normalized = this.normalizeError<T>(error.response.data, this.buildFallbackMessage(error));
+        normalized.status = error.response.status;
+        return normalized;
       }
 
       return {
         success: false,
         message: this.buildFallbackMessage(error),
+        status: error.response?.status,
       };
     }
   }

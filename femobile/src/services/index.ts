@@ -24,7 +24,12 @@ export type {
 export type {
   EmployeeSchedule,
   ScheduleStatus,
-  ScheduleStats
+  ScheduleStats,
+  TimeSlot,
+  TimeSlotType,
+  WorkingZone,
+  EmployeeScheduleData,
+  EmployeeScheduleResponse,
 } from './employeeScheduleService';
 
 export type { 
@@ -73,7 +78,12 @@ export type {
 export type {
   EmployeeAssignment,
   AssignmentStatus,
-  AvailableBooking,
+  AvailableBookingDetail,
+  AvailableBookingsResponse,
+  AcceptBookingResponse,
+  CheckInResponse,
+  CheckOutResponse,
+  CancelAssignmentRequest,
 } from './employeeAssignmentService';
 
 export type {

@@ -18,6 +18,7 @@ import { Button, Input, Select, Checkbox, TermsModal } from '../../components';
 import { useAuth } from '../../hooks/useAuth';
 import { useStaticData } from '../../hooks/useStaticData';
 import { COLORS, UI, VALIDATION } from '../../constants';
+import { colors, typography, spacing, borderRadius, shadows, responsive, responsiveSpacing, responsiveFontSize } from '../../styles';
 import type { RootStackParamList, UserRole } from '../../types/auth';
 
 type RegisterScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Register'>;
@@ -55,49 +56,49 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     const newErrors: Record<string, string> = {};
     
     if (!formData.role) {
-      newErrors.role = staticData?.messages?.validation?.role_required || 'Role is required';
+      newErrors.role = staticData?.messages?.validation?.role_required || 'Vui lòng chọn vai trò';
     }
     
     if (!formData.fullName.trim()) {
-      newErrors.fullName = staticData?.messages?.validation?.fullName_required || 'Full name is required';
+      newErrors.fullName = staticData?.messages?.validation?.fullName_required || 'Vui lòng nhập họ và tên';
     } else if (!/^[a-zA-ZÀ-ÿ\s]+$/.test(formData.fullName.trim())) {
-      newErrors.fullName = staticData?.messages?.validation?.fullName_invalid || 'Full name should only contain letters and spaces';
+      newErrors.fullName = staticData?.messages?.validation?.fullName_invalid || 'Họ và tên chỉ được chứa chữ cái và khoảng trắng';
     }
     
     if (!formData.username.trim()) {
-      newErrors.username = staticData?.messages?.validation?.username_required || 'Username is required';
+      newErrors.username = staticData?.messages?.validation?.username_required || 'Vui lòng nhập tên đăng nhập';
     } else if (formData.username.length < VALIDATION.USERNAME_MIN_LENGTH) {
-      newErrors.username = staticData?.messages?.validation?.username_length || 'Username must be at least 3 characters';
+      newErrors.username = staticData?.messages?.validation?.username_length || 'Tên đăng nhập phải có ít nhất 3 ký tự';
     } else if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
-      newErrors.username = staticData?.messages?.validation?.username_invalid || 'Username can only contain letters, numbers and underscores';
+      newErrors.username = staticData?.messages?.validation?.username_invalid || 'Tên đăng nhập chỉ được chứa chữ cái, số và gạch dưới';
     }
     
     if (!formData.email.trim()) {
-      newErrors.email = staticData?.messages?.validation?.email_required || 'Email is required';
+      newErrors.email = staticData?.messages?.validation?.email_required || 'Vui lòng nhập email';
     } else if (!VALIDATION.EMAIL_REGEX.test(formData.email)) {
-      newErrors.email = staticData?.messages?.validation?.email_invalid || 'Invalid email format';
+      newErrors.email = staticData?.messages?.validation?.email_invalid || 'Định dạng email không hợp lệ';
     }
     
     if (!formData.phoneNumber.trim()) {
-      newErrors.phoneNumber = staticData?.messages?.validation?.phoneNumber_required || 'Phone number is required';
+      newErrors.phoneNumber = staticData?.messages?.validation?.phoneNumber_required || 'Vui lòng nhập số điện thoại';
     } else if (!VALIDATION.PHONE_REGEX.test(formData.phoneNumber)) {
-      newErrors.phoneNumber = staticData?.messages?.validation?.phoneNumber_invalid || 'Invalid phone number';
+      newErrors.phoneNumber = staticData?.messages?.validation?.phoneNumber_invalid || 'Số điện thoại không hợp lệ';
     }
     
     if (!formData.password) {
-      newErrors.password = staticData?.messages?.validation?.password_required || 'Password is required';
+      newErrors.password = staticData?.messages?.validation?.password_required || 'Vui lòng nhập mật khẩu';
     } else if (formData.password.length < VALIDATION.PASSWORD_MIN_LENGTH) {
-      newErrors.password = staticData?.messages?.validation?.password_length || 'Password must be at least 6 characters';
+      newErrors.password = staticData?.messages?.validation?.password_length || 'Mật khẩu phải có ít nhất 6 ký tự';
     }
     
     if (!formData.confirmPassword) {
-      newErrors.confirmPassword = staticData?.messages?.validation?.confirm_password_required || 'Password confirmation is required';
+      newErrors.confirmPassword = staticData?.messages?.validation?.confirm_password_required || 'Vui lòng xác nhận mật khẩu';
     } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = staticData?.messages?.validation?.passwords_not_match || 'Passwords do not match';
+      newErrors.confirmPassword = staticData?.messages?.validation?.passwords_not_match || 'Mật khẩu không khớp';
     }
     
     if (!acceptTerms) {
-      newErrors.terms = staticData?.messages?.validation?.terms_required || 'You must agree to the terms of service';
+      newErrors.terms = staticData?.messages?.validation?.terms_required || 'Bạn phải đồng ý với điều khoản dịch vụ';
     }
     
     setErrors(newErrors);
@@ -121,10 +122,10 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       
       Alert.alert(
         staticData?.messages?.alert_success || 'Thành công',
-        staticData?.messages?.register_success || 'Registration successful!',
+        staticData?.messages?.register_success || 'Đăng ký thành công!',
         [
           {
-            text: staticData?.messages?.alert_ok || 'OK',
+            text: staticData?.messages?.alert_ok || 'Đồng ý',
             onPress: () => navigation.navigate('VerifyOTP', {
               email: formData.email,
               type: 'register',
@@ -135,8 +136,8 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     } catch (err: any) {
       Alert.alert(
         staticData?.messages?.alert_error || 'Lỗi',
-        err.message || staticData?.messages?.register_error || 'Registration failed',
-        [{ text: staticData?.messages?.alert_ok || 'OK' }]
+        err.message || staticData?.messages?.register_error || 'Đăng ký thất bại',
+        [{ text: staticData?.messages?.alert_ok || 'Đồng ý' }]
       );
     }
   };
@@ -153,9 +154,9 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     { label: staticData.form.role.options.employee, value: 'EMPLOYEE' },
     { label: staticData.form.role.options.admin, value: 'ADMIN' },
   ] : [
-    { label: staticData?.form?.role?.options?.customer || 'Customer', value: 'CUSTOMER' },
-    { label: staticData?.form?.role?.options?.employee || 'Employee', value: 'EMPLOYEE' },
-    { label: staticData?.form?.role?.options?.admin || 'Admin', value: 'ADMIN' },
+    { label: staticData?.form?.role?.options?.customer || 'Khách hàng', value: 'CUSTOMER' },
+    { label: staticData?.form?.role?.options?.employee || 'Nhân viên', value: 'EMPLOYEE' },
+    { label: staticData?.form?.role?.options?.admin || 'Quản trị viên', value: 'ADMIN' },
   ];
 
   if (!staticData) {
@@ -177,13 +178,19 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           <View style={styles.headerContainer}>
+            <View style={styles.logoContainer}>
+              <View style={styles.logoCircle}>
+                <Ionicons name="person-add" size={responsive.moderateScale(36)} color={colors.highlight.teal} />
+              </View>
+            </View>
             <Text style={styles.title}>{staticData.title}</Text>
             <Text style={styles.subtitle}>{staticData.subtitle}</Text>
           </View>
 
-          <View style={styles.formContainer}>
+          <View style={styles.formCard}>
             <Select
               label={staticData.form.role.label}
               value={formData.role}
@@ -302,6 +309,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
 
             {error && (
               <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle" size={responsive.moderateScale(20)} color={colors.feedback.error} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
@@ -342,80 +350,112 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.neutral.background,
   },
   keyboardAvoidingView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    padding: UI.SCREEN_PADDING,
+    paddingHorizontal: responsiveSpacing.md,
+    paddingBottom: responsiveSpacing.xl,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  
+  // Header Styles
   headerContainer: {
     alignItems: 'center',
-    marginBottom: 32,
-    marginTop: 20,
+    marginTop: responsiveSpacing.lg,
+    marginBottom: responsiveSpacing.lg,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: responsiveSpacing.md,
+  },
+  logoCircle: {
+    width: responsive.moderateScale(72),
+    height: responsive.moderateScale(72),
+    borderRadius: responsive.moderateScale(36),
+    backgroundColor: colors.warm.beige,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadows.card,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.text.primary,
-    marginBottom: 8,
+    fontSize: responsiveFontSize.heading1,
+    fontWeight: '600',
+    color: colors.primary.navy,
+    marginBottom: responsiveSpacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    color: COLORS.text.secondary,
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textSecondary,
     textAlign: 'center',
   },
-  formContainer: {
-    marginBottom: 24,
+  
+  // Form Styles
+  formCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(borderRadius.card),
+    padding: responsiveSpacing.lg,
+    marginBottom: responsiveSpacing.lg,
+    ...shadows.card,
+  },
+  termsContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: responsiveSpacing.md,
+    paddingHorizontal: responsiveSpacing.xs,
+  },
+  checkbox: {
+    marginTop: responsive.moderateScale(2),
+  },
+  termsTextContainer: {
+    flex: 1,
+    marginLeft: responsiveSpacing.sm,
+  },
+  termsText: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
+    lineHeight: responsive.moderateScale(20),
+  },
+  termsLinkText: {
+    color: colors.highlight.teal,
+    textDecorationLine: 'underline',
+    fontSize: responsiveFontSize.caption,
+    lineHeight: responsive.moderateScale(20),
   },
   errorContainer: {
-    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.feedback.error + '10',
+    padding: responsiveSpacing.md,
+    borderRadius: responsive.moderateScale(borderRadius.input),
+    marginBottom: responsiveSpacing.md,
+    borderWidth: 1,
+    borderColor: colors.feedback.error + '20',
   },
   errorText: {
-    color: COLORS.error,
-    fontSize: 14,
+    color: colors.feedback.error,
+    fontSize: responsiveFontSize.caption,
+    marginLeft: responsiveSpacing.sm,
     textAlign: 'center',
   },
+  
+  // Footer Styles
   footerContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 'auto',
-    paddingBottom: 20,
+    paddingBottom: responsiveSpacing.lg,
   },
   footerText: {
-    color: COLORS.text.secondary,
-    fontSize: 14,
-  },
-  termsContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-    paddingHorizontal: 4,
-  },
-  checkbox: {
-    marginTop: 2,
-  },
-  termsTextContainer: {
-    flex: 1,
-    marginLeft: 8,
-  },
-  termsText: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
-    lineHeight: 20,
-  },
-  termsLinkText: {
-    color: COLORS.primary,
-    textDecorationLine: 'underline',
-    fontSize: 14,
-    lineHeight: 20,
+    color: colors.neutral.textSecondary,
+    fontSize: responsiveFontSize.body,
   },
 });

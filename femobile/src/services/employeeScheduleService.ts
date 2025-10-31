@@ -3,8 +3,45 @@ import type { ApiResponse } from '../types/auth';
 
 // Schedule status types
 export type ScheduleStatus = 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
+export type TimeSlotType = 'UNAVAILABLE' | 'ASSIGNMENT';
+export type AssignmentStatus = 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
-// Employee schedule interfaces
+export interface WorkingZone {
+  ward: string;
+  city: string;
+}
+
+export interface TimeSlot {
+  startTime: string;
+  endTime: string;
+  type: TimeSlotType;
+  reason: string | null;
+  bookingCode: string | null;
+  serviceName: string | null;
+  customerName: string | null;
+  address: string | null;
+  status: AssignmentStatus | null;
+  durationHours: number;
+}
+
+export interface EmployeeScheduleData {
+  employeeId: string;
+  fullName: string;
+  avatar: string;
+  skills: string[];
+  rating: string;
+  employeeStatus: string;
+  workingZones: WorkingZone[];
+  timeSlots: TimeSlot[];
+}
+
+export interface EmployeeScheduleResponse {
+  success: boolean;
+  message: string;
+  data: EmployeeScheduleData;
+}
+
+// Legacy interface for backward compatibility
 export interface EmployeeSchedule {
   scheduleId: string;
   bookingId: string;
@@ -34,22 +71,53 @@ export interface ScheduleStats {
 }
 
 class EmployeeScheduleService {
+  private readonly BASE_PATH = '/employee-schedule';
+
+  /**
+   * Get employee schedule by employeeId and date range
+   * API: GET /api/v1/employee-schedule/{employeeId}?startDate=...&endDate=...
+   */
+  async getEmployeeSchedule(
+    employeeId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<EmployeeScheduleData | null> {
+    try {
+      const startDateStr = startDate.toISOString();
+      const endDateStr = endDate.toISOString();
+      
+      const response = await httpClient.get<EmployeeScheduleData>(
+        `${this.BASE_PATH}/${employeeId}?startDate=${startDateStr}&endDate=${endDateStr}`
+      );
+      
+      if (!response.success || !response.data) {
+        console.error('Error loading employee schedule:', response.message);
+        return null;
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error loading employee schedule:', error);
+      return null;
+    }
+  }
+
   /**
    * Get schedule for a specific date
    */
-  async getScheduleByDate(date: Date): Promise<EmployeeSchedule[]> {
+  async getScheduleByDate(employeeId: string, date: Date): Promise<TimeSlot[]> {
     try {
-      const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD format
-      const response = await httpClient.get<ApiResponse<EmployeeSchedule[]>>(`/employee/schedule?date=${dateStr}`);
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
       
-      if (!response.success) {
-        console.error('Error loading schedule:', response.message);
-        return [];
-      }
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
       
-      return response.data?.data || [];
+      const scheduleData = await this.getEmployeeSchedule(employeeId, startOfDay, endOfDay);
+      
+      return scheduleData?.timeSlots || [];
     } catch (error) {
-      console.error('Error loading schedule:', error);
+      console.error('Error loading schedule by date:', error);
       return [];
     }
   }
@@ -57,36 +125,26 @@ class EmployeeScheduleService {
   /**
    * Get weekly schedule
    */
-  async getWeeklySchedule(startDate: Date): Promise<EmployeeSchedule[]> {
+  async getWeeklySchedule(employeeId: string, startDate: Date): Promise<EmployeeScheduleData | null> {
     try {
-      const startDateStr = startDate.toISOString().split('T')[0];
       const endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + 6);
-      const endDateStr = endDate.toISOString().split('T')[0];
+      endDate.setHours(23, 59, 59, 999);
       
-      const response = await httpClient.get<ApiResponse<EmployeeSchedule[]>>(
-        `/employee/schedule?startDate=${startDateStr}&endDate=${endDateStr}`
-      );
-      
-      if (!response.success) {
-        console.error('Error loading weekly schedule:', response.message);
-        return [];
-      }
-      
-      return response.data?.data || [];
+      return await this.getEmployeeSchedule(employeeId, startDate, endDate);
     } catch (error) {
       console.error('Error loading weekly schedule:', error);
-      return [];
+      return null;
     }
   }
 
   /**
    * Get today's schedule
    */
-  async getTodaySchedule(): Promise<EmployeeSchedule[]> {
+  async getTodaySchedule(employeeId: string): Promise<TimeSlot[]> {
     try {
       const today = new Date();
-      return await this.getScheduleByDate(today);
+      return await this.getScheduleByDate(employeeId, today);
     } catch (error) {
       console.error('Error loading today schedule:', error);
       return [];
@@ -94,23 +152,36 @@ class EmployeeScheduleService {
   }
 
   /**
-   * Get schedule statistics
+   * Get schedule statistics - calculated from timeSlots
    */
-  async getScheduleStats(): Promise<ScheduleStats | null> {
+  async getScheduleStats(employeeId: string): Promise<ScheduleStats | null> {
     try {
-      const response = await httpClient.get<ApiResponse<ScheduleStats>>('/employee/schedule/stats');
+      const today = new Date();
+      const startOfDay = new Date(today);
+      startOfDay.setHours(0, 0, 0, 0);
       
-      if (!response.success) {
-        console.error('Error fetching schedule stats:', response.message);
-        return null;
+      const endOfDay = new Date(today);
+      endOfDay.setHours(23, 59, 59, 999);
+      
+      const scheduleData = await this.getEmployeeSchedule(employeeId, startOfDay, endOfDay);
+      
+      if (!scheduleData) {
+        return {
+          totalJobs: 0,
+          completedJobs: 0,
+          inProgressJobs: 0,
+          todayRevenue: 0
+        };
       }
+
+      const assignments = scheduleData.timeSlots.filter(slot => slot.type === 'ASSIGNMENT');
       
-      if (!response.data?.data) {
-        console.error('Invalid schedule stats data');
-        return null;
-      }
-      
-      return response.data.data;
+      return {
+        totalJobs: assignments.length,
+        completedJobs: assignments.filter(a => a.status === 'COMPLETED').length,
+        inProgressJobs: assignments.filter(a => a.status === 'IN_PROGRESS').length,
+        todayRevenue: 0 // API không trả về revenue, cần tính từ assignments
+      };
     } catch (error) {
       console.error('Error fetching schedule stats:', error);
       return null;

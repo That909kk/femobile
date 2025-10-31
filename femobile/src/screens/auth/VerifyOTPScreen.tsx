@@ -11,10 +11,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { Button, Input } from '../../components';
 import { useAuth } from '../../hooks/useAuth';
 import { useStaticData } from '../../hooks/useStaticData';
 import { COLORS, UI, VALIDATION } from '../../constants';
+import { colors, typography, spacing, borderRadius, shadows, responsive, responsiveSpacing, responsiveFontSize } from '../../styles';
 import type { RootStackParamList } from '../../types/auth';
 
 type VerifyOTPScreenNavigationProp = StackNavigationProp<RootStackParamList, 'VerifyOTP'>;
@@ -46,9 +48,9 @@ export const VerifyOTPScreen: React.FC<Props> = ({ navigation, route }) => {
     const newErrors: Record<string, string> = {};
     
     if (!otp.trim()) {
-      newErrors.otp = staticData?.messages?.validation?.otp_required || 'OTP is required';
+      newErrors.otp = staticData?.messages?.validation?.otp_required || 'Vui lòng nhập mã OTP';
     } else if (otp.length !== VALIDATION.OTP_LENGTH) {
-      newErrors.otp = staticData?.messages?.validation?.otp_invalid || 'OTP must be 6 digits';
+      newErrors.otp = staticData?.messages?.validation?.otp_invalid || 'Mã OTP phải có 6 chữ số';
     }
     
     setErrors(newErrors);
@@ -65,10 +67,10 @@ export const VerifyOTPScreen: React.FC<Props> = ({ navigation, route }) => {
       
       Alert.alert(
         staticData?.messages?.alert_success || 'Thành công',
-        staticData?.messages?.verify_success || 'Verification successful!',
+        staticData?.messages?.verify_success || 'Xác thực thành công!',
         [
           {
-            text: staticData?.messages?.alert_ok || 'OK',
+            text: staticData?.messages?.alert_ok || 'Đồng ý',
             onPress: () => {
               if (type === 'forgot-password') {
                 navigation.navigate('ResetPassword', { email });
@@ -82,8 +84,8 @@ export const VerifyOTPScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch (err: any) {
       Alert.alert(
         staticData?.messages?.alert_error || 'Lỗi',
-        err.message || staticData?.messages?.verify_error || 'Verification failed',
-        [{ text: staticData?.messages?.alert_ok || 'OK' }]
+        err.message || staticData?.messages?.verify_error || 'Xác thực thất bại',
+        [{ text: staticData?.messages?.alert_ok || 'Đồng ý' }]
       );
     }
   };
@@ -95,14 +97,14 @@ export const VerifyOTPScreen: React.FC<Props> = ({ navigation, route }) => {
       
       Alert.alert(
         staticData?.messages?.alert_success || 'Thành công',
-        staticData?.messages?.resend_success || 'New OTP code sent',
-        [{ text: staticData?.messages?.alert_ok || 'OK' }]
+        staticData?.messages?.resend_success || 'Mã OTP mới đã được gửi',
+        [{ text: staticData?.messages?.alert_ok || 'Đồng ý' }]
       );
     } catch (err: any) {
       Alert.alert(
         staticData?.messages?.alert_error || 'Lỗi',
-        err.message || staticData?.messages?.resend_error || 'Failed to resend OTP',
-        [{ text: staticData?.messages?.alert_ok || 'OK' }]
+        err.message || staticData?.messages?.resend_error || 'Gửi lại mã OTP thất bại',
+        [{ text: staticData?.messages?.alert_ok || 'Đồng ý' }]
       );
     }
   };
@@ -141,14 +143,18 @@ export const VerifyOTPScreen: React.FC<Props> = ({ navigation, route }) => {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           <View style={styles.headerContainer}>
+            <View style={styles.logoCircle}>
+              <Ionicons name="key" size={responsive.moderateScale(36)} color={colors.highlight.teal} />
+            </View>
             <Text style={styles.title}>{staticData.title}</Text>
             <Text style={styles.subtitle}>{staticData.subtitle}</Text>
             <Text style={styles.emailText}>{email}</Text>
           </View>
 
-          <View style={styles.formContainer}>
+          <View style={styles.formCard}>
             <Input
               label={staticData.form.otp.label}
               value={otp}
@@ -156,11 +162,12 @@ export const VerifyOTPScreen: React.FC<Props> = ({ navigation, route }) => {
               placeholder={staticData.form.otp.placeholder}
               keyboardType="numeric"
               error={errors.otp}
-              leftIcon="key"
+              leftIcon="keypad"
             />
 
             {countdown > 0 && (
               <View style={styles.countdownContainer}>
+                <Ionicons name="time-outline" size={responsive.moderateScale(16)} color={colors.neutral.textSecondary} />
                 <Text style={styles.countdownText}>
                   {staticData.messages.expires_in} {formatCountdown(countdown)}
                 </Text>
@@ -169,6 +176,7 @@ export const VerifyOTPScreen: React.FC<Props> = ({ navigation, route }) => {
 
             {error && (
               <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle" size={responsive.moderateScale(20)} color={colors.feedback.error} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
@@ -197,7 +205,7 @@ export const VerifyOTPScreen: React.FC<Props> = ({ navigation, route }) => {
               <Button
                 title={staticData.actions.back}
                 onPress={() => navigation.goBack()}
-                variant="outline"
+                variant="ghost"
                 fullWidth
               />
             </View>
@@ -211,14 +219,15 @@ export const VerifyOTPScreen: React.FC<Props> = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.neutral.background,
   },
   keyboardAvoidingView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    padding: UI.SCREEN_PADDING,
+    paddingHorizontal: responsiveSpacing.md,
+    paddingVertical: responsiveSpacing.xl,
     justifyContent: 'center',
   },
   loadingContainer: {
@@ -228,45 +237,74 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: responsiveSpacing.xl,
+  },
+  logoCircle: {
+    width: responsive.moderateScale(80),
+    height: responsive.moderateScale(80),
+    borderRadius: responsive.moderateScale(40),
+    backgroundColor: colors.warm.beige,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: responsiveSpacing.lg,
+    ...shadows.card,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.text.primary,
-    marginBottom: 8,
+    fontSize: responsiveFontSize.heading1,
+    fontWeight: '600',
+    color: colors.primary.navy,
+    marginBottom: responsiveSpacing.sm,
   },
   subtitle: {
-    fontSize: 16,
-    color: COLORS.text.secondary,
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textSecondary,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: responsiveSpacing.sm,
   },
   emailText: {
-    fontSize: 16,
-    color: COLORS.primary,
-    fontWeight: '500',
+    fontSize: responsiveFontSize.body,
+    color: colors.highlight.teal,
+    fontWeight: '600',
   },
-  formContainer: {
-    marginBottom: 24,
+  formCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(borderRadius.card),
+    padding: responsiveSpacing.lg,
+    ...shadows.card,
   },
   buttonContainer: {
-    marginBottom: 16,
+    marginBottom: responsiveSpacing.md,
   },
   countdownContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'center',
+    backgroundColor: colors.warm.beige,
+    padding: responsiveSpacing.sm,
+    borderRadius: responsive.moderateScale(borderRadius.input),
+    marginBottom: responsiveSpacing.md,
   },
   countdownText: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
+    marginLeft: responsiveSpacing.xs,
   },
   errorContainer: {
-    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.feedback.error + '10',
+    padding: responsiveSpacing.md,
+    borderRadius: responsive.moderateScale(borderRadius.input),
+    marginBottom: responsiveSpacing.md,
+    borderWidth: 1,
+    borderColor: colors.feedback.error + '20',
   },
   errorText: {
-    color: COLORS.error,
-    fontSize: 14,
+    color: colors.feedback.error,
+    fontSize: responsiveFontSize.caption,
+    marginLeft: responsiveSpacing.sm,
     textAlign: 'center',
   },
 });
+
+export default VerifyOTPScreen;

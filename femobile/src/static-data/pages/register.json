@@ -1,76 +1,76 @@
 {
   "vi": {
-    "title": "Dang ky",
-    "subtitle": "Mo tai khoan moi de bat dau dat dich vu",
+    "title": "Đăng ký",
+    "subtitle": "Mở tài khoản mới để bắt đầu đặt dịch vụ",
     "form": {
       "role": {
-        "label": "Vai tro",
-        "placeholder": "Chon vai tro cua ban",
+        "label": "Vai trò",
+        "placeholder": "Chọn vai trò của bạn",
         "options": {
-          "customer": "Khach hang",
-          "employee": "Nhan vien",
-          "admin": "Quan tri vien"
+          "customer": "Khách hàng",
+          "employee": "Nhân viên",
+          "admin": "Quản trị viên"
         }
       },
       "fullName": {
-        "label": "Ho va ten",
-        "placeholder": "Nhap ho va ten"
+        "label": "Họ và tên",
+        "placeholder": "Nhập họ và tên"
       },
       "username": {
-        "label": "Ten dang nhap",
-        "placeholder": "Nhap ten dang nhap"
+        "label": "Tên đăng nhập",
+        "placeholder": "Nhập tên đăng nhập"
       },
       "email": {
         "label": "Email",
-        "placeholder": "Nhap email"
+        "placeholder": "Nhập email"
       },
       "phoneNumber": {
-        "label": "So dien thoai",
-        "placeholder": "Nhap so dien thoai"
+        "label": "Số điện thoại",
+        "placeholder": "Nhập số điện thoại"
       },
       "password": {
-        "label": "Mat khau",
-        "placeholder": "Nhap mat khau"
+        "label": "Mật khẩu",
+        "placeholder": "Nhập mật khẩu"
       },
       "confirm_password": {
-        "label": "Xac nhan mat khau",
-        "placeholder": "Nhap lai mat khau"
+        "label": "Xác nhận mật khẩu",
+        "placeholder": "Nhập lại mật khẩu"
       }
     },
     "actions": {
-      "register": "Dang ky",
-      "registering": "Dang xu ly...",
-      "agree_terms": "Toi dong y voi",
-      "terms_link": "Dieu khoan su dung",
-      "and": "va",
-      "privacy_link": "Chinh sach bao mat"
+      "register": "Đăng ký",
+      "registering": "Đang xử lý...",
+      "agree_terms": "Tôi đồng ý với",
+      "terms_link": "Điều khoản sử dụng",
+      "and": "và",
+      "privacy_link": "Chính sách bảo mật"
     },
     "messages": {
       "validation": {
-        "role_required": "Vui long chon vai tro",
-        "fullName_required": "Vui long nhap ho va ten",
-        "fullName_invalid": "Ho ten chi gom chu cai va khoang trang",
-        "username_required": "Vui long nhap ten dang nhap",
-        "username_length": "Ten dang nhap dai 3 den 50 ky tu",
-        "username_invalid": "Ten dang nhap chi gom chu, so va gach duoi",
-        "email_required": "Vui long nhap email",
-        "email_invalid": "Email khong hop le",
-        "phoneNumber_required": "Vui long nhap so dien thoai",
-        "phoneNumber_invalid": "So dien thoai khong hop le",
-        "password_required": "Vui long nhap mat khau",
-        "password_length": "Mat khau dai 6 den 100 ky tu",
-        "confirm_password_required": "Vui long xac nhan mat khau",
-        "passwords_not_match": "Mat khau khong khop",
-        "terms_required": "Ban phai dong y voi dieu khoan su dung"
+        "role_required": "Vui lòng chọn vai trò",
+        "fullName_required": "Vui lòng nhập họ và tên",
+        "fullName_invalid": "Họ tên chỉ gồm chữ cái và khoảng trắng",
+        "username_required": "Vui lòng nhập tên đăng nhập",
+        "username_length": "Tên đăng nhập dài 3 đến 50 ký tự",
+        "username_invalid": "Tên đăng nhập chỉ gồm chữ, số và gạch dưới",
+        "email_required": "Vui lòng nhập email",
+        "email_invalid": "Email không hợp lệ",
+        "phoneNumber_required": "Vui lòng nhập số điện thoại",
+        "phoneNumber_invalid": "Số điện thoại không hợp lệ",
+        "password_required": "Vui lòng nhập mật khẩu",
+        "password_length": "Mật khẩu dài 6 đến 100 ký tự",
+        "confirm_password_required": "Vui lòng xác nhận mật khẩu",
+        "passwords_not_match": "Mật khẩu không khớp",
+        "terms_required": "Bạn phải đồng ý với điều khoản sử dụng"
       },
-      "have_account": "Da co tai khoan?",
-      "login_link": "Dang nhap ngay",
-      "register_success": "Dang ky thanh cong",
-      "register_error": "Dang ky that bai, vui long thu lai",
-      "loading": "Dang tai...",
-      "alert_success": "Thanh cong",
-      "alert_error": "Loi",
-      "alert_ok": "Dong y"
+      "have_account": "Đã có tài khoản?",
+      "login_link": "Đăng nhập ngay",
+      "register_success": "Đăng ký thành công",
+      "register_error": "Đăng ký thất bại, vui lòng thử lại",
+      "loading": "Đang tải...",
+      "alert_success": "Thành công",
+      "alert_error": "Lỗi",
+      "alert_ok": "Đồng ý"
     }
   }
 }

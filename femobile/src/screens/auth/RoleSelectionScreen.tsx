@@ -9,6 +9,8 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { UserRole, RoleStatus, RootStackParamList } from '../../types/auth';
 import { authService } from '../../services/authService';
@@ -16,6 +18,7 @@ import { useLanguage } from '../../hooks/useLanguage';
 import { useStaticData } from '../../hooks/useStaticData';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components';
+import { colors, typography, spacing, borderRadius, shadows, responsive, responsiveSpacing, responsiveFontSize } from '../../styles';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoleSelection'>;
 
@@ -68,6 +71,19 @@ const RoleSelectionScreen: React.FC<Props> = ({ route, navigation }) => {
     navigation.goBack();
   };
 
+  const getRoleIcon = (role: UserRole): keyof typeof Ionicons.glyphMap => {
+    switch (role) {
+      case 'CUSTOMER':
+        return 'person-outline';
+      case 'EMPLOYEE':
+        return 'briefcase-outline';
+      case 'ADMIN':
+        return 'shield-checkmark-outline';
+      default:
+        return 'person-outline';
+    }
+  };
+
   const getRoleDisplayName = (role: UserRole) => {
     return data.roles?.[role] || role;
   };
@@ -77,174 +93,262 @@ const RoleSelectionScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{data.title || 'Chọn vai trò'}</Text>
-          <Text style={styles.subtitle}>
-            {data.subtitle || 'Tài khoản của bạn có nhiều vai trò. Vui lòng chọn vai trò để đăng nhập.'}
-          </Text>
-        </View>
-
-        <View style={styles.rolesContainer}>
-          {activeRoles.map((role) => (
-            <TouchableOpacity
-              key={role}
-              style={[
-                styles.roleCard,
-                selectedRole === role && styles.selectedRoleCard
-              ]}
-              onPress={() => handleRoleSelect(role)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.roleHeader}>
-                <Text style={[
-                  styles.roleName,
-                  selectedRole === role && styles.selectedRoleName
-                ]}>
-                  {getRoleDisplayName(role)}
-                </Text>
-                <View style={[
-                  styles.radioButton,
-                  selectedRole === role && styles.selectedRadioButton
-                ]}>
-                  {selectedRole === role && <View style={styles.radioButtonInner} />}
-                </View>
-              </View>
-              <Text style={[
-                styles.roleDescription,
-                selectedRole === role && styles.selectedRoleDescription
-              ]}>
-                {getRoleDescription(role)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <View style={styles.buttonRow}>
-          <View style={styles.backButton}>
-            <Button
-              title={data.actions?.back || 'Quay lại'}
-              onPress={handleBack}
-              variant="outline"
-              fullWidth
-              disabled={isLoading}
-            />
+    <LinearGradient
+      colors={['#E8F5F3', '#F0F9FF', '#FFFFFF']}
+      locations={[0, 0.5, 1]}
+      style={styles.container}
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView 
+          style={styles.scrollContainer} 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <View style={styles.logoCircle}>
+              <Ionicons name="people" size={responsive.moderateScale(40)} color={colors.highlight.teal} />
+            </View>
+            <Text style={styles.title}>{data.title || 'Chọn vai trò'}</Text>
+            <Text style={styles.subtitle}>
+              {data.subtitle || 'Tài khoản của bạn có nhiều vai trò. Vui lòng chọn vai trò để đăng nhập.'}
+            </Text>
           </View>
-          <View style={styles.continueButton}>
-            <Button
-              title={isLoading ? (data.messages?.loading || 'Đang xử lý...') : (data.actions?.continue || 'Tiếp tục')}
-              onPress={handleContinue}
-              fullWidth
-              disabled={!selectedRole || isLoading}
-            />
+
+          <View style={styles.rolesContainer}>
+            {activeRoles.map((role) => (
+              <TouchableOpacity
+                key={role}
+                style={[
+                  styles.roleCard,
+                  selectedRole === role && styles.selectedRoleCard
+                ]}
+                onPress={() => handleRoleSelect(role)}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={selectedRole === role 
+                    ? ['#1BB5A6', '#17A699'] 
+                    : ['#FFFFFF', '#F8FAFB']
+                  }
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.roleGradient}
+                >
+                  <View style={styles.roleContent}>
+                    <View style={[
+                      styles.roleIconContainer,
+                      selectedRole === role && styles.selectedRoleIconContainer
+                    ]}>
+                      <Ionicons 
+                        name={getRoleIcon(role)} 
+                        size={responsive.moderateScale(32)} 
+                        color={selectedRole === role ? colors.neutral.white : colors.highlight.teal}
+                      />
+                    </View>
+                    
+                    <View style={styles.roleInfo}>
+                      <View style={styles.roleHeader}>
+                        <Text style={[
+                          styles.roleName,
+                          selectedRole === role && styles.selectedRoleName
+                        ]}>
+                          {getRoleDisplayName(role)}
+                        </Text>
+                        <View style={[
+                          styles.radioButton,
+                          selectedRole === role && styles.selectedRadioButton
+                        ]}>
+                          {selectedRole === role && (
+                            <Ionicons 
+                              name="checkmark" 
+                              size={responsive.moderateScale(16)} 
+                              color={colors.neutral.white}
+                            />
+                          )}
+                        </View>
+                      </View>
+                      <Text style={[
+                        styles.roleDescription,
+                        selectedRole === role && styles.selectedRoleDescription
+                      ]}>
+                        {getRoleDescription(role)}
+                      </Text>
+                    </View>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <View style={styles.buttonRow}>
+            <View style={styles.backButton}>
+              <Button
+                title={data.actions?.back || 'Quay lại'}
+                onPress={handleBack}
+                variant="outline"
+                fullWidth
+                disabled={isLoading}
+              />
+            </View>
+            <View style={styles.continueButton}>
+              <Button
+                title={isLoading ? (data.messages?.loading || 'Đang xử lý...') : (data.actions?.continue || 'Tiếp tục')}
+                onPress={handleContinue}
+                fullWidth
+                disabled={!selectedRole || isLoading}
+              />
+            </View>
           </View>
         </View>
-      </View>
 
-      {isLoading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#007AFF" />
-        </View>
-      )}
-    </SafeAreaView>
+        {isLoading && (
+          <View style={styles.loadingOverlay}>
+            <View style={styles.loadingCard}>
+              <ActivityIndicator size="large" color={colors.highlight.teal} />
+              <Text style={styles.loadingText}>{data.messages?.loading || 'Đang xử lý...'}</Text>
+            </View>
+          </View>
+        )}
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+  },
+  safeArea: {
+    flex: 1,
   },
   scrollContainer: {
     flex: 1,
-    paddingHorizontal: 24,
+  },
+  scrollContent: {
+    paddingHorizontal: responsiveSpacing.md,
+    paddingBottom: responsiveSpacing.xl,
   },
   header: {
-    paddingTop: 32,
-    paddingBottom: 24,
+    paddingTop: responsiveSpacing.xl,
+    paddingBottom: responsiveSpacing.xl,
+    alignItems: 'center',
+  },
+  logoCircle: {
+    width: responsive.moderateScale(80),
+    height: responsive.moderateScale(80),
+    borderRadius: responsive.moderateScale(40),
+    backgroundColor: colors.neutral.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: responsiveSpacing.lg,
+    ...shadows.card,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
+    fontSize: responsiveFontSize.heading1,
+    fontWeight: '700',
+    color: colors.primary.navy,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: responsiveSpacing.sm,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666666',
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: responsive.moderateScale(24),
+    paddingHorizontal: responsiveSpacing.lg,
   },
   rolesContainer: {
-    gap: 16,
+    gap: responsiveSpacing.lg,
   },
   roleCard: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#E5E5E5',
-    padding: 20,
+    borderRadius: responsive.moderateScale(16),
+    overflow: 'hidden',
+    ...shadows.card,
   },
   selectedRoleCard: {
-    backgroundColor: '#F0F8FF',
-    borderColor: '#007AFF',
+    ...shadows.button,
+  },
+  roleGradient: {
+    borderRadius: responsive.moderateScale(16),
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  roleContent: {
+    flexDirection: 'row',
+    padding: responsiveSpacing.lg,
+    alignItems: 'center',
+  },
+  roleIconContainer: {
+    width: responsive.moderateScale(64),
+    height: responsive.moderateScale(64),
+    borderRadius: responsive.moderateScale(32),
+    backgroundColor: colors.warm.beige,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: responsiveSpacing.md,
+  },
+  selectedRoleIconContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  roleInfo: {
+    flex: 1,
   },
   roleHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: responsiveSpacing.xs,
   },
   roleName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1A1A1A',
+    fontSize: responsiveFontSize.heading3,
+    fontWeight: '700',
+    color: colors.primary.navy,
     flex: 1,
   },
   selectedRoleName: {
-    color: '#007AFF',
+    color: colors.neutral.white,
   },
   roleDescription: {
-    fontSize: 14,
-    color: '#666666',
-    lineHeight: 20,
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
+    lineHeight: responsive.moderateScale(20),
+    paddingRight: responsiveSpacing.sm,
   },
   selectedRoleDescription: {
-    color: '#0056CC',
+    color: 'rgba(255, 255, 255, 0.9)',
   },
   radioButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: responsive.moderateScale(24),
+    height: responsive.moderateScale(24),
+    borderRadius: responsive.moderateScale(12),
     borderWidth: 2,
-    borderColor: '#CCCCCC',
+    borderColor: colors.neutral.label,
+    backgroundColor: colors.neutral.white,
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: responsiveSpacing.sm,
   },
   selectedRadioButton: {
-    borderColor: '#007AFF',
+    borderColor: colors.neutral.white,
+    backgroundColor: colors.neutral.white,
   },
   radioButtonInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#007AFF',
+    width: responsive.moderateScale(12),
+    height: responsive.moderateScale(12),
+    borderRadius: responsive.moderateScale(6),
+    backgroundColor: colors.highlight.teal,
   },
   footer: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 32,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
+    paddingHorizontal: responsiveSpacing.md,
+    paddingTop: responsiveSpacing.lg,
+    paddingBottom: responsiveSpacing.md,
+    backgroundColor: 'transparent',
   },
   buttonRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: responsiveSpacing.sm,
   },
   backButton: {
     flex: 1,
@@ -258,9 +362,22 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(16),
+    padding: responsiveSpacing.xl,
+    alignItems: 'center',
+    ...shadows.card,
+  },
+  loadingText: {
+    marginTop: responsiveSpacing.md,
+    fontSize: responsiveFontSize.body,
+    color: colors.primary.navy,
+    fontWeight: '500',
   },
 });
 

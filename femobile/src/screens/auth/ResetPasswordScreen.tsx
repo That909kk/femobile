@@ -11,10 +11,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { Button, Input } from '../../components';
 import { useAuth } from '../../hooks/useAuth';
 import { useStaticData } from '../../hooks/useStaticData';
 import { COLORS, UI, VALIDATION } from '../../constants';
+import { colors, typography, spacing, borderRadius, shadows, responsive, responsiveSpacing, responsiveFontSize } from '../../styles';
 import type { RootStackParamList } from '../../types/auth';
 
 type ResetPasswordScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ResetPassword'>;
@@ -40,15 +42,15 @@ export const ResetPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
     const newErrors: Record<string, string> = {};
     
     if (!formData.password) {
-      newErrors.password = staticData?.messages?.validation?.password_required || 'Password is required';
+      newErrors.password = staticData?.messages?.validation?.password_required || 'Vui lòng nhập mật khẩu';
     } else if (formData.password.length < VALIDATION.PASSWORD_MIN_LENGTH) {
-      newErrors.password = staticData?.messages?.validation?.password_length || 'Password must be at least 6 characters';
+      newErrors.password = staticData?.messages?.validation?.password_length || 'Mật khẩu phải có ít nhất 6 ký tự';
     }
     
     if (!formData.confirmPassword) {
-      newErrors.confirmPassword = staticData?.messages?.validation?.confirm_password_required || 'Password confirmation is required';
+      newErrors.confirmPassword = staticData?.messages?.validation?.confirm_password_required || 'Vui lòng xác nhận mật khẩu';
     } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = staticData?.messages?.validation?.passwords_not_match || 'Passwords do not match';
+      newErrors.confirmPassword = staticData?.messages?.validation?.passwords_not_match || 'Mật khẩu không khớp';
     }
     
     setErrors(newErrors);
@@ -69,10 +71,10 @@ export const ResetPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
       
       Alert.alert(
         staticData?.messages?.alert_success || 'Thành công',
-        staticData?.messages?.reset_success || 'Password reset successful!',
+        staticData?.messages?.reset_success || 'Đặt lại mật khẩu thành công!',
         [
           {
-            text: staticData?.messages?.alert_ok || 'OK',
+            text: staticData?.messages?.alert_ok || 'Đồng ý',
             onPress: () => navigation.navigate('Login'),
           },
         ]
@@ -80,8 +82,8 @@ export const ResetPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch (err: any) {
       Alert.alert(
         staticData?.messages?.alert_error || 'Lỗi',
-        err.message || staticData?.messages?.reset_error || 'Password reset failed',
-        [{ text: staticData?.messages?.alert_ok || 'OK' }]
+        err.message || staticData?.messages?.reset_error || 'Đặt lại mật khẩu thất bại',
+        [{ text: staticData?.messages?.alert_ok || 'Đồng ý' }]
       );
     }
   };
@@ -112,13 +114,17 @@ export const ResetPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           <View style={styles.headerContainer}>
+            <View style={styles.logoCircle}>
+              <Ionicons name="lock-open" size={responsive.moderateScale(36)} color={colors.highlight.teal} />
+            </View>
             <Text style={styles.title}>{staticData.title}</Text>
             <Text style={styles.subtitle}>{staticData.subtitle}</Text>
           </View>
 
-          <View style={styles.formContainer}>
+          <View style={styles.formCard}>
             <Input
               label={staticData.form.password.label}
               value={formData.password}
@@ -141,6 +147,7 @@ export const ResetPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
 
             {error && (
               <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle" size={responsive.moderateScale(20)} color={colors.feedback.error} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
@@ -173,14 +180,15 @@ export const ResetPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.neutral.background,
   },
   keyboardAvoidingView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    padding: UI.SCREEN_PADDING,
+    paddingHorizontal: responsiveSpacing.md,
+    paddingVertical: responsiveSpacing.xl,
     justifyContent: 'center',
   },
   loadingContainer: {
@@ -190,31 +198,55 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: responsiveSpacing.xl,
+  },
+  logoCircle: {
+    width: responsive.moderateScale(80),
+    height: responsive.moderateScale(80),
+    borderRadius: responsive.moderateScale(40),
+    backgroundColor: colors.warm.beige,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: responsiveSpacing.lg,
+    ...shadows.card,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.text.primary,
-    marginBottom: 8,
+    fontSize: responsiveFontSize.heading1,
+    fontWeight: '600',
+    color: colors.primary.navy,
+    marginBottom: responsiveSpacing.sm,
   },
   subtitle: {
-    fontSize: 16,
-    color: COLORS.text.secondary,
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textSecondary,
     textAlign: 'center',
+    paddingHorizontal: responsiveSpacing.md,
   },
-  formContainer: {
-    marginBottom: 24,
+  formCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(borderRadius.card),
+    padding: responsiveSpacing.lg,
+    ...shadows.card,
   },
   buttonContainer: {
-    marginBottom: 16,
+    marginBottom: responsiveSpacing.md,
   },
   errorContainer: {
-    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.feedback.error + '10',
+    padding: responsiveSpacing.md,
+    borderRadius: responsive.moderateScale(borderRadius.input),
+    marginBottom: responsiveSpacing.md,
+    borderWidth: 1,
+    borderColor: colors.feedback.error + '20',
   },
   errorText: {
-    color: COLORS.error,
-    fontSize: 14,
+    color: colors.feedback.error,
+    fontSize: responsiveFontSize.caption,
+    marginLeft: responsiveSpacing.sm,
     textAlign: 'center',
   },
 });
+
+export default ResetPasswordScreen;

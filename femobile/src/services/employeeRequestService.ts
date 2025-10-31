@@ -35,12 +35,24 @@ class EmployeeRequestService {
   async getPendingRequests(): Promise<EmployeeRequest[]> {
     try {
       const response = await httpClient.get<EmployeeRequest[]>('/employee/requests/pending');
+      
       if (!response.success) {
+        // Nếu là lỗi 401/403, throw error với status để component xử lý
+        if (response.status === 401 || response.status === 403) {
+          const error: any = new Error(response.message || 'Không có quyền truy cập');
+          error.status = response.status;
+          throw error;
+        }
         console.error('Error loading requests:', response.message);
         return [];
       }
+      
       return response.data ?? [];
-    } catch (error) {
+    } catch (error: any) {
+      // Re-throw lỗi 401/403 để component xử lý
+      if (error.status === 401 || error.status === 403) {
+        throw error;
+      }
       console.error('Error loading requests:', error);
       return [];
     }

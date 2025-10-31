@@ -1,4 +1,4 @@
-export { EmployeeDashboard } from './EmployeeDashboard';
+export { EmployeeDashboard } from './EmployeeHomeScreen';
 export { ScheduleScreen } from './ScheduleScreen';
 export { RequestsScreen } from './RequestsScreen';
 export { AvailableBookingsScreen } from './AvailableBookingsScreen';

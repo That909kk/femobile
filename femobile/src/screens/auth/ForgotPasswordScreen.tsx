@@ -10,10 +10,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { Ionicons } from '@expo/vector-icons';
 import { Button, Input } from '../../components';
 import { useAuth } from '../../hooks/useAuth';
 import { useStaticData } from '../../hooks/useStaticData';
 import { COLORS, UI, VALIDATION } from '../../constants';
+import { colors, typography, spacing, borderRadius, shadows, responsive, responsiveSpacing, responsiveFontSize } from '../../styles';
 import type { RootStackParamList } from '../../types/auth';
 
 type ForgotPasswordScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ForgotPassword'>;
@@ -33,9 +35,9 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
     const newErrors: Record<string, string> = {};
     
     if (!email.trim()) {
-      newErrors.email = staticData?.messages?.validation?.email_required || 'Email is required';
+      newErrors.email = staticData?.messages?.validation?.email_required || 'Vui lòng nhập email';
     } else if (!VALIDATION.EMAIL_REGEX.test(email)) {
-      newErrors.email = staticData?.messages?.validation?.email_invalid || 'Invalid email format';
+      newErrors.email = staticData?.messages?.validation?.email_invalid || 'Định dạng email không hợp lệ';
     }
     
     setErrors(newErrors);
@@ -52,10 +54,10 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
       
       Alert.alert(
         staticData?.messages?.alert_success || 'Thành công',
-        staticData?.messages?.send_success || 'Verification code sent to your email',
+        staticData?.messages?.send_success || 'Mã xác thực đã được gửi đến email của bạn',
         [
           {
-            text: staticData?.messages?.alert_ok || 'OK',
+            text: staticData?.messages?.alert_ok || 'Đồng ý',
             onPress: () => navigation.navigate('VerifyOTP', {
               email: email.trim(),
               type: 'forgot-password',
@@ -66,8 +68,8 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
     } catch (err: any) {
       Alert.alert(
         staticData?.messages?.alert_error || 'Lỗi',
-        err.message || staticData?.messages?.send_error || 'Failed to send verification code',
-        [{ text: staticData?.messages?.alert_ok || 'OK' }]
+        err.message || staticData?.messages?.send_error || 'Gửi mã xác thực thất bại',
+        [{ text: staticData?.messages?.alert_ok || 'Đồng ý' }]
       );
     }
   };
@@ -98,13 +100,17 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           <View style={styles.headerContainer}>
+            <View style={styles.logoCircle}>
+              <Ionicons name="lock-closed" size={responsive.moderateScale(36)} color={colors.highlight.teal} />
+            </View>
             <Text style={styles.title}>{staticData.title}</Text>
             <Text style={styles.subtitle}>{staticData.subtitle}</Text>
           </View>
 
-          <View style={styles.formContainer}>
+          <View style={styles.formCard}>
             <Input
               label={staticData.form.email.label}
               value={email}
@@ -118,6 +124,7 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
 
             {error && (
               <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle" size={responsive.moderateScale(20)} color={colors.feedback.error} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
@@ -150,14 +157,15 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.neutral.background,
   },
   keyboardAvoidingView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    padding: UI.SCREEN_PADDING,
+    paddingHorizontal: responsiveSpacing.md,
+    paddingVertical: responsiveSpacing.xl,
     justifyContent: 'center',
   },
   loadingContainer: {
@@ -167,31 +175,53 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: responsiveSpacing.xl,
+  },
+  logoCircle: {
+    width: responsive.moderateScale(80),
+    height: responsive.moderateScale(80),
+    borderRadius: responsive.moderateScale(40),
+    backgroundColor: colors.warm.beige,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: responsiveSpacing.lg,
+    ...shadows.card,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.text.primary,
-    marginBottom: 8,
+    fontSize: responsiveFontSize.heading1,
+    fontWeight: '600',
+    color: colors.primary.navy,
+    marginBottom: responsiveSpacing.sm,
   },
   subtitle: {
-    fontSize: 16,
-    color: COLORS.text.secondary,
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textSecondary,
     textAlign: 'center',
+    paddingHorizontal: responsiveSpacing.md,
   },
-  formContainer: {
-    marginBottom: 24,
+  formCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(borderRadius.card),
+    padding: responsiveSpacing.lg,
+    ...shadows.card,
   },
   buttonContainer: {
-    marginBottom: 16,
+    marginBottom: responsiveSpacing.md,
   },
   errorContainer: {
-    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.feedback.error + '10',
+    padding: responsiveSpacing.md,
+    borderRadius: responsive.moderateScale(borderRadius.input),
+    marginBottom: responsiveSpacing.md,
+    borderWidth: 1,
+    borderColor: colors.feedback.error + '20',
   },
   errorText: {
-    color: COLORS.error,
-    fontSize: 14,
+    color: colors.feedback.error,
+    fontSize: responsiveFontSize.caption,
+    marginLeft: responsiveSpacing.sm,
     textAlign: 'center',
   },
 });

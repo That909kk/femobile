@@ -7,82 +7,110 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button } from '../../../components';
 import { useAuth, useEnsureValidToken, useUserInfo } from '../../../hooks';
-import { COLORS } from '../../../constants';
+import { COLORS, UI } from '../../../constants';
 import { 
-  employeeScheduleService, 
-  type EmployeeSchedule, 
-  type ScheduleStatus,
-  type ScheduleStats
+  employeeScheduleService,
+  type TimeSlot,
+  type AssignmentStatus as ScheduleAssignmentStatus,
 } from '../../../services';
 
 export const ScheduleScreen = () => {
   const { user } = useAuth();
   const { userInfo } = useUserInfo();
+  const ensureValidToken = useEnsureValidToken();
+  
   const [refreshing, setRefreshing] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
-  const [schedules, setSchedules] = useState<EmployeeSchedule[]>([]);
-  const [stats, setStats] = useState<ScheduleStats>({
-    totalJobs: 0,
-    completedJobs: 0,
-    inProgressJobs: 0,
-    todayRevenue: 0
-  });
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [actioningId, setActioningId] = useState<string | null>(null);
+  const [datesWithJobs, setDatesWithJobs] = useState<Set<string>>(new Set());
   
-  // Ensure token is valid when component mounts
-  useEnsureValidToken();
+  const employeeId =
+    userInfo?.id || (user && 'employeeId' in user ? (user as any).employeeId : undefined);
 
-  // Load schedule data
   const loadSchedule = useCallback(async () => {
+    if (!employeeId) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const [scheduleData, statsData] = await Promise.all([
-        employeeScheduleService.getScheduleByDate(selectedDate),
-        employeeScheduleService.getScheduleStats()
-      ]);
+      await ensureValidToken.ensureValidToken();
 
-      setSchedules(scheduleData);
+      const slots = await employeeScheduleService.getScheduleByDate(employeeId, selectedDate);
       
-      // Handle case when statsData is null
-      if (statsData) {
-        setStats(statsData);
-      } else {
-        console.warn('Stats data is null, using default values');
-        setStats({
-          totalJobs: 0,
-          completedJobs: 0,
-          inProgressJobs: 0,
-          todayRevenue: 0
-        });
-      }
+      setTimeSlots(slots || []);
     } catch (error) {
       console.error('Error loading schedule:', error);
-      setSchedules([]);
-      setStats({
-        totalJobs: 0,
-        completedJobs: 0,
-        inProgressJobs: 0,
-        todayRevenue: 0
-      });
+      setTimeSlots([]);
     } finally {
       setLoading(false);
     }
-  }, [selectedDate]);
+  }, [employeeId, selectedDate]);
 
-  // Load data on mount and when date changes
   useEffect(() => {
     loadSchedule();
-  }, [loadSchedule]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId, selectedDate]);
+
+  // Load week schedule to check which dates have jobs
+  useEffect(() => {
+    loadWeekSchedule();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId]);
+
+  const loadWeekSchedule = useCallback(async () => {
+    if (!employeeId) return;
+
+    try {
+      const today = new Date();
+      const weekStart = new Date(today);
+      weekStart.setHours(0, 0, 0, 0);
+      
+      const weekEnd = new Date(today);
+      weekEnd.setDate(today.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
+
+      await ensureValidToken.ensureValidToken();
+      const weekData = await employeeScheduleService.getEmployeeSchedule(
+        employeeId,
+        weekStart,
+        weekEnd
+      );
+
+      if (weekData?.timeSlots) {
+        const datesSet = new Set<string>();
+        weekData.timeSlots.forEach(slot => {
+          if (slot.type === 'ASSIGNMENT') {
+            // Extract date from ISO string to avoid timezone issues
+            // slot.startTime format: "2025-11-04T14:00:00+07:00"
+            const dateKey = slot.startTime.split('T')[0]; // Get "2025-11-04"
+            datesSet.add(dateKey);
+          }
+        });
+        console.log('📅 Dates with jobs:', Array.from(datesSet));
+        setDatesWithJobs(datesSet);
+      }
+    } catch (error) {
+      console.error('Error loading week schedule:', error);
+    }
+  }, [employeeId, ensureValidToken]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadSchedule();
+    await Promise.all([
+      loadSchedule(),
+      loadWeekSchedule()
+    ]);
     setRefreshing(false);
   };
 
@@ -101,271 +129,204 @@ export const ScheduleScreen = () => {
 
   const weekDates = generateWeekDates();
 
-  const formatPrice = (price: number): string => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND'
-    }).format(price);
-  };
-
-  const formatTime = (timeStr: string): string => {
-    // Assume timeStr is in HH:mm format or ISO string
-    if (timeStr.includes('T')) {
-      return new Date(timeStr).toLocaleTimeString('vi-VN', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
+  const hasJobsOnDate = (date: Date): boolean => {
+    // Format date as YYYY-MM-DD in local timezone
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateKey = `${year}-${month}-${day}`;
+    const hasJob = datesWithJobs.has(dateKey);
+    
+    if (__DEV__ && hasJob) {
+      console.log(`✅ Date ${dateKey} has jobs`);
     }
-    return timeStr;
+    
+    return hasJob;
   };
 
-  const getStatusColor = (status: ScheduleStatus) => {
+  const getStatusColor = (status: ScheduleAssignmentStatus | null) => {
+    if (!status) return COLORS.text.tertiary;
+    
     switch (status) {
-      case 'scheduled':
+      case 'ASSIGNED':
         return COLORS.warning;
-      case 'in-progress':
+      case 'IN_PROGRESS':
         return COLORS.secondary;
-      case 'completed':
+      case 'COMPLETED':
         return COLORS.success;
-      case 'cancelled':
+      case 'CANCELLED':
         return COLORS.error;
       default:
         return COLORS.text.tertiary;
     }
   };
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status: ScheduleAssignmentStatus | null) => {
+    if (!status) return 'N/A';
+    
     switch (status) {
-      case 'scheduled':
-        return 'Đã lên lịch';
-      case 'in-progress':
-        return 'Đang thực hiện';
-      case 'completed':
+      case 'ASSIGNED':
+        return 'Đã nhận việc';
+      case 'IN_PROGRESS':
+        return 'Đang làm';
+      case 'COMPLETED':
         return 'Hoàn thành';
-      case 'cancelled':
+      case 'CANCELLED':
         return 'Đã hủy';
       default:
         return status;
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: ScheduleAssignmentStatus | null) => {
+    if (!status) return 'information-circle';
+    
     switch (status) {
-      case 'scheduled':
+      case 'ASSIGNED':
         return 'time-outline';
-      case 'in-progress':
+      case 'IN_PROGRESS':
         return 'play-circle';
-      case 'completed':
+      case 'COMPLETED':
         return 'checkmark-circle';
-      case 'cancelled':
+      case 'CANCELLED':
         return 'close-circle';
       default:
         return 'information-circle';
     }
   };
 
-  const handleScheduleAction = async (scheduleId: string, action: string) => {
-    try {
-      switch (action) {
-        case 'start':
-          Alert.alert(
-            'Bắt đầu công việc',
-            'Xác nhận bắt đầu thực hiện công việc này?',
-            [
-              { text: 'Hủy', style: 'cancel' },
-              { 
-                text: 'Bắt đầu', 
-                onPress: async () => {
-                  try {
-                    await employeeScheduleService.startWork(scheduleId);
-                    Alert.alert('Thành công', 'Đã bắt đầu công việc');
-                    loadSchedule(); // Reload to update UI
-                  } catch (error) {
-                    Alert.alert('Lỗi', 'Không thể bắt đầu công việc');
-                  }
-                }
-              },
-            ]
-          );
-          break;
-        case 'complete':
-          Alert.alert(
-            'Hoàn thành công việc',
-            'Xác nhận bạn đã hoàn thành công việc này?',
-            [
-              { text: 'Chưa xong', style: 'cancel' },
-              { 
-                text: 'Hoàn thành', 
-                onPress: async () => {
-                  try {
-                    await employeeScheduleService.completeWork(scheduleId);
-                    Alert.alert('Thành công', 'Đã hoàn thành công việc');
-                    loadSchedule(); // Reload to update UI
-                  } catch (error) {
-                    Alert.alert('Lỗi', 'Không thể hoàn thành công việc');
-                  }
-                }
-              },
-            ]
-          );
-          break;
-        case 'cancel':
-          Alert.alert(
-            'Hủy công việc',
-            'Bạn có chắc chắn muốn hủy công việc này không?',
-            [
-              { text: 'Không', style: 'cancel' },
-              { 
-                text: 'Hủy', 
-                style: 'destructive',
-                onPress: async () => {
-                  try {
-                    await employeeScheduleService.cancelWork(scheduleId);
-                    Alert.alert('Thành công', 'Đã hủy công việc');
-                    loadSchedule(); // Reload to update UI
-                  } catch (error) {
-                    Alert.alert('Lỗi', 'Không thể hủy công việc');
-                  }
-                }
-              },
-            ]
-          );
-          break;
-        case 'call':
-          // In a real app, this would initiate a phone call
-          console.log('Call customer for schedule:', scheduleId);
-          break;
-        case 'navigate':
-          // In a real app, this would open maps/navigation
-          console.log('Navigate to customer address:', scheduleId);
-          break;
-        default:
-          console.log(action, scheduleId);
-      }
-    } catch (error) {
-      console.error('Error handling schedule action:', error);
-      Alert.alert('Lỗi', 'Có lỗi xảy ra. Vui lòng thử lại.');
-    }
+  const handleCheckIn = async (bookingCode: string) => {
+    Alert.alert('Thông báo', 'Tính năng check-in đang được phát triển');
   };
 
-  const renderScheduleItem = (item: EmployeeSchedule) => (
-    <View key={item.scheduleId} style={styles.scheduleCard}>
-      {item.isUrgent && (
-        <View style={styles.urgentBanner}>
-          <Ionicons name="warning" size={16} color={COLORS.surface} />
-          <Text style={styles.urgentText}>Ưu tiên cao</Text>
-        </View>
-      )}
+  const handleCheckOut = async (bookingCode: string) => {
+    Alert.alert('Thông báo', 'Tính năng check-out đang được phát triển');
+  };
 
-      <View style={styles.scheduleHeader}>
-        <View style={styles.timeInfo}>
-          <Text style={styles.timeText}>
-            {formatTime(item.startTime)} - {formatTime(item.endTime)}
-          </Text>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-            <Ionicons 
-              name={getStatusIcon(item.status) as any} 
-              size={14} 
-              color={getStatusColor(item.status)} 
-            />
-            <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-              {getStatusText(item.status)}
+  const handleCancelAssignment = async (bookingCode: string) => {
+    Alert.alert('Thông báo', 'Tính năng hủy công việc đang được phát triển');
+  };
+
+  const assignments = timeSlots.filter(slot => slot.type === 'ASSIGNMENT');
+  const completedToday = assignments.filter((a) => a.status === 'COMPLETED').length;
+  const inProgressToday = assignments.filter((a) => a.status === 'IN_PROGRESS').length;
+
+  const renderTimeSlotCard = (timeSlot: TimeSlot, index: number) => {
+    const isActioning = actioningId === timeSlot.bookingCode;
+    
+    // Chỉ hiển thị ASSIGNMENT, không hiển thị UNAVAILABLE
+    if (timeSlot.type !== 'ASSIGNMENT') {
+      return null;
+    }
+
+    return (
+      <View key={`${timeSlot.bookingCode}-${index}`} style={styles.assignmentCard}>
+        <View style={styles.assignmentHeader}>
+          <View style={styles.timeInfo}>
+            <Text style={styles.timeText}>
+              {new Date(timeSlot.startTime).toLocaleTimeString('vi-VN', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })} - {new Date(timeSlot.endTime).toLocaleTimeString('vi-VN', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
             </Text>
+            {timeSlot.status && (
+              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(timeSlot.status) + '20' }]}>
+                <Ionicons 
+                  name={getStatusIcon(timeSlot.status) as any} 
+                  size={14} 
+                  color={getStatusColor(timeSlot.status)} 
+                />
+                <Text style={[styles.statusText, { color: getStatusColor(timeSlot.status) }]}>
+                  {getStatusText(timeSlot.status)}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
-      </View>
 
-      <View style={styles.scheduleContent}>
-        <Text style={styles.serviceName}>{item.serviceName}</Text>
-        <Text style={styles.customerName}>{item.customerName}</Text>
-        
-        <View style={styles.detailRow}>
-          <Ionicons name="location" size={16} color={COLORS.text.tertiary} />
-          <Text style={styles.detailText} numberOfLines={2}>{item.address}</Text>
-        </View>
-
-        <View style={styles.detailRow}>
-          <Ionicons name="card" size={16} color={COLORS.text.tertiary} />
-          <Text style={[styles.detailText, styles.priceText]}>{formatPrice(item.price)}</Text>
-        </View>
-
-        {item.notes && (
-          <View style={styles.detailRow}>
-            <Ionicons name="document-text" size={16} color={COLORS.text.tertiary} />
-            <Text style={styles.detailText}>{item.notes}</Text>
-          </View>
-        )}
-
-        {item.status === 'in-progress' && item.completionPercent && (
-          <View style={styles.progressSection}>
-            <Text style={styles.progressText}>Tiến độ: {item.completionPercent}%</Text>
-            <View style={styles.progressBar}>
-              <View 
-                style={[
-                  styles.progressFill, 
-                  { width: `${item.completionPercent}%` }
-                ]} 
-              />
+        <View style={styles.assignmentContent}>
+          <Text style={styles.serviceName}>{timeSlot.serviceName || 'N/A'}</Text>
+          <Text style={styles.customerName}>Khách hàng: {timeSlot.customerName || 'N/A'}</Text>
+          <Text style={styles.bookingCode}>Mã: #{timeSlot.bookingCode}</Text>
+          
+          {timeSlot.address && (
+            <View style={styles.detailRow}>
+              <Ionicons name="location" size={16} color={COLORS.text.tertiary} />
+              <Text style={styles.detailText} numberOfLines={2}>{timeSlot.address}</Text>
             </View>
-          </View>
-        )}
+          )}
 
-        {item.rating && (
           <View style={styles.detailRow}>
-            <Ionicons name="star" size={16} color={COLORS.warning} />
-            <Text style={styles.detailText}>Đánh giá: {item.rating}/5 sao</Text>
+            <Ionicons name="time" size={16} color={COLORS.text.tertiary} />
+            <Text style={styles.detailText}>Thời lượng: {timeSlot.durationHours} giờ</Text>
           </View>
-        )}
 
-        {item.completedAt && (
-          <View style={styles.detailRow}>
-            <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
-            <Text style={styles.detailText}>Hoàn thành lúc: {formatTime(item.completedAt)}</Text>
-          </View>
-        )}
+          {timeSlot.reason && (
+            <View style={styles.detailRow}>
+              <Ionicons name="document-text" size={16} color={COLORS.text.tertiary} />
+              <Text style={styles.detailText}>{timeSlot.reason}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.assignmentActions}>
+          {isActioning && (
+            <View style={styles.loadingIndicator}>
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            </View>
+          )}
+
+          {!isActioning && timeSlot.status === 'ASSIGNED' && timeSlot.bookingCode && (
+            <>
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.cancelButton]}
+                onPress={() => handleCancelAssignment(timeSlot.bookingCode!)}
+              >
+                <Ionicons name="close-circle" size={18} color={COLORS.error} />
+                <Text style={[styles.actionButtonText, { color: COLORS.error }]}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.primaryButton]}
+                onPress={() => handleCheckIn(timeSlot.bookingCode!)}
+              >
+                <Ionicons name="play-circle" size={18} color="#fff" />
+                <Text style={[styles.actionButtonText, { color: '#fff' }]}>Check-in</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {!isActioning && timeSlot.status === 'IN_PROGRESS' && timeSlot.bookingCode && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.successButton]}
+              onPress={() => handleCheckOut(timeSlot.bookingCode!)}
+            >
+              <Ionicons name="checkmark-circle" size={18} color="#fff" />
+              <Text style={[styles.actionButtonText, { color: '#fff' }]}>Check-out</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
+    );
+  };
 
-      <View style={styles.scheduleActions}>
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => handleScheduleAction(item.scheduleId, 'call')}
-        >
-          <Ionicons name="call" size={16} color={COLORS.primary} />
-          <Text style={styles.actionButtonText}>Gọi</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => handleScheduleAction(item.scheduleId, 'navigate')}
-        >
-          <Ionicons name="navigate" size={16} color={COLORS.secondary} />
-          <Text style={styles.actionButtonText}>Chỉ đường</Text>
-        </TouchableOpacity>
-
-        {item.status === 'scheduled' && (
-          <Button
-            title="Bắt đầu"
-            variant="primary"
-            onPress={() => handleScheduleAction(item.scheduleId, 'start')}
-          />
-        )}
-
-        {item.status === 'in-progress' && (
-          <Button
-            title="Hoàn thành"
-            variant="primary"
-            onPress={() => handleScheduleAction(item.scheduleId, 'complete')}
-          />
-        )}
-      </View>
-    </View>
-  );
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Đang tải lịch làm việc...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with Gradient */}
       <LinearGradient
-        colors={[COLORS.success, COLORS.primary]}
+        colors={[COLORS.primary, COLORS.primaryLight]}
         style={styles.headerGradient}
       >
         <View style={styles.header}>
@@ -375,12 +336,8 @@ export const ScheduleScreen = () => {
               Quản lý công việc hàng ngày
             </Text>
           </View>
-          <TouchableOpacity style={styles.calendarButton}>
-            <Ionicons name="calendar" size={24} color={COLORS.surface} />
-          </TouchableOpacity>
         </View>
 
-        {/* Week Calendar */}
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
@@ -390,37 +347,43 @@ export const ScheduleScreen = () => {
           {weekDates.map((date, index) => {
             const isSelected = date.toDateString() === selectedDate.toDateString();
             const isToday = date.toDateString() === new Date().toDateString();
+            const hasJobs = hasJobsOnDate(date);
             return (
               <TouchableOpacity
                 key={index}
                 style={[
                   styles.dayCard,
                   isSelected && styles.selectedDayCard,
-                  isToday && styles.todayCard,
+                  isToday && !isSelected && styles.todayCard,
                 ]}
                 onPress={() => setSelectedDate(date)}
               >
                 <Text style={[
                   styles.dayName,
                   isSelected && styles.selectedDayName,
-                  isToday && styles.todayText,
+                  isToday && !isSelected && styles.todayText,
                 ]}>
                   {weekDays[date.getDay()]}
                 </Text>
                 <Text style={[
                   styles.dayNumber,
                   isSelected && styles.selectedDayNumber,
-                  isToday && styles.todayText,
+                  isToday && !isSelected && styles.todayText,
                 ]}>
                   {date.getDate()}
                 </Text>
+                {hasJobs && (
+                  <View style={[
+                    styles.jobIndicator,
+                    isSelected && styles.jobIndicatorSelected,
+                  ]} />
+                )}
               </TouchableOpacity>
             );
           })}
         </ScrollView>
       </LinearGradient>
 
-      {/* Schedule List */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -434,34 +397,28 @@ export const ScheduleScreen = () => {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Daily Summary */}
         <View style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>
-            Hôm nay - {selectedDate.toLocaleDateString('vi-VN')}
+            {selectedDate.toLocaleDateString('vi-VN')}
           </Text>
           <View style={styles.summaryRow}>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryNumber}>{stats.totalJobs}</Text>
-              <Text style={styles.summaryLabel}>Tổng công việc</Text>
+              <Text style={styles.summaryNumber}>{assignments.length}</Text>
+              <Text style={styles.summaryLabel}>Tổng việc</Text>
             </View>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryNumber}>
-                {stats.completedJobs}
-              </Text>
+              <Text style={styles.summaryNumber}>{completedToday}</Text>
               <Text style={styles.summaryLabel}>Hoàn thành</Text>
             </View>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryNumber}>
-                {stats.inProgressJobs}
-              </Text>
+              <Text style={styles.summaryNumber}>{inProgressToday}</Text>
               <Text style={styles.summaryLabel}>Đang làm</Text>
             </View>
           </View>
         </View>
 
-        {/* Schedule Items */}
-        {schedules.length > 0 ? (
-          schedules.map(renderScheduleItem)
+        {assignments.length > 0 ? (
+          timeSlots.map((timeSlot, index) => renderTimeSlotCard(timeSlot, index))
         ) : (
           <View style={styles.emptyState}>
             <Ionicons name="calendar-outline" size={64} color={COLORS.text.tertiary} />
@@ -481,6 +438,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: COLORS.text.secondary,
+  },
   headerGradient: {
     paddingTop: 8,
   },
@@ -498,82 +465,83 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: COLORS.surface,
-    marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.surface,
     opacity: 0.9,
-  },
-  calendarButton: {
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginTop: 4,
   },
   weekContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    marginBottom: 16,
   },
   weekContent: {
-    paddingBottom: 20,
+    gap: 12,
   },
   dayCard: {
-    alignItems: 'center',
+    width: 60,
     paddingVertical: 12,
-    paddingHorizontal: 16,
     borderRadius: 12,
-    marginRight: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
   },
   selectedDayCard: {
     backgroundColor: COLORS.surface,
   },
   todayCard: {
-    borderWidth: 2,
-    borderColor: COLORS.warning,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderWidth: 1,
+    borderColor: COLORS.surface,
   },
   dayName: {
     fontSize: 12,
+    fontWeight: '600',
     color: COLORS.surface,
-    opacity: 0.8,
     marginBottom: 4,
   },
   selectedDayName: {
     color: COLORS.primary,
   },
   todayText: {
-    color: COLORS.warning,
+    fontWeight: '700',
   },
   dayNumber: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.surface,
   },
   selectedDayNumber: {
     color: COLORS.primary,
   },
+  jobIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.warning,
+    marginTop: 6,
+  },
+  jobIndicatorSelected: {
+    backgroundColor: COLORS.primary,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 100, // Space for bottom tab
+    padding: 16,
   },
   summaryCard: {
     backgroundColor: COLORS.surface,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-    elevation: 2,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    ...UI.SHADOW.medium,
   },
   summaryTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.text.primary,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -592,37 +560,14 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     marginTop: 4,
   },
-  scheduleCard: {
+  assignmentCard: {
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    elevation: 3,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    position: 'relative',
+    ...UI.SHADOW.small,
   },
-  urgentBanner: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: COLORS.error,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderTopRightRadius: 12,
-    borderBottomLeftRadius: 8,
-  },
-  urgentText: {
-    fontSize: 12,
-    color: COLORS.surface,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  scheduleHeader: {
+  assignmentHeader: {
     marginBottom: 12,
   },
   timeInfo: {
@@ -631,108 +576,101 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   timeText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text.primary,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 12,
   },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
-    marginLeft: 4,
   },
-  scheduleContent: {
-    marginBottom: 16,
+  assignmentContent: {
+    gap: 8,
   },
   serviceName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.text.primary,
-    marginBottom: 4,
   },
   customerName: {
     fontSize: 14,
     color: COLORS.text.secondary,
-    marginBottom: 8,
+  },
+  bookingCode: {
+    fontSize: 13,
+    color: COLORS.text.tertiary,
+    fontWeight: '500',
   },
   detailRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
+    alignItems: 'flex-start',
+    gap: 8,
   },
   detailText: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
-    marginLeft: 8,
     flex: 1,
+    fontSize: 13,
+    color: COLORS.text.secondary,
   },
   priceText: {
-    fontWeight: '600',
-    color: COLORS.success,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
-  progressSection: {
-    marginVertical: 8,
-  },
-  progressText: {
-    fontSize: 14,
-    color: COLORS.text.primary,
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  progressBar: {
-    height: 6,
-    backgroundColor: COLORS.border,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: COLORS.secondary,
-    borderRadius: 3,
-  },
-  scheduleActions: {
+  assignmentActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 16,
+    justifyContent: 'flex-end',
+  },
+  loadingIndicator: {
+    flex: 1,
     alignItems: 'center',
-    gap: 8,
+    paddingVertical: 8,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: COLORS.background,
+  },
+  cancelButton: {
+    backgroundColor: COLORS.error + '15',
+  },
+  primaryButton: {
+    backgroundColor: COLORS.primary,
+  },
+  successButton: {
+    backgroundColor: COLORS.success,
+    flex: 1,
+    justifyContent: 'center',
   },
   actionButtonText: {
-    fontSize: 12,
-    color: COLORS.text.primary,
-    marginLeft: 4,
-    fontWeight: '500',
+    fontSize: 14,
+    fontWeight: '600',
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
-    paddingHorizontal: 40,
   },
   emptyStateTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.text.primary,
     marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
   },
   emptyStateSubtitle: {
     fontSize: 14,
     color: COLORS.text.secondary,
+    marginTop: 8,
     textAlign: 'center',
-    lineHeight: 20,
   },
 });

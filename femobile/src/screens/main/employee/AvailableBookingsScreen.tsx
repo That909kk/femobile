@@ -17,6 +17,7 @@ import { useAuth, useEnsureValidToken, useUserInfo } from '../../../hooks';
 import { COLORS, UI } from '../../../constants';
 import {
   bookingService,
+  employeeAssignmentService,
   type BookingResponse,
 } from '../../../services';
 
@@ -48,6 +49,7 @@ export const AvailableBookingsScreen: React.FC = () => {
   const [bookings, setBookings] = useState<BookingResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
 
   const employeeId =
     userInfo?.id || (user && 'employeeId' in user ? (user as any).employeeId : undefined);
@@ -98,8 +100,62 @@ export const AvailableBookingsScreen: React.FC = () => {
     fetchVerifiedBookings();
   }, [fetchVerifiedBookings]);
 
-  const handleAcceptBooking = async (bookingId: string) => {
-    Alert.alert('Thông báo', 'Tính năng đang được phát triển');
+  const handleAcceptBooking = async (booking: BookingResponse) => {
+    if (!employeeId) {
+      Alert.alert('Lỗi', 'Không tìm thấy thông tin nhân viên');
+      return;
+    }
+
+    if (!booking.bookingDetails || booking.bookingDetails.length === 0) {
+      Alert.alert('Lỗi', 'Booking không có chi tiết dịch vụ');
+      return;
+    }
+
+    // Get first booking detail to accept
+    const detail = booking.bookingDetails[0];
+
+    Alert.alert(
+      'Xác nhận nhận việc',
+      `Bạn có chắc muốn nhận công việc "${detail.service?.name || 'N/A'}"?\n\n` +
+        `Địa chỉ: ${booking.address?.fullAddress || 'N/A'}\n` +
+        `Thời gian: ${formatDateTime(booking.bookingTime)}\n` +
+        `Giá: ${detail.formattedSubTotal || formatCurrency(detail.subTotal || 0)}`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Nhận việc',
+          onPress: async () => {
+            try {
+              setAcceptingId(booking.bookingId);
+              await ensureValidToken.ensureValidToken();
+
+              await employeeAssignmentService.acceptBookingDetail(
+                detail.bookingDetailId,
+                employeeId,
+              );
+
+              Alert.alert('Thành công', 'Đã nhận công việc thành công!', [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    fetchVerifiedBookings();
+                    navigation.navigate('Schedule');
+                  },
+                },
+              ]);
+            } catch (error: any) {
+              console.error('Accept booking error:', error);
+              Alert.alert(
+                'Lỗi',
+                error?.message || 'Không thể nhận công việc. Vui lòng thử lại.',
+              );
+            } finally {
+              setAcceptingId(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const renderBookingCard = (booking: BookingResponse) => {
@@ -175,11 +231,21 @@ export const AvailableBookingsScreen: React.FC = () => {
             </View>
 
             <TouchableOpacity
-              style={styles.acceptButton}
-              onPress={() => handleAcceptBooking(booking.bookingId)}
+              style={[
+                styles.acceptButton,
+                acceptingId === booking.bookingId && styles.acceptButtonDisabled,
+              ]}
+              onPress={() => handleAcceptBooking(booking)}
+              disabled={acceptingId === booking.bookingId}
             >
-              <Ionicons name="checkmark-circle" size={20} color="#fff" />
-              <Text style={styles.acceptButtonText}>Nhận việc</Text>
+              {acceptingId === booking.bookingId ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                  <Text style={styles.acceptButtonText}>Nhận việc</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -364,11 +430,16 @@ const styles = StyleSheet.create({
   acceptButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: TEAL_COLOR,
     paddingHorizontal: UI.SPACING.md,
     paddingVertical: UI.SPACING.sm,
     borderRadius: 8,
     gap: 6,
+    minWidth: 100,
+  },
+  acceptButtonDisabled: {
+    backgroundColor: '#ccc',
   },
   acceptButtonText: {
     color: '#fff',

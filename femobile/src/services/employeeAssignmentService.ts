@@ -23,37 +23,97 @@ export interface AssignmentListResponse {
   totalItems?: number;
 }
 
-export interface AvailableBooking {
-  bookingId: string;
+export interface AvailableBookingDetail {
+  detailId: string;
   bookingCode: string;
-  title?: string;
-  imageUrl?: string;
   serviceName: string;
   address: string;
   bookingTime: string;
-  totalAmount: number;
-  formattedTotalAmount: string;
-  customerName: string;
-  requiredEmployees: number;
-  status: string;
-  createdAt: string;
+  estimatedDuration: number;
+  quantity: number;
+  price?: number;
 }
 
 export interface AvailableBookingsResponse {
   success: boolean;
   message: string;
-  data: AvailableBooking[];
+  data: AvailableBookingDetail[];
+  totalItems: number;
 }
 
-export interface CheckInOutResponse {
+export interface AcceptBookingResponse {
+  success: boolean;
+  message: string;
+  data: {
+    assignmentId: string;
+    bookingCode: string;
+    serviceName: string;
+    status: string;
+    scheduledDate: string;
+    scheduledTime: string;
+    estimatedDuration: number;
+    price: number;
+  };
+}
+
+export interface CheckInResponse {
   success: boolean;
   message: string;
   data: {
     assignmentId: string;
     status: string;
-    checkedInAt?: string;
-    checkedOutAt?: string;
+    checkInTime: string;
+    checkOutTime: string | null;
+    bookingDetail: {
+      detailId: string;
+      serviceName: string;
+      quantity: number;
+      price: number;
+      duration: string;
+    };
+    employee: {
+      employeeId: string;
+      fullName: string;
+    };
+    booking: {
+      bookingId: string;
+      bookingTime: string;
+      customerName: string;
+    };
   };
+}
+
+export interface CheckOutResponse {
+  success: boolean;
+  message: string;
+  data: {
+    assignmentId: string;
+    status: string;
+    checkInTime: string;
+    checkOutTime: string;
+    bookingDetail: {
+      detailId: string;
+      serviceName: string;
+      quantity: number;
+      price: number;
+      duration: string;
+    };
+    employee: {
+      employeeId: string;
+      fullName: string;
+    };
+    booking: {
+      bookingId: string;
+      bookingTime: string;
+      customerName: string;
+      status?: string;
+    };
+  };
+}
+
+export interface CancelAssignmentRequest {
+  reason: string;
+  employeeId: string;
 }
 
 class EmployeeAssignmentService {
@@ -73,108 +133,93 @@ class EmployeeAssignmentService {
       query.toString() ? `?${query.toString()}` : ''
     }`;
 
-    const response = await httpClient.get<EmployeeAssignment[]>(endpoint);
+    const response = await httpClient.get<AssignmentListResponse>(endpoint);
 
     if (!response.success || !response.data) {
-      throw new Error(response.message || 'Khong the tai danh sach cong viec');
+      const error: any = new Error(response.message || 'Không thể tải danh sách công việc');
+      error.status = response.status;
+      throw error;
     }
 
-    return response.data;
+    return response.data.data || [];
   }
 
-  async cancelAssignment(assignmentId: string, reason?: string): Promise<boolean> {
+  async cancelAssignment(
+    assignmentId: string,
+    employeeId: string,
+    reason: string,
+  ): Promise<boolean> {
     const response = await httpClient.post<{ success: boolean; message: string }>(
       `${this.BASE_PATH}/assignments/${assignmentId}/cancel`,
-      reason ? { reason } : {},
+      { reason, employeeId },
     );
 
     if (!response.success) {
-      throw new Error(response.message || 'Khong the huy cong viec');
+      throw new Error(response.message || 'Không thể hủy công việc');
     }
 
     return response.data?.success ?? response.success;
   }
 
-  async getAvailableBookings(): Promise<AvailableBooking[]> {
-    const response = await httpClient.get<AvailableBooking[]>(
-      `${this.BASE_PATH}/available-bookings`,
-    );
-
-    if (!response.success || !response.data) {
-      throw new Error(response.message || 'Khong the tai danh sach bai dang');
-    }
-
-    return response.data;
-  }
-
-  /**
-   * Lấy danh sách booking đã được admin xác minh và đang chờ nhân viên
-   */
-  async getVerifiedAwaitingBookings(params?: {
-    page?: number;
-    size?: number;
-  }): Promise<{ data: any[]; currentPage: number; totalItems: number; totalPages: number }> {
+  async getAvailableBookings(
+    employeeId: string,
+    params?: { page?: number; size?: number },
+  ): Promise<AvailableBookingsResponse> {
     const query = new URLSearchParams();
+    query.append('employeeId', employeeId);
     if (typeof params?.page === 'number') query.append('page', params.page.toString());
     if (typeof params?.size === 'number') query.append('size', params.size.toString());
 
-    const endpoint = `${this.BASE_PATH}/bookings/verified-awaiting-employee${
-      query.toString() ? `?${query.toString()}` : ''
-    }`;
+    const endpoint = `${this.BASE_PATH}/available-bookings?${query.toString()}`;
 
-    const response = await httpClient.get<{
-      data: any[];
-      currentPage: number;
-      totalItems: number;
-      totalPages: number;
-    }>(endpoint);
+    const response = await httpClient.get<AvailableBookingsResponse>(endpoint);
 
     if (!response.success || !response.data) {
-      throw new Error(response.message || 'Khong the tai danh sach booking da xac minh');
+      throw new Error(response.message || 'Không thể tải danh sách booking chờ');
     }
 
     return response.data;
   }
 
-  async acceptBookingDetail(detailId: string): Promise<boolean> {
-    const response = await httpClient.post<{ success: boolean; message: string }>(
-      `${this.BASE_PATH}/booking-details/${detailId}/accept`,
+  async acceptBookingDetail(
+    detailId: string,
+    employeeId: string,
+  ): Promise<AcceptBookingResponse> {
+    const query = new URLSearchParams();
+    query.append('employeeId', employeeId);
+
+    const endpoint = `${this.BASE_PATH}/booking-details/${detailId}/accept?${query.toString()}`;
+
+    const response = await httpClient.post<AcceptBookingResponse>(endpoint);
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Không thể nhận công việc');
+    }
+
+    return response.data;
+  }
+
+  async checkIn(assignmentId: string, employeeId: string): Promise<CheckInResponse> {
+    const response = await httpClient.post<CheckInResponse>(
+      `${this.BASE_PATH}/assignments/${assignmentId}/check-in`,
+      { employeeId },
     );
 
-    if (!response.success) {
-      throw new Error(response.message || 'Khong the nhan cong viec');
-    }
-
-    return response.data?.success ?? response.success;
-  }
-
-  async checkIn(
-    assignmentId: string,
-  ): Promise<{ assignmentId: string; status: string; checkedInAt?: string }> {
-    const response = await httpClient.post<{
-      assignmentId: string;
-      status: string;
-      checkedInAt?: string;
-    }>(`${this.BASE_PATH}/assignments/${assignmentId}/check-in`);
-
     if (!response.success || !response.data) {
-      throw new Error(response.message || 'Khong the check-in');
+      throw new Error(response.message || 'Không thể check-in');
     }
 
     return response.data;
   }
 
-  async checkOut(
-    assignmentId: string,
-  ): Promise<{ assignmentId: string; status: string; checkedOutAt?: string }> {
-    const response = await httpClient.post<{
-      assignmentId: string;
-      status: string;
-      checkedOutAt?: string;
-    }>(`${this.BASE_PATH}/assignments/${assignmentId}/check-out`);
+  async checkOut(assignmentId: string, employeeId: string): Promise<CheckOutResponse> {
+    const response = await httpClient.post<CheckOutResponse>(
+      `${this.BASE_PATH}/assignments/${assignmentId}/check-out`,
+      { employeeId },
+    );
 
     if (!response.success || !response.data) {
-      throw new Error(response.message || 'Khong the check-out');
+      throw new Error(response.message || 'Không thể check-out');
     }
 
     return response.data;

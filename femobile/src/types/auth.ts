@@ -152,6 +152,7 @@ export interface ApiResponse<T = any> {
   message: string;
   data?: T;
   errors?: string[];
+  status?: number;
 }
 
 // Auth store interface

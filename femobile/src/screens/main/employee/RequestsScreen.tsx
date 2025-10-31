@@ -46,10 +46,12 @@ export const RequestsScreen = () => {
   const loadRequests = useCallback(async () => {
     try {
       setLoading(true);
+      // Tính năng đang được phát triển - API employeeRequestService sẽ được thay thế
+      // bằng availableBookings API trong tương lai
       const [pendingData, acceptedData, completedData] = await Promise.all([
-        employeeRequestService.getPendingRequests(),
-        employeeRequestService.getAcceptedRequests(),
-        employeeRequestService.getCompletedRequests()
+        employeeRequestService.getPendingRequests().catch(() => []),
+        employeeRequestService.getAcceptedRequests().catch(() => []),
+        employeeRequestService.getCompletedRequests().catch(() => [])
       ]);
 
       setRequests({
@@ -59,7 +61,12 @@ export const RequestsScreen = () => {
       });
     } catch (error) {
       console.error('Error loading requests:', error);
-      Alert.alert('Lỗi', 'Không thể tải danh sách yêu cầu');
+      // Don't show alert, just show empty state
+      setRequests({
+        pending: [],
+        accepted: [],
+        completed: []
+      });
     } finally {
       setLoading(false);
     }

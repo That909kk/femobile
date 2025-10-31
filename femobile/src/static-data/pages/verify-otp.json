@@ -1,34 +1,34 @@
 {
   "vi": {
-    "title": "Xac thuc OTP",
-    "subtitle": "Nhap ma OTP duoc gui den email cua ban",
+    "title": "Xác thực OTP",
+    "subtitle": "Nhập mã OTP được gửi đến email của bạn",
     "form": {
       "otp": {
-        "label": "Ma xac thuc",
-        "placeholder": "Nhap 6 chu so"
+        "label": "Mã xác thực",
+        "placeholder": "Nhập 6 chữ số"
       }
     },
     "actions": {
-      "verify": "Xac thuc",
-      "verifying": "Dang xu ly...",
-      "resend": "Gui lai ma",
-      "resending": "Dang gui lai...",
-      "back": "Quay lai"
+      "verify": "Xác thực",
+      "verifying": "Đang xử lý...",
+      "resend": "Gửi lại mã",
+      "resending": "Đang gửi lại...",
+      "back": "Quay lại"
     },
     "messages": {
       "validation": {
-        "otp_required": "Vui long nhap ma OTP",
-        "otp_invalid": "Ma OTP phai gom 6 chu so"
+        "otp_required": "Vui lòng nhập mã OTP",
+        "otp_invalid": "Mã OTP phải gồm 6 chữ số"
       },
-      "verify_success": "Xac thuc thanh cong",
-      "verify_error": "Ma OTP khong dung hoac da het han",
-      "resend_success": "Da gui lai ma OTP moi",
-      "resend_error": "Khong the gui lai OTP",
-      "expires_in": "Ma se het han sau",
-      "seconds": "giay",
-      "alert_success": "Thanh cong",
-      "alert_error": "Loi",
-      "alert_ok": "Dong y"
+      "verify_success": "Xác thực thành công",
+      "verify_error": "Mã OTP không đúng hoặc đã hết hạn",
+      "resend_success": "Đã gửi lại mã OTP mới",
+      "resend_error": "Không thể gửi lại OTP",
+      "expires_in": "Mã sẽ hết hạn sau",
+      "seconds": "giây",
+      "alert_success": "Thành công",
+      "alert_error": "Lỗi",
+      "alert_ok": "Đồng ý"
     }
   }
 }
