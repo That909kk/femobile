@@ -9,8 +9,11 @@ export { employeeScheduleService } from './employeeScheduleService';
 export { paymentService } from './paymentService';
 export { employeeAssignmentService } from './employeeAssignmentService';
 export { addressService } from './addressService';
+export { reviewService } from './reviewService';
+export { notificationService } from './notificationService';
+export { uploadService } from './uploadService';
 
-export type { UserInfo, CustomerData, EmployeeData } from './userInfoService';
+export type { UserInfo, CustomerData, EmployeeData, UpdateCustomerRequest, UpdateEmployeeRequest } from './userInfoService';
 
 export type { 
   EmployeeRequest,
@@ -32,6 +35,8 @@ export type {
 } from './bookingService';
 
 export type { Province, Commune } from './addressService';
+
+export type { UploadImageResponse } from './uploadService';
 
 // Export booking types from types folder
 export type {
@@ -68,4 +73,23 @@ export type {
 export type {
   EmployeeAssignment,
   AssignmentStatus,
+  AvailableBooking,
 } from './employeeAssignmentService';
+
+export type {
+  ReviewCriterion,
+  ReviewRating,
+  CreateReviewRequest,
+  Review,
+  EmployeeReviewSummary,
+} from './reviewService';
+
+export type {
+  Notification,
+  NotificationType,
+  NotificationPriority,
+  RelatedType,
+  NotificationListResponse,
+  UnreadCountResponse,
+  NotificationResponse,
+} from './notificationService';

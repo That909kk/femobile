@@ -127,6 +127,8 @@ export interface BookingRequest {
   bookingDetails: BookingDetail[];
   assignments?: BookingAssignment[] | null;
   paymentMethodId: number;
+  title?: string;
+  imageUrl?: string;
 }
 
 export interface BookingValidationRequest {
@@ -198,22 +200,29 @@ export interface BookingServiceDetail {
 export interface BookingPaymentInfo {
   paymentId: string;
   amount: number;
-  paymentMethod: PaymentMethod;
+  paymentMethod: PaymentMethod | string | null;
   paymentStatus: string;
-  transactionCode: string;
+  transactionCode: string | null;
   createdAt: string;
-  paidAt?: string;
+  paidAt?: string | null;
 }
 
 export interface BookingResponse {
   bookingId: string;
   bookingCode: string;
+  customerId?: string;
+  customerName?: string;
   status: string;
   totalAmount: number;
   formattedTotalAmount: string;
   bookingTime: string;
   createdAt: string;
-  customerInfo: {
+  note?: string;
+  title?: string;
+  imageUrl?: string;
+  isVerified?: boolean;
+  adminComment?: string;
+  address?: {
     addressId: string;
     fullAddress: string;
     ward: string;
@@ -223,14 +232,27 @@ export interface BookingResponse {
     longitude: number;
     isDefault: boolean;
   };
-  serviceDetails: BookingServiceDetail[];
-  paymentInfo: BookingPaymentInfo;
+  customerInfo?: {
+    addressId: string;
+    fullAddress: string;
+    ward: string;
+    district: string;
+    city: string;
+    latitude: number;
+    longitude: number;
+    isDefault: boolean;
+  };
+  serviceDetails?: BookingServiceDetail[];
+  bookingDetails?: BookingServiceDetail[];
+  paymentInfo?: BookingPaymentInfo;
+  payment?: BookingPaymentInfo | null;
   promotionApplied?: any;
-  assignedEmployees: BookingEmployee[];
-  totalServices: number;
-  totalEmployees: number;
-  estimatedDuration: string;
-  hasPromotion: boolean;
+  promotion?: any;
+  assignedEmployees?: BookingEmployee[];
+  totalServices?: number;
+  totalEmployees?: number;
+  estimatedDuration?: string;
+  hasPromotion?: boolean;
 }
 
 export interface BookingConflict {

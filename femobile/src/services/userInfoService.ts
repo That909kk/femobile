@@ -72,6 +72,27 @@ export interface UserInfo {
   employeeStatus?: string;
 }
 
+export interface UpdateCustomerRequest {
+  avatar?: string;
+  fullName: string;
+  isMale: boolean;
+  email: string;
+  birthdate: string;
+}
+
+export interface UpdateEmployeeRequest {
+  avatar?: string;
+  fullName: string;
+  isMale: boolean;
+  email: string;
+  birthdate: string;
+  hiredDate?: string;
+  skills?: string[];
+  bio?: string;
+  rating?: string;
+  employeeStatus?: string;
+}
+
 class UserInfoService {
   async getCustomerInfo(customerId: string): Promise<UserInfo> {
     const response = await httpClient.get<CustomerData>(`/customer/${customerId}`);
@@ -103,6 +124,68 @@ class UserInfoService {
     }
 
     throw new Error('Vai tro khong hop le');
+  }
+
+  async updateCustomer(customerId: string, data: UpdateCustomerRequest): Promise<UserInfo> {
+    const response = await httpClient.put<CustomerData>(`/customer/${customerId}`, data);
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Khong the cap nhat thong tin');
+    }
+
+    return this.mapCustomerToUserInfo(response.data);
+  }
+
+  async updateEmployee(employeeId: string, data: UpdateEmployeeRequest): Promise<UserInfo> {
+    const response = await httpClient.put<EmployeeData>(`/employee/${employeeId}`, data);
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Khong the cap nhat thong tin');
+    }
+
+    return this.mapEmployeeToUserInfo(response.data);
+  }
+
+  async uploadCustomerAvatar(customerId: string, imageFile: File | Blob): Promise<string> {
+    const formData = new FormData();
+    formData.append('avatar', imageFile);
+
+    const response = await httpClient.post<{ avatarUrl: string }>(
+      `/customer/${customerId}/avatar`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Khong the tai len hinh anh');
+    }
+
+    return response.data.avatarUrl;
+  }
+
+  async uploadEmployeeAvatar(employeeId: string, imageFile: File | Blob): Promise<string> {
+    const formData = new FormData();
+    formData.append('avatar', imageFile);
+
+    const response = await httpClient.post<{ avatarUrl: string }>(
+      `/employee/${employeeId}/avatar`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Khong the tai len hinh anh');
+    }
+
+    return response.data.avatarUrl;
   }
 
   private mapCustomerToUserInfo(customer: CustomerData): UserInfo {

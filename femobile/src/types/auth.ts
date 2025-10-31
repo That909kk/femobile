@@ -184,4 +184,6 @@ export type RootStackParamList = {
   CustomerHome: undefined;
   EmployeeDashboard: undefined;
   MainTabs: undefined;
+  OrderDetail: { bookingId: string };
+  NotificationList: undefined;
 };

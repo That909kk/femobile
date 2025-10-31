@@ -10,12 +10,14 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { Checkbox } from '../../../../components';
 import { colors, responsiveSpacing, responsiveFontSize } from '../../../../styles';
 import { useAuth } from '../../../../hooks';
 import {
   bookingService,
+  uploadService,
   type Service,
   type PaymentMethod,
   type BookingRequest,
@@ -88,10 +90,14 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   const [acceptReschedule, setAcceptReschedule] = useState(false);
   const [finalPrice, setFinalPrice] = useState(totalPrice);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [postTitle, setPostTitle] = useState<string>('');
+  const [postImageUri, setPostImageUri] = useState<string>('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const bookingDateTime =
     selectedDate && selectedTime ? `${selectedDate}T${selectedTime}:00` : '';
   const normalizedQuantity = Math.max(1, quantity || 1);
+  const isBookingPost = !selectedEmployeeId; // Nếu không chọn nhân viên thì là bài post
 
   useEffect(() => {
     setFinalPrice(totalPrice);
@@ -102,6 +108,95 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
       onPaymentMethodSelect(availablePaymentMethods[0].methodId);
     }
   }, [availablePaymentMethods, selectedPaymentMethodId, onPaymentMethodSelect]);
+
+  // Request permission and pick image
+  const pickImage = async () => {
+    try {
+      // Request permission
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert(
+          'Cần quyền truy cập',
+          'Vui lòng cấp quyền truy cập thư viện ảnh để tải ảnh lên.'
+        );
+        return;
+      }
+
+      // Pick image
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setPostImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Lỗi', 'Không thể chọn ảnh. Vui lòng thử lại.');
+    }
+  };
+
+  // Take photo with camera
+  const takePhoto = async () => {
+    try {
+      // Request permission
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert(
+          'Cần quyền truy cập',
+          'Vui lòng cấp quyền truy cập camera để chụp ảnh.'
+        );
+        return;
+      }
+
+      // Take photo
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setPostImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Lỗi', 'Không thể chụp ảnh. Vui lòng thử lại.');
+    }
+  };
+
+  // Show image picker options
+  const handleImagePicker = () => {
+    Alert.alert(
+      'Chọn ảnh',
+      'Bạn muốn chọn ảnh từ đâu?',
+      [
+        {
+          text: 'Thư viện',
+          onPress: pickImage,
+        },
+        {
+          text: 'Chụp ảnh',
+          onPress: takePhoto,
+        },
+        {
+          text: 'Hủy',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  // Remove selected image
+  const removeImage = () => {
+    setPostImageUri('');
+  };
 
   const formatPrice = (price?: number) =>
     new Intl.NumberFormat('vi-VN', {
@@ -158,6 +253,12 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
 
     if (!selectedPaymentMethodId) {
       Alert.alert('Thông báo', 'Vui lòng chọn phương thức thanh toán.');
+      return;
+    }
+
+    // Validate title for booking post (when no employee selected)
+    if (!selectedEmployeeId && !postTitle.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập tiêu đề cho bài đăng.');
       return;
     }
 
@@ -243,9 +344,52 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
         bookingData.note = noteValue;
       }
 
-      console.log('🚀 Creating booking with data:', bookingData);
+      // Upload ảnh và thêm thông tin CHỈ KHI KHÔNG CHỌN NHÂN VIÊN (booking post)
+      if (!selectedEmployeeId) {
+        if (postTitle.trim()) {
+          bookingData.title = postTitle.trim();
+        }
+        
+        // Upload image if selected
+        if (postImageUri) {
+          try {
+            console.log('📤 Uploading booking image...');
+            const uploadResult = await uploadService.uploadBookingImage(postImageUri);
+            
+            if (uploadResult.imageUrl) {
+              bookingData.imageUrl = uploadResult.imageUrl;
+              console.log('✅ Image uploaded successfully:', uploadResult.imageUrl);
+            }
+          } catch (uploadError: any) {
+            console.error('❌ Error uploading image:', uploadError);
+            
+            // Ask user if they want to continue without image
+            const continueWithoutImage = await new Promise<boolean>((resolve) => {
+              Alert.alert(
+                'Không thể upload ảnh',
+                'Không thể tải ảnh lên server. Bạn có muốn tiếp tục đặt lịch không?',
+                [
+                  { 
+                    text: 'Hủy', 
+                    style: 'cancel', 
+                    onPress: () => resolve(false) 
+                  },
+                  { 
+                    text: 'Tiếp tục', 
+                    onPress: () => resolve(true) 
+                  },
+                ]
+              );
+            });
+            
+            if (!continueWithoutImage) {
+              setIsProcessing(false);
+              return;
+            }
+          }
+        }
+      }
 
-      // Gọi trực tiếp API tạo booking, backend sẽ validate và trả về lỗi nếu có
       console.log('🚀 Creating booking with data:', bookingData);
 
       // Gọi trực tiếp API tạo booking, backend sẽ validate và trả về lỗi nếu có
@@ -305,7 +449,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   };
 
   const isConfirmDisabled =
-    !acceptTerms || !acceptReschedule || isProcessing || isSubmitting;
+    !acceptTerms || !acceptReschedule || isProcessing || isSubmitting || isUploadingImage;
 
   return (
     <View style={commonStyles.container}>
@@ -911,6 +1055,143 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
           </View>
         </View>
 
+        {/* Thêm phần title và image URL CHỈ KHI KHÔNG CHỌN NHÂN VIÊN (booking post) */}
+        {!selectedEmployeeId && (
+          <View style={commonStyles.section}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <View style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: accentColor + '20',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 12,
+              }}>
+                <Ionicons name="create-outline" size={18} color={accentColor} />
+              </View>
+              <Text style={commonStyles.sectionTitle}>Thông tin bài đăng</Text>
+            </View>
+            <View style={[commonStyles.card, { marginBottom: 12 }]}>
+              <Text style={[commonStyles.cardDescription, { marginBottom: 8, fontWeight: '600' }]}>
+                Tiêu đề <Text style={{ color: warningColor }}>*</Text>
+              </Text>
+              <TextInput
+                style={{
+                  fontSize: responsiveFontSize.body,
+                  color: colors.neutral.textPrimary,
+                  borderWidth: 1,
+                  borderColor: dividerColor,
+                  borderRadius: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                }}
+                value={postTitle}
+                onChangeText={setPostTitle}
+                placeholder="Ví dụ: Cần nhân viên dọn dẹp nhà cấp tốc"
+                placeholderTextColor={colors.neutral.textSecondary}
+                maxLength={200}
+              />
+              <Text style={[commonStyles.cardDescription, { marginTop: 4, textAlign: 'right' }]}>
+                {postTitle.length}/200
+              </Text>
+            </View>
+            
+            {/* Image Upload Section */}
+            <View style={commonStyles.card}>
+              <Text style={[commonStyles.cardDescription, { marginBottom: 12, fontWeight: '600' }]}>
+                Hình ảnh (tùy chọn)
+              </Text>
+              
+              {postImageUri ? (
+                // Show selected image
+                <View>
+                  <Image
+                    source={{ uri: postImageUri }}
+                    style={{
+                      width: '100%',
+                      height: 200,
+                      borderRadius: 12,
+                      backgroundColor: colors.neutral.border,
+                    }}
+                    resizeMode="cover"
+                  />
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                    <TouchableOpacity
+                      onPress={handleImagePicker}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        paddingVertical: 12,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: accentColor,
+                        backgroundColor: colors.neutral.white,
+                      }}
+                    >
+                      <Ionicons name="images-outline" size={18} color={accentColor} />
+                      <Text style={{ marginLeft: 6, color: accentColor, fontWeight: '600' }}>
+                        Đổi ảnh
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={removeImage}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        paddingVertical: 12,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: colors.feedback.error,
+                        backgroundColor: colors.neutral.white,
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={18} color={colors.feedback.error} />
+                      <Text style={{ marginLeft: 6, color: colors.feedback.error, fontWeight: '600' }}>
+                        Xóa
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                // Show image picker button
+                <TouchableOpacity
+                  onPress={handleImagePicker}
+                  style={{
+                    borderWidth: 2,
+                    borderColor: dividerColor,
+                    borderStyle: 'dashed',
+                    borderRadius: 12,
+                    padding: 32,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.neutral.background,
+                  }}
+                >
+                  <Ionicons name="cloud-upload-outline" size={48} color={colors.neutral.textSecondary} />
+                  <Text style={[commonStyles.cardDescription, { marginTop: 12, textAlign: 'center', fontWeight: '600' }]}>
+                    Chọn ảnh từ thư viện hoặc chụp ảnh
+                  </Text>
+                  <Text style={[commonStyles.cardDescription, { marginTop: 4, textAlign: 'center', fontSize: 12 }]}>
+                    JPG, PNG (tối đa 5MB)
+                  </Text>
+                </TouchableOpacity>
+              )}
+              
+              <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'flex-start' }}>
+                <Ionicons name="information-circle-outline" size={14} color={colors.neutral.textSecondary} style={{ marginTop: 2 }} />
+                <Text style={[commonStyles.cardDescription, { marginLeft: 6, flex: 1 }]}>
+                  Bài đăng của bạn cần được admin phê duyệt trước khi hiển thị cho nhân viên
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         <View style={commonStyles.section}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
             <View style={{
@@ -1048,7 +1329,12 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
           disabled={isConfirmDisabled}
         >
           {isProcessing || isSubmitting ? (
-            <ActivityIndicator size="small" color={colors.neutral.white} />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <ActivityIndicator size="small" color={colors.neutral.white} />
+              <Text style={[commonStyles.primaryButtonText, { marginLeft: 12 }]}>
+                {isUploadingImage ? 'Đang tải ảnh lên...' : 'Đang xử lý...'}
+              </Text>
+            </View>
           ) : (
             <>
               <Ionicons name="checkmark-circle" size={24} color={colors.neutral.white} style={{ marginRight: 8 }} />

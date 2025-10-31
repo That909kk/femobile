@@ -13,6 +13,8 @@ import {
   ResetPasswordScreen,
   RoleSelectionScreen,
 } from '../screens';
+import { OrderDetailScreen, NotificationsScreen as CustomerNotificationsScreen } from '../screens/main/customer';
+import { NotificationsScreen as EmployeeNotificationsScreen } from '../screens/main/employee';
 import { MainTabNavigator } from './MainTabNavigator';
 import type { RootStackParamList } from '../types/auth';
 import { COLORS, ANIMATION_CONFIGS, getBaseScreenOptions } from '../constants';
@@ -123,6 +125,9 @@ const AuthStack = () => (
 );
 
 const MainStack = () => {
+  const { role } = useAuth();
+  const NotificationScreen = role === 'EMPLOYEE' ? EmployeeNotificationsScreen : CustomerNotificationsScreen;
+
   return (
     <Stack.Navigator
       screenOptions={{
@@ -138,6 +143,24 @@ const MainStack = () => {
         options={{
           headerShown: false,
           ...ANIMATION_CONFIGS.fade,
+        }}
+      />
+      {/* Order Detail Screen */}
+      <Stack.Screen 
+        name="OrderDetail" 
+        component={OrderDetailScreen}
+        options={{
+          headerShown: false,
+          ...ANIMATION_CONFIGS.slideFromRight,
+        }}
+      />
+      {/* Notifications Screen */}
+      <Stack.Screen 
+        name="NotificationList" 
+        component={NotificationScreen}
+        options={{
+          headerShown: false,
+          ...ANIMATION_CONFIGS.slideFromRight,
         }}
       />
     </Stack.Navigator>

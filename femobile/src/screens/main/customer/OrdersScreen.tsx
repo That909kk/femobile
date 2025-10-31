@@ -8,36 +8,45 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation } from '@react-navigation/native';
 import { Button } from '../../../components';
 import { useAuth, useEnsureValidToken, useUserInfo } from '../../../hooks';
 import { bookingService } from '../../../services';
-import { COLORS } from '../../../constants';
+import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../styles';
 import type { BookingStatus } from '../../../types/booking';
 
 interface Order {
   id: string;
   bookingId: string;
+  bookingCode?: string;
   serviceName: string;
   status: BookingStatus;
   date: string;
   time: string;
   employeeName?: string;
   employeePhone?: string;
+  employeeAvatar?: string;
   price: string;
   address: string;
+  fullAddress?: string;
   rating?: number;
   notes?: string;
   estimatedCompletion?: string;
   cancelReason?: string;
+  paymentStatus?: string;
+  paymentMethod?: string;
+  promotionCode?: string;
+  promotionDescription?: string;
 }
 
 type FilterTab = 'all' | 'upcoming' | 'inProgress' | 'completed' | 'cancelled';
 
 export const OrdersScreen = () => {
+  const navigation = useNavigation<any>();
   const { user } = useAuth();
   const { userInfo } = useUserInfo();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -73,28 +82,55 @@ export const OrdersScreen = () => {
 
       const transformedOrders: Order[] = (response.content || []).map((booking) => {
         const bookingDate = booking.bookingTime ? new Date(booking.bookingTime) : null;
-        const primaryService = booking.serviceDetails?.[0];
-        const primaryEmployee = booking.assignedEmployees?.[0];
+        
+        // Try to get service name from various possible locations in API response
+        const bookingDetails = (booking as any).bookingDetails || booking.serviceDetails;
+        const primaryService = bookingDetails?.[0];
+        const serviceName = primaryService?.service?.name || 
+                           primaryService?.serviceName ||
+                           (booking as any).serviceName || 
+                           'Dịch vụ gia đình';
+        
+        // Get employee from assignments or assignedEmployees
+        const primaryAssignment = primaryService?.assignments?.[0];
+        const primaryEmployee = primaryAssignment?.employee || booking.assignedEmployees?.[0];
+
+        // Handle address - API returns 'address' field
+        const addressInfo = (booking as any).address || booking.customerInfo;
+        const fullAddress = addressInfo?.fullAddress || '';
+        
+        // Handle payment - API returns 'payment' field
+        const paymentInfo = (booking as any).payment || booking.paymentInfo;
+        
+        // Handle promotion - API returns 'promotion' field
+        const promotionInfo = (booking as any).promotion || booking.promotionApplied;
 
         return {
           id: booking.bookingId,
           bookingId: booking.bookingId,
-          serviceName: primaryService?.service?.name ?? 'Dich vu gia dinh',
+          bookingCode: booking.bookingCode,
+          serviceName: serviceName,
           status: (booking.status as BookingStatus) ?? 'PENDING',
-          date: bookingDate ? bookingDate.toLocaleDateString('vi-VN') : 'Khong ro ngay',
+          date: bookingDate ? bookingDate.toLocaleDateString('vi-VN') : 'Không rõ ngày',
           time: bookingDate
             ? bookingDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
             : '',
           employeeName: primaryEmployee?.fullName,
           employeePhone: primaryEmployee?.phoneNumber,
-          price:
-            booking.formattedTotalAmount ??
-            `${new Intl.NumberFormat('vi-VN').format(booking.totalAmount ?? 0)} VND`,
-          address: booking.customerInfo?.fullAddress || 'Chua cap nhat dia chi',
+          employeeAvatar: primaryEmployee?.avatar,
+          price: booking.formattedTotalAmount ?? `${new Intl.NumberFormat('vi-VN').format(booking.totalAmount ?? 0)} VND`,
+          address: fullAddress || 'Chưa cập nhật địa chỉ',
+          fullAddress: fullAddress,
           rating: (booking as any).rating,
           notes: (booking as any).note,
-          estimatedCompletion: booking.estimatedDuration,
-          cancelReason: (booking as any).cancelReason,
+          estimatedCompletion: booking.estimatedDuration || primaryService?.formattedDuration,
+          cancelReason: (booking as any).cancelReason || (booking as any).adminComment,
+          paymentStatus: paymentInfo?.paymentStatus,
+          paymentMethod: typeof paymentInfo?.paymentMethod === 'string' 
+            ? paymentInfo.paymentMethod 
+            : paymentInfo?.paymentMethod?.methodName,
+          promotionCode: promotionInfo?.promoCode,
+          promotionDescription: promotionInfo?.description,
         };
       });
 
@@ -117,11 +153,11 @@ export const OrdersScreen = () => {
   };
 
   const FILTER_LABELS: Record<FilterTab, string> = {
-    all: 'Tat ca',
-    upcoming: 'Sap dien ra',
-    inProgress: 'Dang thuc hien',
-    completed: 'Hoan thanh',
-    cancelled: 'Da huy',
+    all: 'Tất cả',
+    upcoming: 'Sắp diễn ra',
+    inProgress: 'Đang thực hiện',
+    completed: 'Hoàn thành',
+    cancelled: 'Đã hủy',
   };
 
   const filterOrder: FilterTab[] = ['all', 'upcoming', 'inProgress', 'completed', 'cancelled'];
@@ -139,33 +175,34 @@ export const OrdersScreen = () => {
     switch (status) {
       case 'PENDING':
       case 'AWAITING_EMPLOYEE':
+        return colors.feedback.warning;
       case 'CONFIRMED':
-        return COLORS.warning;
+        return colors.highlight.teal;
       case 'IN_PROGRESS':
-        return COLORS.secondary;
+        return colors.primary.navy;
       case 'COMPLETED':
-        return COLORS.success;
+        return colors.feedback.success;
       case 'CANCELLED':
-        return COLORS.error;
+        return colors.feedback.error;
       default:
-        return COLORS.text.tertiary;
+        return colors.neutral.label;
     }
   };
 
   const getStatusText = (status: BookingStatus) => {
     switch (status) {
       case 'PENDING':
-        return 'Cho xac nhan';
+        return 'Chờ xác nhận';
       case 'AWAITING_EMPLOYEE':
-        return 'Dang tim nhan vien';
+        return 'Đang tìm nhân viên';
       case 'CONFIRMED':
-        return 'Da xac nhan';
+        return 'Đã xác nhận';
       case 'IN_PROGRESS':
-        return 'Dang thuc hien';
+        return 'Đang thực hiện';
       case 'COMPLETED':
-        return 'Da hoan thanh';
+        return 'Đã hoàn thành';
       case 'CANCELLED':
-        return 'Da huy';
+        return 'Đã hủy';
       default:
         return status;
     }
@@ -200,177 +237,300 @@ export const OrdersScreen = () => {
   };
 
   const handleOrderAction = (orderId: string, action: string) => {
-    console.log(`${action} order:`, orderId);
-    // Handle different actions: cancel, reschedule, rate, etc.
+    const order = orders.find(o => o.id === orderId);
+    
+    switch (action) {
+      case 'cancel':
+        handleCancelBooking(orderId, order?.status);
+        break;
+      case 'track':
+        Alert.alert('Thông báo', 'Tính năng đang được phát triển');
+        break;
+      case 'rate':
+        Alert.alert('Thông báo', 'Tính năng đang được phát triển');
+        break;
+      case 'details':
+        navigation.navigate('OrderDetail', { bookingId: orderId });
+        break;
+      default:
+        console.log(`${action} order:`, orderId);
+    }
+  };
+
+  const handleCancelBooking = (bookingId: string, status?: BookingStatus) => {
+    // Check if booking can be cancelled (PENDING, AWAITING_EMPLOYEE)
+    const cancellableStatuses: BookingStatus[] = ['PENDING', 'AWAITING_EMPLOYEE'];
+    
+    if (status && !cancellableStatuses.includes(status)) {
+      Alert.alert('Không thể hủy', 'Chỉ có thể hủy đơn hàng ở trạng thái Chờ xác nhận hoặc Đang tìm nhân viên');
+      return;
+    }
+
+    Alert.alert(
+      'Hủy đơn hàng',
+      'Bạn có chắc chắn muốn hủy đơn hàng này? Nếu đã thanh toán, số tiền sẽ được hoàn lại.',
+      [
+        { text: 'Không', style: 'cancel' },
+        { 
+          text: 'Hủy đơn', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await bookingService.cancelBooking(bookingId, 'Khách hàng hủy đơn hàng');
+              Alert.alert('Thành công', 'Đơn hàng đã được hủy thành công', [
+                { text: 'OK', onPress: () => loadOrders() }
+              ]);
+            } catch (error: any) {
+              console.error('Error cancelling booking:', error);
+              Alert.alert('Lỗi', error.message || 'Không thể hủy đơn hàng. Vui lòng thử lại.');
+            } finally {
+              setLoading(false);
+            }
+          }
+        },
+      ]
+    );
+  };
+
+  const handleCallEmployee = (phoneNumber: string) => {
+    Alert.alert('Thông báo', 'Tính năng đang được phát triển');
+  };
+
+  const handleMessageEmployee = () => {
+    Alert.alert('Thông báo', 'Tính năng đang được phát triển');
   };
 
   const renderOrder = (order: any) => (
     <View key={order.id} style={styles.orderCard}>
+      {/* Header với trạng thái */}
       <View style={styles.orderHeader}>
-        <View style={styles.orderInfo}>
-          <Text style={styles.orderId}>#{order.id}</Text>
-          <Text style={styles.serviceName}>{order.serviceName}</Text>
+        <View style={styles.orderTitleRow}>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + '15' }]}>
+            <Ionicons 
+              name={getStatusIcon(order.status) as any} 
+              size={responsive.moderateScale(14)} 
+              color={getStatusColor(order.status)} 
+            />
+            <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>
+              {getStatusText(order.status)}
+            </Text>
+          </View>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + '20' }]}>
-          <Ionicons 
-            name={getStatusIcon(order.status) as any} 
-            size={16} 
-            color={getStatusColor(order.status)} 
-          />
-          <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>
-            {getStatusText(order.status)}
-          </Text>
-        </View>
+        <Text style={styles.serviceName}>{order.serviceName}</Text>
       </View>
 
-      <View style={styles.orderDetails}>
-        <View style={styles.detailRow}>
-          <Ionicons name="calendar" size={16} color={COLORS.text.tertiary} />
-          <Text style={styles.detailText}>{order.date} lúc {order.time}</Text>
-        </View>
-        
-        <View style={styles.detailRow}>
-          <Ionicons name="location" size={16} color={COLORS.text.tertiary} />
-          <Text style={styles.detailText} numberOfLines={2}>{order.address}</Text>
+      {/* Thông tin chi tiết */}
+      <View style={styles.orderBody}>
+        {/* Thời gian */}
+        <View style={styles.infoRow}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="calendar-outline" size={responsive.moderateScale(18)} color={colors.highlight.teal} />
+          </View>
+          <View style={styles.infoContent}>
+            <Text style={styles.infoLabel}>Thời gian</Text>
+            <Text style={styles.infoValue}>{order.date} lúc {order.time}</Text>
+          </View>
         </View>
 
+        {/* Địa chỉ */}
+        <View style={styles.infoRow}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="location-outline" size={responsive.moderateScale(18)} color={colors.highlight.teal} />
+          </View>
+          <View style={styles.infoContent}>
+            <Text style={styles.infoLabel}>Địa chỉ</Text>
+            <Text style={styles.infoValue} numberOfLines={2}>{order.address}</Text>
+          </View>
+        </View>
+
+        {/* Nhân viên */}
         {order.employeeName && (
-          <View style={styles.detailRow}>
-            <Ionicons name="person" size={16} color={COLORS.text.tertiary} />
-            <Text style={styles.detailText}>{order.employeeName}</Text>
-            {order.employeePhone && (
-              <TouchableOpacity style={styles.callButton}>
-                <Ionicons name="call" size={16} color={COLORS.primary} />
-              </TouchableOpacity>
-            )}
+          <View style={styles.infoRow}>
+            <View style={styles.iconContainer}>
+              {order.employeeAvatar ? (
+                <Image 
+                  source={{ uri: order.employeeAvatar }} 
+                  style={styles.employeeAvatarSmall}
+                />
+              ) : (
+                <Ionicons name="person-outline" size={responsive.moderateScale(18)} color={colors.highlight.teal} />
+              )}
+            </View>
+            <View style={styles.infoContent}>
+              <Text style={styles.infoLabel}>Nhân viên</Text>
+              <Text style={styles.infoValue}>{order.employeeName}</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.messageButtonSmall} 
+              activeOpacity={0.7}
+              onPress={handleMessageEmployee}
+            >
+              <Ionicons name="chatbubble-outline" size={responsive.moderateScale(16)} color={colors.highlight.teal} />
+            </TouchableOpacity>
           </View>
         )}
 
-        <View style={styles.detailRow}>
-          <Ionicons name="card" size={16} color={COLORS.text.tertiary} />
-          <Text style={[styles.detailText, styles.priceText]}>{order.price}</Text>
+        {/* Giá tiền */}
+        <View style={styles.priceRow}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="card-outline" size={responsive.moderateScale(18)} color={colors.highlight.teal} />
+          </View>
+          <View style={styles.infoContent}>
+            <Text style={styles.infoLabel}>Tổng tiền</Text>
+            <Text style={styles.priceValue}>{order.price}</Text>
+          </View>
+          {order.paymentStatus && (
+            <View style={[
+              styles.paymentBadge,
+              { backgroundColor: order.paymentStatus === 'PAID' ? colors.feedback.success + '15' : colors.feedback.warning + '15' }
+            ]}>
+              <Text style={[
+                styles.paymentBadgeText,
+                { color: order.paymentStatus === 'PAID' ? colors.feedback.success : colors.feedback.warning }
+              ]}>
+                {order.paymentStatus === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {order.estimatedCompletion && (
-          <View style={styles.detailRow}>
-            <Ionicons name="time" size={16} color={COLORS.secondary} />
-            <Text style={styles.detailText}>Dự kiến hoàn thành: {order.estimatedCompletion}</Text>
+        {/* Khuyến mãi */}
+        {order.promotionCode && (
+          <View style={styles.promotionRow}>
+            <Ionicons name="pricetag" size={responsive.moderateScale(16)} color={colors.feedback.success} />
+            <Text style={styles.promotionText}>
+              {order.promotionCode} - {order.promotionDescription}
+            </Text>
           </View>
         )}
 
-        {order.rating && (
-          <View style={styles.detailRow}>
-            <Ionicons name="star" size={16} color={COLORS.warning} />
-            <Text style={styles.detailText}>Đánh giá: {order.rating}/5 sao</Text>
+        {/* Ghi chú */}
+        {order.notes && (
+          <View style={styles.noteRow}>
+            <Ionicons name="document-text-outline" size={responsive.moderateScale(16)} color={colors.neutral.label} />
+            <Text style={styles.noteText} numberOfLines={2}>{order.notes}</Text>
           </View>
         )}
 
+        {/* Lý do hủy */}
         {order.cancelReason && (
-          <View style={styles.detailRow}>
-            <Ionicons name="information-circle" size={16} color={COLORS.error} />
-            <Text style={styles.detailText}>{order.cancelReason}</Text>
+          <View style={styles.cancelReasonRow}>
+            <Ionicons name="information-circle" size={responsive.moderateScale(16)} color={colors.feedback.error} />
+            <Text style={styles.cancelReasonText}>{order.cancelReason}</Text>
           </View>
         )}
       </View>
 
+      {/* Actions */}
       <View style={styles.orderActions}>
-        {order.status === 'scheduled' && (
-          <>
-            <Button
-              title="Đổi lịch"
-              variant="outline"
-              onPress={() => handleOrderAction(order.id, 'reschedule')}
-            />
-            <Button
-              title="Hủy đơn"
-              variant="outline"
-              onPress={() => handleOrderAction(order.id, 'cancel')}
-            />
-          </>
+        {(order.status === 'PENDING' || order.status === 'AWAITING_EMPLOYEE') && (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.secondaryButton]}
+            onPress={() => handleOrderAction(order.id, 'cancel')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.secondaryButtonText}>Hủy đơn</Text>
+          </TouchableOpacity>
         )}
         
-        {order.status === 'in-progress' && (
-          <Button
-            title="Theo dõi"
-            variant="primary"
+        {order.status === 'IN_PROGRESS' && (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.primaryButton]}
             onPress={() => handleOrderAction(order.id, 'track')}
-          />
+            activeOpacity={0.7}
+          >
+            <Text style={styles.primaryButtonText}>Theo dõi</Text>
+          </TouchableOpacity>
         )}
         
-        {order.status === 'completed' && !order.rating && (
-          <Button
-            title="Đánh giá"
-            variant="primary"
+        {order.status === 'COMPLETED' && (
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.primaryButton]}
             onPress={() => handleOrderAction(order.id, 'rate')}
-          />
+            activeOpacity={0.7}
+          >
+            <Ionicons name="star" size={responsive.moderateScale(16)} color={colors.neutral.white} />
+            <Text style={styles.primaryButtonText}>Đánh giá</Text>
+          </TouchableOpacity>
         )}
         
-        <Button
-          title="Chi tiết"
-          variant="outline"
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.outlineButton]}
           onPress={() => handleOrderAction(order.id, 'details')}
-        />
+          activeOpacity={0.7}
+        >
+          <Text style={styles.outlineButtonText}>Chi tiết</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with Gradient */}
-      <LinearGradient
-        colors={[COLORS.secondary, COLORS.secondaryLight]}
-        style={styles.headerGradient}
-      >
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>Đơn Hàng</Text>
-            <Text style={styles.headerSubtitle}>
-              Quản lý các dịch vụ đã đặt
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.searchButton}>
-            <Ionicons name="search" size={24} color={COLORS.surface} />
-          </TouchableOpacity>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Đơn Hàng</Text>
+          <Text style={styles.headerSubtitle}>
+            Quản lý và theo dõi các đơn hàng của bạn
+          </Text>
         </View>
+        <TouchableOpacity style={styles.searchButton} activeOpacity={0.7}>
+          <Ionicons name="search-outline" size={responsive.moderateScale(22)} color={colors.primary.navy} />
+        </TouchableOpacity>
+      </View>
 
-        {/* Filter Tabs */}
+      {/* Filter Tabs */}
+      <View style={styles.filterSection}>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
-          style={styles.filterContainer}
-          contentContainerStyle={styles.filterContent}
+          contentContainerStyle={styles.filterScrollContent}
+          style={styles.filterScroll}
         >
-          {filterOptions.map((filter) => (
-            <TouchableOpacity
-              key={filter.id}
-              style={[
-                styles.filterTab,
-                selectedFilter === filter.id && styles.activeFilterTab
-              ]}
-              onPress={() => setSelectedFilter(filter.id)}
-            >
-              <Text
+          {filterOptions.map((filter) => {
+            const isActive = selectedFilter === filter.id;
+            
+            return (
+              <TouchableOpacity
+                key={filter.id}
                 style={[
-                  styles.filterTabText,
-                  selectedFilter === filter.id && styles.activeFilterTabText
+                  styles.filterCard,
+                  isActive && styles.activeFilterCard,
                 ]}
+                onPress={() => setSelectedFilter(filter.id)}
+                activeOpacity={0.8}
               >
-                {filter.label}
-              </Text>
-              {filter.count > 0 && (
-                <View style={styles.countBadge}>
-                  <Text style={styles.countText}>{filter.count}</Text>
+                <Text
+                  style={[
+                    styles.filterLabel,
+                    isActive && styles.activeFilterLabel
+                  ]}
+                >
+                  {filter.label}
+                </Text>
+                <View style={[
+                  styles.filterCountBadge,
+                  isActive && styles.activeFilterCountBadge
+                ]}>
+                  <Text style={[
+                    styles.filterCountText,
+                    isActive && styles.activeFilterCountText
+                  ]}>
+                    {filter.count}
+                  </Text>
                 </View>
-              )}
-            </TouchableOpacity>
-          ))}
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
-      </LinearGradient>
+      </View>
 
       {/* Orders List */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <ActivityIndicator size="large" color={colors.highlight.teal} />
           <Text style={styles.loadingText}>Đang tải đơn hàng...</Text>
         </View>
       ) : (
@@ -381,8 +541,8 @@ export const OrdersScreen = () => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[COLORS.primary]}
-              tintColor={COLORS.primary}
+              colors={[colors.highlight.teal]}
+              tintColor={colors.highlight.teal}
             />
           }
           showsVerticalScrollIndicator={false}
@@ -391,24 +551,29 @@ export const OrdersScreen = () => {
           filteredOrders.map(renderOrder)
         ) : (
           <View style={styles.emptyState}>
-            <Ionicons name="document-text-outline" size={64} color={COLORS.text.tertiary} />
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="receipt-outline" size={responsive.moderateScale(64)} color={colors.neutral.label} />
+            </View>
             <Text style={styles.emptyStateTitle}>
               {selectedFilter === 'all'
-                ? 'Chua co don hang nao'
-                : `Khong co don hang ${FILTER_LABELS[selectedFilter].toLowerCase()}`}
+                ? 'Chưa có đơn hàng nào'
+                : `Không có đơn hàng ${FILTER_LABELS[selectedFilter].toLowerCase()}`}
             </Text>
             <Text style={styles.emptyStateSubtitle}>
               {selectedFilter === 'all' 
-                ? 'Hãy đặt dịch vụ đầu tiên của bạn'
+                ? 'Hãy đặt dịch vụ đầu tiên của bạn ngay hôm nay'
                 : 'Thử chọn bộ lọc khác để xem đơn hàng'
               }
             </Text>
             {selectedFilter === 'all' && (
-              <Button
-                title="Đặt dịch vụ ngay"
-                variant="primary"
+              <TouchableOpacity
+                style={styles.bookServiceButton}
                 onPress={() => {/* Navigate to booking */}}
-              />
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add-circle" size={responsive.moderateScale(20)} color={colors.neutral.white} />
+                <Text style={styles.bookServiceButtonText}>Đặt dịch vụ ngay</Text>
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -419,187 +584,471 @@ export const OrdersScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.neutral.background,
+  },
+
+  // Loading
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: responsiveSpacing.xxxl,
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: COLORS.text.secondary,
+    marginTop: responsiveSpacing.md,
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textSecondary,
+    fontWeight: '500',
   },
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  headerGradient: {
-    paddingTop: 8,
-  },
+
+  // Header
   header: {
+    backgroundColor: colors.warm.beige,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingHorizontal: responsiveSpacing.lg,
+    paddingTop: responsiveSpacing.md,
+    paddingBottom: responsiveSpacing.lg,
   },
   headerContent: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.surface,
-    marginBottom: 4,
+    fontSize: responsiveFontSize.heading1,
+    fontWeight: '700',
+    color: colors.primary.navy,
+    marginBottom: responsiveSpacing.xs,
   },
   headerSubtitle: {
-    fontSize: 16,
-    color: COLORS.surface,
-    opacity: 0.9,
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
+    fontWeight: '400',
   },
   searchButton: {
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: responsive.moderateScale(44),
+    height: responsive.moderateScale(44),
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(22),
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
+
+  // Filter Section - New Design
+  filterSection: {
+    backgroundColor: colors.neutral.background,
+    paddingTop: responsiveSpacing.sm,
+    paddingBottom: responsiveSpacing.sm,
+  },
+  filterScroll: {
+    flexGrow: 0,
+  },
+  filterScrollContent: {
+    paddingHorizontal: responsiveSpacing.lg,
+    gap: responsiveSpacing.sm,
+  },
+  filterCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(20),
+    paddingHorizontal: responsiveSpacing.sm + 2,
+    paddingVertical: responsiveSpacing.sm,
+    marginRight: responsiveSpacing.sm,
+    width: responsive.moderateScale(95),
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
+  },
+  activeFilterCard: {
+    backgroundColor: colors.highlight.teal,
+    borderColor: colors.highlight.teal,
+    shadowColor: colors.highlight.teal,
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  filterLabel: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textPrimary,
+    fontWeight: '500',
+    marginBottom: responsiveSpacing.xs / 2,
+  },
+  activeFilterLabel: {
+    color: colors.neutral.white,
+    fontWeight: '700',
+  },
+  filterCountBadge: {
+    backgroundColor: colors.neutral.background,
+    borderRadius: responsive.moderateScale(12),
+    minWidth: responsive.moderateScale(28),
+    height: responsive.moderateScale(28),
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: responsiveSpacing.xs,
+  },
+  activeFilterCountBadge: {
+    backgroundColor: colors.neutral.white + '25',
+  },
+  filterCountText: {
+    fontSize: responsiveFontSize.body,
+    fontWeight: '700',
+    color: colors.neutral.textSecondary,
+  },
+  activeFilterCountText: {
+    color: colors.neutral.white,
+    fontSize: responsiveFontSize.bodyLarge,
+  },
+
+  // Old filter styles (deprecated but kept for safety)
   filterContainer: {
-    paddingHorizontal: 20,
+    backgroundColor: colors.neutral.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.border,
   },
   filterContent: {
-    paddingBottom: 20,
+    paddingHorizontal: responsiveSpacing.lg,
+    paddingVertical: responsiveSpacing.md,
+    gap: responsiveSpacing.sm,
   },
   filterTab: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 12,
+    backgroundColor: colors.neutral.white,
+    paddingHorizontal: responsiveSpacing.lg,
+    paddingVertical: responsiveSpacing.sm,
+    borderRadius: responsive.moderateScale(20),
+    marginRight: responsiveSpacing.sm,
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
+    minHeight: responsive.moderateScale(36),
   },
   activeFilterTab: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.highlight.teal,
+    borderColor: colors.highlight.teal,
   },
   filterTabText: {
-    fontSize: 14,
-    color: COLORS.surface,
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textPrimary,
     fontWeight: '500',
   },
   activeFilterTabText: {
-    color: COLORS.secondary,
+    color: colors.neutral.white,
+    fontWeight: '600',
   },
   countBadge: {
-    backgroundColor: COLORS.warning,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    backgroundColor: colors.neutral.border,
+    borderRadius: responsive.moderateScale(10),
+    minWidth: responsive.moderateScale(20),
+    height: responsive.moderateScale(20),
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
+    marginLeft: responsiveSpacing.sm,
+    paddingHorizontal: responsiveSpacing.xs,
+  },
+  activeCountBadge: {
+    backgroundColor: colors.neutral.white + '30',
   },
   countText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: COLORS.surface,
+    fontSize: responsiveFontSize.caption - 2,
+    fontWeight: '700',
+    color: colors.neutral.textSecondary,
   },
+  activeCountText: {
+    color: colors.neutral.white,
+  },
+
+  // Scroll View
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 100, // Space for bottom tab
+    paddingHorizontal: responsiveSpacing.lg,
+    paddingTop: responsiveSpacing.md,
+    paddingBottom: 0,
   },
+
+  // Order Card
   orderCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(16),
+    marginBottom: responsiveSpacing.lg,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     elevation: 3,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    overflow: 'hidden',
   },
+
+  // Order Header
   orderHeader: {
+    padding: responsiveSpacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.border,
+  },
+  orderTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    alignItems: 'center',
+    marginBottom: responsiveSpacing.sm,
   },
-  orderInfo: {
-    flex: 1,
-  },
-  orderId: {
-    fontSize: 12,
-    color: COLORS.text.tertiary,
-    fontWeight: '500',
+  bookingCode: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.label,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   serviceName: {
-    fontSize: 16,
+    fontSize: responsiveFontSize.bodyLarge,
     fontWeight: '600',
-    color: COLORS.text.primary,
-    marginTop: 2,
+    color: colors.primary.navy,
+    marginTop: responsiveSpacing.xs,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: responsiveSpacing.sm,
+    paddingVertical: responsiveSpacing.xs,
+    borderRadius: responsive.moderateScale(12),
+    gap: responsiveSpacing.xs,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: responsiveFontSize.caption - 1,
     fontWeight: '600',
-    marginLeft: 4,
   },
-  orderDetails: {
-    marginBottom: 16,
+
+  // Order Body
+  orderBody: {
+    padding: responsiveSpacing.lg,
+    gap: responsiveSpacing.md,
   },
-  detailRow: {
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  iconContainer: {
+    width: responsive.moderateScale(36),
+    height: responsive.moderateScale(36),
+    borderRadius: responsive.moderateScale(18),
+    backgroundColor: colors.warm.beige,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: responsiveSpacing.sm,
+  },
+  employeeAvatarSmall: {
+    width: responsive.moderateScale(36),
+    height: responsive.moderateScale(36),
+    borderRadius: responsive.moderateScale(18),
+  },
+  infoContent: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  infoLabel: {
+    fontSize: responsiveFontSize.caption - 1,
+    color: colors.neutral.label,
+    marginBottom: responsiveSpacing.xs / 2,
+  },
+  infoValue: {
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textPrimary,
+    fontWeight: '500',
+    lineHeight: responsiveFontSize.body * 1.4,
+  },
+  phoneNumber: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
+    marginTop: responsiveSpacing.xs / 2,
+  },
+  messageButtonSmall: {
+    width: responsive.moderateScale(36),
+    height: responsive.moderateScale(36),
+    borderRadius: responsive.moderateScale(18),
+    backgroundColor: colors.highlight.teal + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: responsiveSpacing.sm,
+  },
+
+  // Price Row
+  priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    backgroundColor: colors.warm.beige,
+    padding: responsiveSpacing.md,
+    borderRadius: responsive.moderateScale(12),
+    marginTop: responsiveSpacing.xs,
   },
-  detailText: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
-    marginLeft: 8,
-    flex: 1,
+  priceValue: {
+    fontSize: responsiveFontSize.heading3,
+    color: colors.highlight.teal,
+    fontWeight: '700',
   },
-  priceText: {
+  paymentBadge: {
+    paddingHorizontal: responsiveSpacing.sm,
+    paddingVertical: responsiveSpacing.xs,
+    borderRadius: responsive.moderateScale(8),
+    marginLeft: responsiveSpacing.sm,
+  },
+  paymentBadgeText: {
+    fontSize: responsiveFontSize.caption - 1,
     fontWeight: '600',
-    color: COLORS.primary,
   },
-  callButton: {
-    padding: 4,
-    borderRadius: 12,
-    backgroundColor: COLORS.primary + '20',
+
+  // Promotion
+  promotionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.feedback.success + '10',
+    padding: responsiveSpacing.sm,
+    borderRadius: responsive.moderateScale(8),
+    gap: responsiveSpacing.sm,
   },
+  promotionText: {
+    flex: 1,
+    fontSize: responsiveFontSize.caption,
+    color: colors.feedback.success,
+    fontWeight: '500',
+  },
+
+  // Note
+  noteRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.neutral.background,
+    padding: responsiveSpacing.sm,
+    borderRadius: responsive.moderateScale(8),
+    gap: responsiveSpacing.sm,
+  },
+  noteText: {
+    flex: 1,
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
+    lineHeight: responsiveFontSize.caption * 1.4,
+  },
+
+  // Cancel Reason
+  cancelReasonRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.feedback.error + '10',
+    padding: responsiveSpacing.sm,
+    borderRadius: responsive.moderateScale(8),
+    gap: responsiveSpacing.sm,
+  },
+  cancelReasonText: {
+    flex: 1,
+    fontSize: responsiveFontSize.caption,
+    color: colors.feedback.error,
+    fontWeight: '500',
+    lineHeight: responsiveFontSize.caption * 1.4,
+  },
+
+  // Actions
   orderActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
+    padding: responsiveSpacing.lg,
+    paddingTop: responsiveSpacing.md,
+    gap: responsiveSpacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.neutral.border,
   },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: responsiveSpacing.sm + 2,
+    borderRadius: responsive.moderateScale(12),
+    gap: responsiveSpacing.xs,
+    minHeight: responsive.moderateScale(44),
+  },
+  primaryButton: {
+    backgroundColor: colors.highlight.teal,
+  },
+  primaryButtonText: {
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.white,
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    backgroundColor: colors.feedback.error + '15',
+  },
+  secondaryButtonText: {
+    fontSize: responsiveFontSize.body,
+    color: colors.feedback.error,
+    fontWeight: '600',
+  },
+  outlineButton: {
+    backgroundColor: colors.neutral.white,
+    borderWidth: 1.5,
+    borderColor: colors.highlight.teal,
+  },
+  outlineButtonText: {
+    fontSize: responsiveFontSize.body,
+    color: colors.highlight.teal,
+    fontWeight: '600',
+  },
+
+  // Empty State
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40,
+    paddingVertical: responsiveSpacing.xxxl * 2,
+    paddingHorizontal: responsiveSpacing.xl,
+  },
+  emptyIconContainer: {
+    width: responsive.moderateScale(120),
+    height: responsive.moderateScale(120),
+    borderRadius: responsive.moderateScale(60),
+    backgroundColor: colors.warm.beige,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: responsiveSpacing.xl,
   },
   emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.text.primary,
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: responsiveFontSize.heading2,
+    fontWeight: '700',
+    color: colors.primary.navy,
+    marginBottom: responsiveSpacing.sm,
     textAlign: 'center',
   },
   emptyStateSubtitle: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
+    lineHeight: responsiveFontSize.body * 1.5,
+    marginBottom: responsiveSpacing.xl,
+  },
+  bookServiceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.highlight.teal,
+    paddingHorizontal: responsiveSpacing.xl,
+    paddingVertical: responsiveSpacing.md,
+    borderRadius: responsive.moderateScale(12),
+    gap: responsiveSpacing.sm,
+    shadowColor: colors.highlight.teal,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  bookServiceButtonText: {
+    fontSize: responsiveFontSize.bodyLarge,
+    color: colors.neutral.white,
+    fontWeight: '600',
   },
 });
 

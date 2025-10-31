@@ -26,6 +26,19 @@ export interface PaymentHistoryResponse {
 class PaymentService {
   private readonly BASE_PATH = '/customer/payments';
 
+  async createPayment(bookingId: string, paymentMethodId: number): Promise<PaymentRecord> {
+    const response = await httpClient.post<PaymentRecord>(this.BASE_PATH, {
+      bookingId,
+      paymentMethodId,
+    });
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Khong the tao thanh toan');
+    }
+
+    return response.data;
+  }
+
   async getPaymentHistory(
     customerId: string,
     params?: { page?: number; size?: number; sort?: string },

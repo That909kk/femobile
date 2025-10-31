@@ -151,35 +151,38 @@ export const EmployeeDashboard: React.FC = () => {
 
   const statsCards = [
     {
-      key: 'today',
+      key: 'today' as const,
       label: 'Ca hom nay',
       value: todayAssignmentCount,
-      icon: 'time-outline',
+      icon: 'time-outline' as const,
       accent: COLORS.accent,
+      isCurrency: false,
     },
     {
-      key: 'upcoming',
+      key: 'upcoming' as const,
       label: 'Sap toi',
       value: upcomingAssignments.length,
-      icon: 'calendar-outline',
+      icon: 'calendar-outline' as const,
       accent: COLORS.secondaryLight,
+      isCurrency: false,
     },
     {
-      key: 'inProgress',
+      key: 'inProgress' as const,
       label: 'Dang lam',
       value: inProgressAssignments.length,
-      icon: 'play-outline',
+      icon: 'play-outline' as const,
       accent: COLORS.secondary,
+      isCurrency: false,
     },
     {
-      key: 'revenue',
+      key: 'revenue' as const,
       label: 'Thu nhap',
       value: formatCurrency(totalRevenue),
-      icon: 'wallet-outline',
+      icon: 'wallet-outline' as const,
       accent: COLORS.primaryLight,
       isCurrency: true,
     },
-  ] as const;
+  ];
 
   const activeAssignments = useMemo(
     () => assignments.filter((assignment) => assignment.status !== 'COMPLETED').slice(0, 5),

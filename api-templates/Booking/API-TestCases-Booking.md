@@ -857,25 +857,91 @@ Based on housekeeping_service_v8.sql:
 - **Expected Output**:
   ```json
   {
-    "bookingId": "7a35373e-20c6-43a2-aab2-1486fb6c89e5",
-    "bookingCode": "BK62589569",
-    "status": "PENDING",
-    "totalAmount": 700000.00,
-    "formattedTotalAmount": "900,000đ",
-    "bookingTime": "2025-09-26T10:00:00",
-    "createdAt": "2025-09-24T14:39:22.589451644",
-    "customerInfo": {
-      // ...customer and address details...
-    },
-    "serviceDetails": [
-      // ...service details with assignments...
-    ],
-    "paymentInfo": {
-      // ...payment information...
-    },
-    "assignedEmployees": [
-      // ...employee details...
-    ]
+    "success": true,
+    "message": "Đặt lịch thành công",
+    "data": {
+        "bookingId": "45738ad5-65e9-438d-a56f-8c6f26648ee4",
+        "bookingCode": "BK42168339",
+        "customerId": "c1000001-0000-0000-0000-000000000001",
+        "customerName": "John Doe",
+        "address": {
+            "addressId": "3b77c406-00a2-43ee-be5d-3ae8124cf3ae",
+            "fullAddress": "123 Lê Trọng Tấn, Phường Tây Thạnh, Thành phố Hồ Chí Minh",
+            "ward": "Phường Tây Thạnh",
+            "city": "Thành phố Hồ Chí Minh",
+            "latitude": 10.7943,
+            "longitude": 106.6256,
+            "isDefault": false
+        },
+        "bookingTime": "2025-11-03T10:00:00",
+        "note": null,
+        "totalAmount": 40000.00,
+        "formattedTotalAmount": "40,000đ",
+        "status": "PENDING",
+        "title": null,
+        "imageUrl": null,
+        "isVerified": true,
+        "adminComment": null,
+        "promotion": null,
+        "bookingDetails": [
+            {
+                "bookingDetailId": "189d6632-cb2a-40fc-b11e-09083fae8db5",
+                "service": {
+                    "serviceId": 8,
+                    "name": "Đi chợ hộ",
+                    "description": "Mua sắm và giao hàng tận nơi theo danh sách của bạn.",
+                    "basePrice": 40000.00,
+                    "unit": "Lần",
+                    "estimatedDurationHours": 1.0,
+                    "iconUrl": "https://res.cloudinary.com/dkzemgit8/image/upload/v1757601712/shopping_etf5iz.png",
+                    "categoryName": "Việc nhà khác",
+                    "isActive": true
+                },
+                "quantity": 1,
+                "pricePerUnit": 40000.00,
+                "formattedPricePerUnit": "40,000đ",
+                "subTotal": 40000.00,
+                "formattedSubTotal": "40,000đ",
+                "selectedChoices": [],
+                "assignments": [
+                    {
+                        "assignmentId": "dc747708-4991-431b-8b77-fc8b4050adce",
+                        "employee": {
+                            "employeeId": "e1000001-0000-0000-0000-000000000001",
+                            "fullName": "Jane Smith",
+                            "email": "jane.smith@example.com",
+                            "phoneNumber": "0912345678",
+                            "avatar": "https://picsum.photos/200",
+                            "rating": null,
+                            "employeeStatus": "AVAILABLE",
+                            "skills": [
+                                "Cleaning",
+                                "Organizing"
+                            ],
+                            "bio": "Có kinh nghiệm dọn dẹp nhà cửa và sắp xếp đồ đạc."
+                        },
+                        "status": "ASSIGNED",
+                        "checkInTime": null,
+                        "checkOutTime": null,
+                        "createdAt": null,
+                        "updatedAt": null
+                    }
+                ],
+                "duration": "1 giờ",
+                "formattedDuration": "1 giờ"
+            }
+        ],
+        "payment": {
+            "paymentId": "a9ae98a7-db7b-4bf8-8377-99e8fa36247c",
+            "amount": 40000.00,
+            "paymentMethod": "Thanh toán tiền mặt",
+            "paymentStatus": "PENDING",
+            "transactionCode": "TXN_1761922342163",
+            "createdAt": "2025-10-31 21:52:22",
+            "paidAt": null
+        },
+        "createdAt": "2025-10-31T21:52:22"
+    }
   }
   ```
 - **Status Code**: `200 OK`

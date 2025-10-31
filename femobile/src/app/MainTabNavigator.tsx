@@ -14,6 +14,7 @@ import {
   RequestsScreen,
   ProfileScreen,
 } from '../screens/main';
+import { AvailableBookingsScreen } from '../screens/main/employee';
 
 const Tab = createBottomTabNavigator();
 
@@ -69,6 +70,13 @@ export const MainTabNavigator = () => {
       title: 'Lịch làm việc',
       icon: 'calendar-outline',
       focusedIcon: 'calendar',
+    },
+    {
+      name: 'AvailableBookings',
+      component: AvailableBookingsScreen,
+      title: 'Bài đăng',
+      icon: 'document-text-outline',
+      focusedIcon: 'document-text',
     },
     {
       name: 'Requests',

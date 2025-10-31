@@ -46,26 +46,6 @@ class BookingService {
     return paymentService.getPaymentMethods();
   }
 
-  async validateBooking(
-    validationData: BookingValidationRequest,
-  ): Promise<BookingValidationResponse> {
-    const response = await httpClient.post<BookingValidationResponse>(
-      `${this.BASE_PATH}/validate`,
-      validationData,
-    );
-
-    if (!response.success && response.data) {
-      // Validation endpoints often return HTTP 200 with success=false for business errors
-      return response.data;
-    }
-
-    if (!response.success) {
-      throw new Error(response.message || 'Khong the xac thuc thong tin dat lich');
-    }
-
-    return response.data!;
-  }
-
   async createBooking(bookingData: BookingRequest): Promise<BookingResponse> {
     const response = await httpClient.post<BookingResponse>(this.BASE_PATH, bookingData);
 
@@ -122,9 +102,9 @@ class BookingService {
   }
 
   async cancelBooking(bookingId: string, reason?: string): Promise<boolean> {
-    const response = await httpClient.patch<{ success: boolean }>(
+    const response = await httpClient.put<{ success: boolean }>(
       `${this.BASE_PATH}/${bookingId}/cancel`,
-      reason ? { reason } : undefined,
+      reason ? { reason } : {},
     );
 
     if (!response.success) {
@@ -132,6 +112,22 @@ class BookingService {
     }
 
     return response.data?.success ?? response.success;
+  }
+
+  async convertToPost(
+    bookingId: string,
+    data: { title: string; imageUrl?: string },
+  ): Promise<BookingResponse> {
+    const response = await httpClient.put<BookingResponse>(
+      `${this.BASE_PATH}/${bookingId}/convert-to-post`,
+      data,
+    );
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Khong the chuyen thanh bai post');
+    }
+
+    return response.data;
   }
 
   async updateBooking(
@@ -145,6 +141,47 @@ class BookingService {
 
     if (!response.success || !response.data) {
       throw new Error(response.message || 'Khong the cap nhat don dat');
+    }
+
+    return response.data;
+  }
+
+  async uploadImage(
+    bookingId: string,
+    imageFile: File | Blob,
+  ): Promise<{ bookingId: string; imageUrl: string; publicId: string }> {
+    const formData = new FormData();
+    formData.append('file', imageFile as any);
+
+    const response = await httpClient.postFormData<{
+      bookingId: string;
+      imageUrl: string;
+      publicId: string;
+    }>(`${this.BASE_PATH}/${bookingId}/upload-image`, formData);
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Khong the tai anh len');
+    }
+
+    return response.data;
+  }
+
+  async getVerifiedAwaitingBookings(params?: {
+    page?: number;
+    size?: number;
+  }): Promise<{ data: BookingResponse[] }> {
+    const query = new URLSearchParams();
+    if (typeof params?.page === 'number') query.append('page', params.page.toString());
+    if (typeof params?.size === 'number') query.append('size', params.size.toString());
+
+    const endpoint = `/employee/bookings/verified-awaiting-employee${
+      query.toString() ? `?${query.toString()}` : ''
+    }`;
+
+    const response = await httpClient.get<{ data: BookingResponse[] }>(endpoint);
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Khong the tai danh sach bai dang');
     }
 
     return response.data;

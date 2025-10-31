@@ -304,6 +304,45 @@ class HttpClient {
       };
     }
   }
+
+  async postFormData<T = any>(
+    url: string,
+    formData: FormData,
+    config?: AxiosRequestConfig,
+  ): Promise<ApiResponse<T>> {
+    try {
+      const response: AxiosResponse<RawApiResponse<T>> = await this.instance.post(
+        url,
+        formData,
+        {
+          ...config,
+          headers: {
+            ...config?.headers,
+            'Content-Type': 'multipart/form-data',
+          },
+        },
+      );
+      return this.normalizeSuccess<T>(response.data);
+    } catch (error: any) {
+      if (__DEV__) {
+        console.warn('[httpClient] POST FormData error', {
+          url,
+          status: error.response?.status || 'No status',
+          data: error.response?.data || 'No data',
+          message: error.message || 'No message'
+        });
+      }
+
+      if (error.response?.data) {
+        return this.normalizeError<T>(error.response.data, this.buildFallbackMessage(error));
+      }
+
+      return {
+        success: false,
+        message: this.buildFallbackMessage(error),
+      };
+    }
+  }
 }
 
 export const httpClient = new HttpClient();

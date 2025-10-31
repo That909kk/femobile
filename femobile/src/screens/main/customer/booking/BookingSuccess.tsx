@@ -8,6 +8,7 @@ import {
   Share,
   Animated,
   Alert,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../../styles';
@@ -128,6 +129,18 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
           />
           <View style={styles.divider} />
           
+          {/* Hiển thị Title nếu có (booking post) */}
+          {bookingData.title && (
+            <>
+              <InfoRow
+                icon="create-outline"
+                label="Tiêu đề"
+                value={bookingData.title}
+              />
+              <View style={styles.divider} />
+            </>
+          )}
+          
           <InfoRow
             icon="calendar-outline"
             label="Thời gian"
@@ -138,7 +151,7 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
           <InfoRow
             icon="location-outline"
             label="Địa chỉ"
-            value={bookingData.customerInfo.fullAddress}
+            value={bookingData.customerInfo?.fullAddress || bookingData.address?.fullAddress || 'Không có địa chỉ'}
           />
           <View style={styles.divider} />
           
@@ -150,12 +163,28 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
           />
         </Animated.View>
 
+        {/* Hiển thị hình ảnh nếu có (booking post) */}
+        {bookingData.imageUrl && (
+          <Animated.View style={{ opacity: fadeAnim, width: '100%', marginTop: responsiveSpacing.md }}>
+            <View style={styles.imageCard}>
+              <Text style={styles.imageCardTitle}>Hình ảnh đính kèm</Text>
+              <Image 
+                source={{ uri: bookingData.imageUrl }} 
+                style={styles.bookingImage}
+                resizeMode="cover"
+              />
+            </View>
+          </Animated.View>
+        )}
+
         {/* Additional Info */}
         <Animated.View style={{ opacity: fadeAnim, width: '100%', marginTop: responsiveSpacing.lg }}>
           <View style={styles.infoBox}>
             <Ionicons name="information-circle-outline" size={20} color={colors.highlight.teal} />
             <Text style={styles.infoBoxText}>
-              Chúng tôi sẽ liên hệ với bạn để xác nhận chi tiết dịch vụ trước khi thực hiện.
+              {bookingData.title 
+                ? 'Bài đăng của bạn cần được admin phê duyệt trước khi hiển thị cho nhân viên. Chúng tôi sẽ liên hệ với bạn sau khi bài đăng được phê duyệt.' 
+                : 'Chúng tôi sẽ liên hệ với bạn để xác nhận chi tiết dịch vụ trước khi thực hiện.'}
             </Text>
           </View>
         </Animated.View>
@@ -352,5 +381,27 @@ const styles = StyleSheet.create({
     fontSize: responsiveFontSize.body,
     fontWeight: '600',
     marginLeft: 6,
+  },
+  imageCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 16,
+    padding: responsiveSpacing.lg,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  imageCardTitle: {
+    fontSize: responsiveFontSize.body,
+    fontWeight: '600',
+    color: colors.primary.navy,
+    marginBottom: responsiveSpacing.md,
+  },
+  bookingImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: colors.neutral.border,
   },
 });

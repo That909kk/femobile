@@ -30,3 +30,9 @@ Xây dựng hệ thống đa nền tảng (Web, Mobile) phục vụ:
 - Đảm bảo clean code, dễ đọc, chia nhỏ đúng cách để dễ dàng bảo trì
 - Đảm bảo không có bất kỳ lỗi syntax 
 - Đảm bảo không có bất kỳ lỗi nào trước khi chạy thử để test
+## Thông tin quyền tác giả hiển thị
+- Lê Minh Thật (That909kk)
+- mthat456@gmail.com
+- 0825371577
+- Zalo: 0342287853 (Minh That)
+- Tên ứng dụng: Home Mate

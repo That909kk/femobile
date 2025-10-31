@@ -308,7 +308,7 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
         <View style={[commonStyles.section, { margin: 20, marginTop: 0, paddingTop: 0 }]}>
           <Text style={commonStyles.sectionTitle}>Nhân viên được đề xuất</Text>
           <Text style={commonStyles.sectionSubtitle}>
-            Bạn có thể chọn nhân viên cụ thể hoặc bỏ qua để hệ thống tự động phân công
+            Chọn nhân viên để đặt lịch trực tiếp, hoặc bỏ qua để tạo bài đăng tìm nhân viên
           </Text>
 
           {loading ? (
@@ -329,7 +329,7 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
               <Ionicons name="people-outline" size={48} color="#8E8E93" />
               <Text style={[commonStyles.loadingText, { marginTop: 16 }]}>Không tìm thấy nhân viên phù hợp</Text>
               <Text style={[commonStyles.cardDescription, { textAlign: 'center', marginTop: 8 }]}>
-                Đừng lo lắng, hệ thống sẽ tự động phân công nhân viên tốt nhất cho bạn
+                Đừng lo lắng, bạn có thể tạo bài đăng và hệ thống sẽ tìm nhân viên phù hợp cho bạn
               </Text>
             </View>
           ) : (
@@ -347,7 +347,7 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
           style={[commonStyles.primaryButton, commonStyles.flexRow, { justifyContent: 'center' }]}
         >
           <Text style={commonStyles.primaryButtonText}>
-            {selectedEmployeeId ? "Tiếp tục với nhân viên đã chọn" : "Tiếp tục - Hệ thống tự phân công"}
+            {selectedEmployeeId ? "Tiếp tục với nhân viên đã chọn" : "Tạo bài đăng tìm nhân viên"}
           </Text>
           <Ionicons
             name="arrow-forward"
