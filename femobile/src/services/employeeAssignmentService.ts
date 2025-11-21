@@ -199,10 +199,28 @@ class EmployeeAssignmentService {
     return response.data;
   }
 
-  async checkIn(assignmentId: string, employeeId: string): Promise<CheckInResponse> {
+  async checkIn(
+    assignmentId: string,
+    employeeId: string,
+    imageFile?: File | Blob,
+    imageDescription?: string,
+  ): Promise<CheckInResponse> {
+    const formData = new FormData();
+    const requestData = { employeeId, imageDescription };
+    formData.append('request', JSON.stringify(requestData));
+    
+    if (imageFile) {
+      formData.append('image', imageFile as any);
+    }
+
     const response = await httpClient.post<CheckInResponse>(
       `${this.BASE_PATH}/assignments/${assignmentId}/check-in`,
-      { employeeId },
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      },
     );
 
     if (!response.success || !response.data) {
@@ -212,10 +230,28 @@ class EmployeeAssignmentService {
     return response.data;
   }
 
-  async checkOut(assignmentId: string, employeeId: string): Promise<CheckOutResponse> {
+  async checkOut(
+    assignmentId: string,
+    employeeId: string,
+    imageFile?: File | Blob,
+    imageDescription?: string,
+  ): Promise<CheckOutResponse> {
+    const formData = new FormData();
+    const requestData = { employeeId, imageDescription };
+    formData.append('request', JSON.stringify(requestData));
+    
+    if (imageFile) {
+      formData.append('image', imageFile as any);
+    }
+
     const response = await httpClient.post<CheckOutResponse>(
       `${this.BASE_PATH}/assignments/${assignmentId}/check-out`,
-      { employeeId },
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      },
     );
 
     if (!response.success || !response.data) {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Alert, BackHandler } from 'react-native';
+import { View, Alert, BackHandler, Linking } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { ServiceSelection } from './ServiceSelection';
 import { LocationSelection } from './LocationSelection';
 import { TimeSelection } from './TimeSelection';
@@ -10,6 +11,7 @@ import { ProgressIndicator } from './ProgressIndicator';
 import { type LocationData, type SelectedOption, BookingStep } from './types';
 import {
   bookingService,
+  paymentService,
   type Service,
   type PaymentMethod,
   type Employee
@@ -42,10 +44,14 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
   const [selectedOptions, setSelectedOptions] = useState<SelectedOption[]>([]);
   const [selectedQuantity, setSelectedQuantity] = useState<number>(1);
   const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [selectedTime, setSelectedTime] = useState<string>('');
+  const [bookingMode, setBookingMode] = useState<'single' | 'multiple' | 'recurring'>('single');
+  const [recurringConfig, setRecurringConfig] = useState<any>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [isCreatingPost, setIsCreatingPost] = useState<boolean>(false);
+  const [postData, setPostData] = useState<any>(null);
   const [totalPrice, setTotalPrice] = useState<number>(0);
   const [bookingResult, setBookingResult] = useState<BookingResponse | null>(null);
   const [preloadedDefaultAddress, setPreloadedDefaultAddress] = useState<LocationData | null>(null);
@@ -64,10 +70,14 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
     setSelectedService(null);
     setSelectedOptions([]);
     setSelectedQuantity(1);
-    setSelectedDate('');
+    setSelectedDates([]);
     setSelectedTime('');
+    setBookingMode('single');
+    setRecurringConfig(null);
     setSelectedEmployeeId(null);
     setSelectedEmployee(null);
+    setIsCreatingPost(false);
+    setPostData(null);
     setTotalPrice(0);
     setBookingResult(null);
     setBookingNote('');
@@ -147,6 +157,69 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
     return () => backHandler.remove();
   }, [currentStep]);
 
+  // Handle VNPay deep link redirect
+  useEffect(() => {
+    const handleDeepLink = async (event: { url: string }) => {
+      const url = event.url;
+      console.log('🔗 Deep link received:', url);
+
+      // Check if this is VNPay result callback
+      if (url.includes('housekeeping://payment/vnpay-result')) {
+        // Dismiss any open browser
+        await WebBrowser.dismissBrowser();
+        
+        try {
+          // Parse URL params
+          const urlObj = new URL(url.replace('housekeeping://', 'https://'));
+          const params = new URLSearchParams(urlObj.search);
+          
+          const status = params.get('status');
+          const responseCode = params.get('responseCode');
+          const transactionNo = params.get('transactionNo');
+          const amount = params.get('amount');
+          
+          console.log('💳 VNPay payment result:', { status, responseCode, transactionNo, amount });
+          
+          if (status === 'success' && responseCode === '00') {
+            // Payment successful - navigate to success screen
+            setCurrentStep(BookingStep.SUCCESS);
+            Alert.alert(
+              'Thanh toán thành công',
+              `Mã giao dịch: ${transactionNo}\nSố tiền: ${amount ? Number(amount).toLocaleString() : 'N/A'} VND`,
+              [{ text: 'OK' }]
+            );
+          } else {
+            // Payment failed
+            Alert.alert(
+              'Thanh toán thất bại',
+              'Vui lòng thử lại hoặc chọn phương thức thanh toán khác',
+              [
+                { text: 'Thử lại', onPress: () => setCurrentStep(BookingStep.CONFIRMATION) },
+                { text: 'Đóng' }
+              ]
+            );
+          }
+        } catch (error) {
+          console.error('❌ Error parsing VNPay deep link:', error);
+        }
+      }
+    };
+
+    // Listen for deep links when app is running
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    // Check if app was opened via deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink({ url });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   const goToNextStep = () => {
     if (currentStep < BookingStep.SUCCESS) {
       setCurrentStep(currentStep + 1);
@@ -210,62 +283,120 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
     goToNextStep();
   };
 
-  const handleBookingConfirmation = async (bookingData: BookingRequest) => {
+  const handleBookingConfirmation = async (
+    bookingData: BookingRequest, 
+    images?: Array<{ uri: string; name: string; type: string }>
+  ) => {
     setLoading(true);
     try {
       console.log('🚀 Sending validated booking request:', bookingData);
+      if (images) {
+        console.log('📎 With images:', images.length);
+      }
       
-      const response = await bookingService.createBooking(bookingData);
+      let response: any;
+      
+      // Route to correct API based on booking mode
+      if (bookingMode === 'recurring') {
+        const customerId = userInfo?.id || (authUser as any)?.customerId || (authUser as any)?.id;
+        if (!customerId) {
+          throw new Error('Không tìm thấy thông tin khách hàng');
+        }
+        console.log('📅 Creating recurring booking for customer:', customerId);
+        const recurringResponse: any = await bookingService.createRecurringBooking(customerId, bookingData);
+        console.log('📅 Recurring response:', recurringResponse);
+        
+        // Transform recurring response to match single booking format for success screen
+        // Recurring API returns: { recurringBooking, generatedBookingIds, totalBookingsToBeCreated }
+        const recurringBooking = recurringResponse.recurringBooking || recurringResponse;
+        response = {
+          bookingId: recurringBooking.recurringBookingId,
+          customerId: recurringBooking.customerId,
+          customerName: recurringBooking.customerName,
+          address: recurringBooking.address,
+          bookingDetails: recurringBooking.recurringBookingDetails || [],
+          totalPrice: recurringBooking.recurringBookingDetails?.reduce(
+            (sum: number, detail: any) => sum + (detail.subTotal || 0), 0
+          ) || 0,
+          status: recurringBooking.status,
+          statusDisplay: recurringBooking.statusDisplay,
+          createdAt: recurringBooking.createdAt,
+          // Add recurring-specific info
+          isRecurring: true,
+          recurringInfo: {
+            recurrenceType: recurringBooking.recurrenceType,
+            recurrenceTypeDisplay: recurringBooking.recurrenceTypeDisplay,
+            recurrenceDays: recurringBooking.recurrenceDays,
+            recurrenceDaysDisplay: recurringBooking.recurrenceDaysDisplay,
+            startDate: recurringBooking.startDate,
+            endDate: recurringBooking.endDate,
+            totalGeneratedBookings: recurringResponse.totalGeneratedBookings,
+            generatedBookingIds: recurringResponse.generatedBookingIds,
+          }
+        };
+      } else if (bookingMode === 'multiple') {
+        console.log('📅 Creating multiple bookings for dates:', selectedDates.length);
+        const multipleResponse: any = await bookingService.createMultipleBookings(bookingData, images);
+        console.log('📅 Multiple response:', multipleResponse);
+        
+        // Transform multiple response to match single booking format for success screen
+        // Multiple API returns: { totalBookingsCreated, successfulBookings, failedBookings, bookings[], errors[] }
+        const firstBooking = multipleResponse.bookings?.[0] || {};
+        response = {
+          bookingId: firstBooking.bookingId,
+          customerId: firstBooking.customerId,
+          customerName: firstBooking.customerName,
+          address: firstBooking.address,
+          bookingDetails: firstBooking.bookingDetails || [],
+          totalPrice: multipleResponse.bookings?.reduce(
+            (sum: number, booking: any) => sum + (booking.totalPrice || 0), 0
+          ) || 0,
+          status: firstBooking.status,
+          statusDisplay: firstBooking.statusDisplay,
+          bookingTime: firstBooking.bookingTime,
+          createdAt: firstBooking.createdAt,
+          // Add multiple-specific info
+          isMultiple: true,
+          multipleInfo: {
+            totalBookingsCreated: multipleResponse.totalBookingsCreated,
+            successfulBookings: multipleResponse.successfulBookings,
+            failedBookings: multipleResponse.failedBookings,
+            bookings: multipleResponse.bookings,
+            errors: multipleResponse.errors,
+          }
+        };
+      } else {
+        response = await bookingService.createBooking(bookingData, images);
+      }
+      
       console.log('🚀 Booking created successfully:', response);
       
-      // Set booking result and navigate to success screen
+      // Set booking result
       setBookingResult(response);
       
       // Clear serviceId from route params immediately after successful booking
-      // This ensures if user navigates via bottom tab, no service will be pre-selected
       if (navigation) {
         navigation.setParams({ serviceId: undefined });
       }
+
+      // TODO: VNPay integration - temporarily disabled
+      // Will implement proper deep linking flow later
+      /*
+      const selectedMethod = availablePaymentMethods.find(m => m.methodId === selectedPaymentMethodId);
       
-      goToNextStep(); // Navigate to SUCCESS step which shows BookingSuccess component
+      if (selectedMethod?.methodCode === 'VNPAY') {
+        console.log('💳 Processing VNPay payment for booking:', response.bookingId);
+        // ... VNPay payment flow ...
+      }
+      */
+      
+      // For all payment methods, go directly to success screen
+      goToNextStep();
       
     } catch (error: any) {
       console.error('❌ Booking creation error:', error);
-      
-      let errorMessage = 'Có lỗi xảy ra khi tạo đặt lịch. Vui lòng thử lại.';
-      let errorTitle = 'Lỗi đặt lịch';
-      
-      // Handle specific API errors
-      if (error.response?.data) {
-        const errorData = error.response.data;
-        
-        // Check for specific error codes
-        if (errorData.errorCode === 'BOOKING_CREATION_FAILED') {
-          errorTitle = 'Không thể tạo đặt lịch';
-          
-          // Check if it's a rule/option validation error
-          if (errorData.message && errorData.message.includes('RuleCondition')) {
-            errorMessage = 'Có lỗi với các tùy chọn dịch vụ đã chọn. Vui lòng:\n\n' +
-                          '1. Kiểm tra lại các tùy chọn dịch vụ\n' +
-                          '2. Thử chọn lại dịch vụ từ đầu\n' +
-                          '3. Liên hệ hỗ trợ nếu vấn đề vẫn tiếp diễn';
-          } else {
-            // Generic BOOKING_CREATION_FAILED error
-            errorMessage = 'Hệ thống không thể xử lý yêu cầu đặt lịch của bạn.\n\n' +
-                          'Vui lòng thử lại hoặc liên hệ hỗ trợ khách hàng.';
-          }
-        } else if (errorData.message) {
-          errorMessage = errorData.message;
-        } else if (errorData.validationErrors && Array.isArray(errorData.validationErrors) && errorData.validationErrors.length > 0) {
-          errorMessage = errorData.validationErrors.join('\n');
-        } else if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
-          errorMessage = errorData.errors.join('\n');
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      Alert.alert(errorTitle, errorMessage);
+      // Re-throw error to be handled by BookingConfirmation
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -278,10 +409,14 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
     setSelectedOptions([]);
     setSelectedQuantity(1);
     setSelectedLocation(null);
-    setSelectedDate('');
+    setSelectedDates([]);
     setSelectedTime('');
+    setBookingMode('single');
+    setRecurringConfig(null);
     setSelectedEmployeeId(null);
     setSelectedEmployee(null);
+    setIsCreatingPost(false);
+    setPostData(null);
     setTotalPrice(0);
     setBookingResult(null);
     setBookingNote('');
@@ -303,10 +438,14 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
     setSelectedOptions([]);
     setSelectedQuantity(1);
     setSelectedLocation(preloadedDefaultAddress); // Keep default address
-    setSelectedDate('');
+    setSelectedDates([]);
     setSelectedTime('');
+    setBookingMode('single');
+    setRecurringConfig(null);
     setSelectedEmployeeId(null);
     setSelectedEmployee(null);
+    setIsCreatingPost(false);
+    setPostData(null);
     setTotalPrice(0);
     setBookingResult(null);
     setBookingNote('');
@@ -327,10 +466,14 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
     setSelectedOptions([]);
     setSelectedQuantity(1);
     setSelectedLocation(null);
-    setSelectedDate('');
+    setSelectedDates([]);
     setSelectedTime('');
+    setBookingMode('single');
+    setRecurringConfig(null);
     setSelectedEmployeeId(null);
     setSelectedEmployee(null);
+    setIsCreatingPost(false);
+    setPostData(null);
     setTotalPrice(0);
     setBookingResult(null);
     setBookingNote('');
@@ -373,13 +516,15 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
           <TimeSelection
             selectedService={selectedService}
             selectedLocation={selectedLocation}
-            selectedDate={selectedDate}
+            selectedDates={selectedDates}
             selectedTime={selectedTime}
-            selectedEmployeeId={selectedEmployeeId}
+            bookingMode={bookingMode}
+            recurringConfig={recurringConfig}
             totalPrice={totalPrice}
-            onDateSelect={setSelectedDate}
+            onDatesSelect={setSelectedDates}
             onTimeSelect={setSelectedTime}
-            onEmployeeSelect={setSelectedEmployeeId}
+            onBookingModeChange={setBookingMode}
+            onRecurringConfigChange={setRecurringConfig}
             onNext={handleTimeSelection}
             onBack={goToPreviousStep}
           />
@@ -390,10 +535,15 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
           <EmployeeSelection
             selectedService={selectedService}
             selectedLocation={selectedLocation}
-            selectedDate={selectedDate}
+            selectedDates={selectedDates}
             selectedTime={selectedTime}
+            bookingMode={bookingMode}
             selectedEmployeeId={selectedEmployeeId}
+            isCreatingPost={isCreatingPost}
+            postData={postData}
             onEmployeeSelect={handleEmployeeSelect}
+            onPostDataChange={setPostData}
+            onCreatePostToggle={setIsCreatingPost}
             onNext={handleEmployeeSelection}
             onBack={goToPreviousStep}
           />
@@ -405,10 +555,14 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
             selectedService={selectedService}
             selectedOptions={selectedOptions}
             selectedLocation={selectedLocation}
-            selectedDate={selectedDate}
+            selectedDates={selectedDates}
             selectedTime={selectedTime}
+            bookingMode={bookingMode}
+            recurringConfig={recurringConfig}
             selectedEmployeeId={selectedEmployeeId}
             selectedEmployee={selectedEmployee}
+            isCreatingPost={isCreatingPost}
+            postData={postData}
             totalPrice={totalPrice}
             quantity={selectedQuantity}
             availablePaymentMethods={availablePaymentMethods}
@@ -431,6 +585,7 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
             onViewBookings={handleViewBookings}
             onBookMore={handleBookMore}
             onGoHome={handleGoHome}
+            navigation={navigation}
           />
         ) : null;
 

@@ -12,6 +12,12 @@ export { addressService } from './addressService';
 export { reviewService } from './reviewService';
 export { notificationService } from './notificationService';
 export { uploadService } from './uploadService';
+export { chatService } from './chatService';
+export { bookingMediaService } from './bookingMediaService';
+export { customerService } from './customerService';
+export { employeeService } from './employeeService';
+export { websocketService } from './websocketService';
+export { recurringBookingService } from './recurringBookingService';
 
 export type { UserInfo, CustomerData, EmployeeData, UpdateCustomerRequest, UpdateEmployeeRequest } from './userInfoService';
 
@@ -103,3 +109,10 @@ export type {
   UnreadCountResponse,
   NotificationResponse,
 } from './notificationService';
+
+export type {
+  RecurringBookingResponse,
+  RecurringBookingListPayload,
+  RecurringBookingRequest,
+  CancelRecurringBookingRequest,
+} from '../types/recurringBooking';

@@ -25,22 +25,33 @@ const TEAL_COLOR = '#1bb5a6';
 const getNotificationIcon = (type: NotificationType): keyof typeof Ionicons.glyphMap => {
   switch (type) {
     case 'BOOKING_CREATED':
+      return 'calendar-outline';
     case 'BOOKING_CONFIRMED':
+    case 'BOOKING_VERIFIED':
       return 'checkmark-circle-outline';
     case 'BOOKING_CANCELLED':
+    case 'BOOKING_REJECTED':
       return 'close-circle-outline';
     case 'BOOKING_COMPLETED':
       return 'checkmark-done-circle-outline';
+    case 'ASSIGNMENT_CREATED':
     case 'ASSIGNMENT_ASSIGNED':
       return 'person-add-outline';
     case 'ASSIGNMENT_COMPLETED':
       return 'checkmark-done-outline';
+    case 'ASSIGNMENT_CANCELLED':
+      return 'close-outline';
     case 'ASSIGNMENT_CRISIS':
       return 'warning-outline';
     case 'PAYMENT_SUCCESS':
       return 'card-outline';
     case 'PAYMENT_FAILED':
-      return 'card-outline';
+      return 'alert-circle-outline';
+    case 'REVIEW_RECEIVED':
+      return 'star-outline';
+    case 'PROMOTION_AVAILABLE':
+      return 'pricetag-outline';
+    case 'SYSTEM_ANNOUNCEMENT':
     case 'SYSTEM':
       return 'notifications-outline';
     default:
@@ -96,14 +107,14 @@ export const NotificationsScreen: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async (isRefreshing = false) => {
     if (!user) {
       setLoading(false);
       return;
     }
 
     try {
-      if (!refreshing) {
+      if (!isRefreshing) {
         setLoading(true);
       }
 
@@ -115,6 +126,7 @@ export const NotificationsScreen: React.FC = () => {
         unreadOnly: filter === 'unread',
       });
 
+      // Response trả về trực tiếp là { success, data, currentPage, totalItems, totalPages }
       setNotifications(response.data || []);
 
       const count = await notificationService.getUnreadCount();
@@ -126,9 +138,11 @@ export const NotificationsScreen: React.FC = () => {
       setUnreadCount(0);
     } finally {
       setLoading(false);
-      setRefreshing(false);
+      if (isRefreshing) {
+        setRefreshing(false);
+      }
     }
-  }, [user, ensureValidToken, filter, refreshing]);
+  }, [user, ensureValidToken, filter]);
 
   useEffect(() => {
     fetchNotifications();
@@ -136,13 +150,14 @@ export const NotificationsScreen: React.FC = () => {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchNotifications();
+    fetchNotifications(true);
   }, [fetchNotifications]);
 
   const handleMarkAsRead = async (notificationId: string) => {
     try {
       await ensureValidToken.ensureValidToken();
       await notificationService.markAsRead(notificationId);
+      // Cập nhật lại danh sách
       fetchNotifications();
     } catch (error: any) {
       console.error('Mark as read error:', error);
@@ -154,6 +169,7 @@ export const NotificationsScreen: React.FC = () => {
       await ensureValidToken.ensureValidToken();
       await notificationService.markAllAsRead();
       Alert.alert('Thành công', 'Đã đánh dấu tất cả thông báo là đã đọc');
+      // Cập nhật lại danh sách
       fetchNotifications();
     } catch (error: any) {
       console.error('Mark all as read error:', error);
@@ -171,6 +187,7 @@ export const NotificationsScreen: React.FC = () => {
           try {
             await ensureValidToken.ensureValidToken();
             await notificationService.deleteNotification(notificationId);
+            // Cập nhật lại danh sách
             fetchNotifications();
           } catch (error: any) {
             console.error('Delete notification error:', error);

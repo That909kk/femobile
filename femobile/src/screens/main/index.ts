@@ -4,6 +4,9 @@ export { BookingScreen } from './customer/BookingScreen';
 export { OrdersScreen } from './customer/OrdersScreen';
 export { OrderDetailScreen } from './customer/OrderDetailScreen';
 export { NotificationsScreen as CustomerNotificationsScreen } from './customer/NotificationsScreen';
+export { default as RecurringBookingsScreen } from './customer/recurring/RecurringBookingsScreen';
+export { default as RecurringBookingDetailScreen } from './customer/recurring/RecurringBookingDetailScreen';
+export { ConversationListScreen } from './customer/ConversationListScreen';
 
 // Employee screens  
 export { EmployeeDashboard } from './employee/EmployeeHomeScreen';

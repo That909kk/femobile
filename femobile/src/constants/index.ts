@@ -4,6 +4,7 @@ import { Platform, Dimensions } from 'react-native';
 // API Configuration
 export const API_CONFIG = {
   BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080/api/v1',
+  WEBSOCKET_URL: process.env.EXPO_PUBLIC_WEBSOCKET_URL || 'http://localhost:8080/ws',
   TIMEOUT: 20000, // Increased from 10s to 20s to reduce timeout errors
 };
 
@@ -18,6 +19,7 @@ export const STORAGE_KEYS = {
   USER_ROLE: 'userRole',
   LANGUAGE: 'language',
   REMEMBER_ME: 'rememberMe',
+  ONBOARDING_COMPLETED: 'onboardingCompleted',
 };
 
 // Colors - Vibrant, energetic cleaning service palette

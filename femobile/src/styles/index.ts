@@ -9,6 +9,7 @@ export const colors = {
   },
   highlight: {
     teal: '#1BB5A6',
+    purple: '#8B5CF6',
   },
   warm: {
     beige: '#F4EDE1',

@@ -114,18 +114,11 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
       if (activeRoles.includes('ADMIN')) {
         Alert.alert(
           staticData?.messages?.alert_info || 'Thông báo',
-          staticData?.messages?.admin_not_supported || 'Ứng dụng di động không hỗ trợ vai trò ADMIN. Vui lòng sử dụng trang web.',
+          staticData?.messages?.admin_not_supported || 'Ứng dụng không hỗ trợ cho vai trò ADMIN. Vui lòng đăng nhập tại homemate.io.vn',
           [
             {
-              text: staticData?.messages?.back || 'Quay lại',
-              onPress: () => {
-                // Clear form data
-                setFormData({
-                  username: '',
-                  password: '',
-                });
-                setErrors({});
-              }
+              text: staticData?.messages?.alert_ok || 'Đồng ý',
+              style: 'default'
             }
           ]
         );

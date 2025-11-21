@@ -1,5 +1,5 @@
 // Enums for better type safety
-export type UserRole = 'CUSTOMER' | 'EMPLOYEE' | 'ADMIN';
+export type UserRole = 'CUSTOMER' | 'EMPLOYEE';
 export type DeviceType = 'WEB' | 'MOBILE';
 export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
 export type RoleStatus = 'ACTIVE' | 'INACTIVE';
@@ -34,7 +34,7 @@ export interface LoginResponse {
     expireIn: number;
     role: UserRole;
     deviceType: DeviceType;
-    data: CustomerData | EmployeeData | AdminData;
+    data: CustomerData | EmployeeData;
   };
 }
 
@@ -61,6 +61,7 @@ export interface RegisterResponse {
 // User data interfaces for different roles
 export interface CustomerData {
   customerId: string;
+  accountId: string;
   username: string;
   avatar?: string;
   fullName: string;
@@ -69,10 +70,14 @@ export interface CustomerData {
   isMale: boolean;
   status: UserStatus;
   address: string;
+  rating?: 'HIGH' | 'MEDIUM' | 'LOW';
+  vipLevel?: number;
+  birthdate?: string;
 }
 
 export interface EmployeeData {
   employeeId: string;
+  accountId: string;
   username: string;
   avatar?: string;
   fullName: string;
@@ -81,19 +86,12 @@ export interface EmployeeData {
   isMale: boolean;
   status: UserStatus;
   address: string;
-}
-
-export interface AdminData {
-  adminId: string;
-  username: string;
-  fullName: string;
-  email: string;
-  phoneNumber: string;
-  isMale: boolean;
-  address: string;
-  department: string;
-  contactInfo: string;
-  hireDate: string;
+  rating?: 'HIGH' | 'MEDIUM' | 'LOW';
+  hireDate?: string;
+  birthdate?: string;
+  skills?: string[];
+  bio?: string;
+  employeeStatus?: string;
 }
 
 // Password related interfaces
@@ -143,7 +141,7 @@ export interface RefreshTokenResponse {
 export interface SessionResponse {
   success: boolean;
   message: string;
-  data: CustomerData | EmployeeData | AdminData;
+  data: CustomerData | EmployeeData;
 }
 
 // Generic API response wrapper
@@ -158,7 +156,7 @@ export interface ApiResponse<T = any> {
 // Auth store interface
 export interface AuthState {
   isAuthenticated: boolean;
-  user: CustomerData | EmployeeData | AdminData | null;
+  user: CustomerData | EmployeeData | null;
   role: UserRole | null;
   accessToken: string | null;
   refreshToken: string | null;
@@ -185,6 +183,8 @@ export type RootStackParamList = {
   EmployeeDashboard: undefined;
   MainTabs: undefined;
   OrderDetail: { bookingId: string };
+  RecurringBookings: undefined;
+  RecurringBookingDetail: { recurringBookingId: string };
   NotificationList: undefined;
   EditProfile: undefined;
   ChangePassword: undefined;
@@ -193,7 +193,10 @@ export type RootStackParamList = {
 export type MainStackParamList = {
   MainTabs: undefined;
   OrderDetail: { bookingId: string };
+  RecurringBookings: undefined;
+  RecurringBookingDetail: { recurringBookingId: string };
   NotificationList: undefined;
   EditProfile: undefined;
   ChangePassword: undefined;
+  ChatScreen: { conversationId: string; recipientName: string };
 };

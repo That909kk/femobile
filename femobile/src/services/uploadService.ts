@@ -32,7 +32,7 @@ class UploadService {
 
       // Upload to backend
       const response = await httpClient.post<UploadImageResponse>(
-        '/api/upload/booking-image',
+        '/upload/booking-image',
         formData,
         {
           headers: {
@@ -71,7 +71,7 @@ class UploadService {
       } as any);
 
       const response = await httpClient.post<UploadImageResponse>(
-        '/api/upload/image',
+        '/upload/image',
         formData,
         {
           headers: {

@@ -124,7 +124,7 @@ export const OrdersScreen = () => {
           rating: (booking as any).rating,
           notes: (booking as any).note,
           estimatedCompletion: booking.estimatedDuration || primaryService?.formattedDuration,
-          cancelReason: (booking as any).cancelReason || (booking as any).adminComment,
+          cancelReason: (booking as any).cancelReason,
           paymentStatus: paymentInfo?.paymentStatus,
           paymentMethod: typeof paymentInfo?.paymentMethod === 'string' 
             ? paymentInfo.paymentMethod 
@@ -466,6 +466,25 @@ export const OrdersScreen = () => {
     </View>
   );
 
+  const renderRecurringBanner = () => (
+    <TouchableOpacity
+      style={styles.recurringBanner}
+      activeOpacity={0.85}
+      onPress={() => navigation.navigate('RecurringBookings')}
+    >
+      <View style={styles.recurringIcon}>
+        <Ionicons name="repeat" size={responsive.moderateScale(20)} color={colors.neutral.white} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.recurringTitle}>Lịch định kỳ</Text>
+        <Text style={styles.recurringSubtitle} numberOfLines={2}>
+          Tự động hoá dịch vụ vệ sinh và theo dõi các lịch lặp lại của bạn.
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={responsive.moderateScale(20)} color={colors.primary.navy} />
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -480,6 +499,8 @@ export const OrdersScreen = () => {
           <Ionicons name="search-outline" size={responsive.moderateScale(22)} color={colors.primary.navy} />
         </TouchableOpacity>
       </View>
+
+      {renderRecurringBanner()}
 
       {/* Filter Tabs */}
       <View style={styles.filterSection}>
@@ -568,7 +589,7 @@ export const OrdersScreen = () => {
             {selectedFilter === 'all' && (
               <TouchableOpacity
                 style={styles.bookServiceButton}
-                onPress={() => {/* Navigate to booking */}}
+                onPress={() => navigation.navigate('Booking')}
                 activeOpacity={0.8}
               >
                 <Ionicons name="add-circle" size={responsive.moderateScale(20)} color={colors.neutral.white} />
@@ -639,6 +660,40 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 2,
+  },
+  recurringBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    marginHorizontal: responsiveSpacing.lg,
+    marginTop: -responsiveSpacing.xl,
+    marginBottom: responsiveSpacing.md,
+    padding: responsiveSpacing.md,
+    borderRadius: responsive.moderateScale(18),
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+    gap: responsiveSpacing.md,
+  },
+  recurringIcon: {
+    width: responsive.moderateScale(48),
+    height: responsive.moderateScale(48),
+    borderRadius: responsive.moderateScale(24),
+    backgroundColor: colors.highlight.teal,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recurringTitle: {
+    fontSize: responsiveFontSize.heading3,
+    fontWeight: '700',
+    color: colors.primary.navy,
+  },
+  recurringSubtitle: {
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textSecondary,
+    marginTop: 2,
   },
 
   // Filter Section - New Design

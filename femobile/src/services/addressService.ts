@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-const ADDRESS_API_BASE = process.env.EXPO_ADDRESS_KIT_API || 'https://production.cas.so/address-kit/2025-07-01';
+import { httpClient } from './httpClient';
 
 export interface Province {
   code: string;
@@ -20,41 +18,55 @@ export interface Commune {
   decree: string;
 }
 
-export interface ProvincesResponse {
-  requestId: string;
-  provinces: Province[];
-}
-
-export interface CommunesResponse {
-  requestId: string;
-  communes: Commune[];
-}
-
 class AddressService {
   /**
-   * Lấy danh sách tất cả tỉnh/thành phố
+   * Lấy danh sách tất cả phường/xã từ API backend
    */
-  async getProvinces(): Promise<Province[]> {
+  async getVietnamAddresses(): Promise<Commune[]> {
     try {
-      const response = await axios.get<ProvincesResponse>(`${ADDRESS_API_BASE}/provinces`);
-      return response.data.provinces;
+      const response = await httpClient.get<Commune[]>('/addresses/vietnam');
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Không thể tải danh sách địa chỉ');
+      }
+      return response.data;
     } catch (error) {
-      console.error('Error fetching provinces:', error);
+      console.error('Error fetching Vietnam addresses:', error);
       throw error;
     }
   }
 
   /**
-   * Lấy danh sách phường/xã theo mã tỉnh/thành phố
+   * Lấy danh sách phường/xã theo tỉnh từ API backend
    */
-  async getCommunes(provinceCode: string): Promise<Commune[]> {
+  async getCommunesByProvince(provinceId: string, effectiveDate?: string): Promise<Commune[]> {
     try {
-      const response = await axios.get<CommunesResponse>(
-        `${ADDRESS_API_BASE}/provinces/${provinceCode}/communes`
+      const date = effectiveDate || new Date().toISOString().split('T')[0];
+      const response = await httpClient.get<Commune[]>(
+        `/addresses/${date}/provinces/${provinceId}/communes`,
       );
-      return response.data.communes;
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Không thể tải danh sách phường/xã');
+      }
+      return response.data;
     } catch (error) {
-      console.error('Error fetching communes:', error);
+      console.error('Error fetching communes by province:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Lấy danh sách tỉnh/thành phố từ API backend
+   */
+  async getProvinces(effectiveDate?: string): Promise<Province[]> {
+    try {
+      const date = effectiveDate || new Date().toISOString().split('T')[0];
+      const response = await httpClient.get<Province[]>(`/addresses/${date}/provinces`);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Không thể tải danh sách tỉnh/thành phố');
+      }
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching provinces from backend:', error);
       throw error;
     }
   }

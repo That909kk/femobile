@@ -53,24 +53,23 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
   };
 
   const mapEmployeeFromApi = (item: any): Employee => {
-    const ratingValue = Number(item?.rating);
     const rawId = item?.employeeId ?? item?.id;
 
     return {
-      id: rawId ? String(rawId) : '',
-      name: item?.fullName ?? item?.name ?? 'Nhân viên chưa cập nhật',
+      employeeId: rawId ? String(rawId) : '',
+      username: item?.username ?? '',
+      fullName: item?.fullName ?? item?.name ?? 'Nhân viên chưa cập nhật',
       email: item?.email ?? '',
-      phone: item?.phoneNumber ?? item?.phone ?? undefined,
+      phoneNumber: item?.phoneNumber ?? item?.phone ?? '',
       avatar: item?.avatar ?? undefined,
+      isMale: Boolean(item?.isMale),
+      status: item?.status ?? 'ACTIVE',
+      address: item?.address ?? '',
+      rating: item?.rating as 'HIGH' | 'MEDIUM' | 'LOW' | undefined,
+      bio: item?.bio ?? item?.description ?? undefined,
       skills: Array.isArray(item?.skills) ? item.skills : [],
-      rating: Number.isFinite(ratingValue) ? ratingValue : undefined,
-      totalReviews: typeof item?.totalReviews === 'number' ? item.totalReviews : undefined,
-      isActive: Boolean(item?.status ? item.status !== 'INACTIVE' : true),
-      isAvailable: item?.status ? item.status === 'AVAILABLE' : true,
-      experience: typeof item?.experienceYears === 'number' ? item.experienceYears : undefined,
-      description: item?.description ?? undefined,
-      createdAt: item?.createdAt ?? '',
-      updatedAt: item?.updatedAt ?? '',
+      workZones: item?.workZones ?? item?.workingZones ?? [],
+      availability: item?.availability ?? undefined,
     };
   };
 
@@ -83,7 +82,7 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
       setLoading(true);
       await Promise.all([
         loadServices(),
-        loadFeaturedEmployees()
+        // loadFeaturedEmployees() // Tạm thời tắt - chưa có dữ liệu
       ]);
     } catch (error) {
       console.error('Error loading initial data:', error);
@@ -146,11 +145,11 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
     navigation.navigate('Booking', { serviceId: service.id });
   };
 
-  const handleEmployeePress = (employee: Employee) => {
-    if (!employee.id) {
+  const handleEmployeeSelect = (employee: Employee) => {
+    if (!employee.employeeId) {
       return;
     }
-    navigation.navigate('EmployeePreview', { employeeId: employee.id });
+    navigation.navigate('EmployeePreview', { employeeId: employee.employeeId });
   };
 
   const handleSeeAllServices = () => {
@@ -303,25 +302,32 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
 
   const renderEmployeeCard = (employee: Employee, index: number) => (
     <TouchableOpacity
-      key={employee.id || `employee-${index}`}
+      key={employee.employeeId || `employee-${index}`}
       style={styles.employeeCard}
-      onPress={() => handleEmployeePress(employee)}
-      activeOpacity={0.85}
+      onPress={() => handleEmployeeSelect(employee)}
+      activeOpacity={0.7}
     >
       <Image
-        source={{ 
-          uri: employee.avatar || `https://picsum.photos/80/80?random=${employee.id}` 
+        source={{
+          uri: employee.avatar || `https://picsum.photos/80/80?random=${employee.employeeId}`
         }}
         style={styles.employeeAvatar}
       />
       <View style={styles.employeeInfo}>
         <Text style={styles.employeeName} numberOfLines={1}>
-          {employee.name}
+          {employee.fullName}
         </Text>
         <View style={styles.employeeRating}>
           <Ionicons name="star" size={12} color={colors.feedback.warning} />
           <Text style={styles.ratingText}>
-            {typeof employee.rating === 'number' ? employee.rating.toFixed(1) : 'N/A'}
+            {employee.rating 
+              ? employee.rating === 'HIGH' 
+                ? 'Cao' 
+                : employee.rating === 'MEDIUM' 
+                ? 'TB' 
+                : 'Thấp'
+              : 'N/A'
+            }
           </Text>
         </View>
         <Text style={styles.employeeSkills} numberOfLines={1}>

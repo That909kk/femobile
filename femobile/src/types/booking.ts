@@ -131,6 +131,33 @@ export interface BookingRequest {
   imageUrl?: string;
 }
 
+// Multiple bookings request (for multiple time slots)
+export interface MultipleBookingsRequest {
+  addressId?: string;
+  newAddress?: NewBookingAddress | null;
+  bookingTimes: string[]; // Array of booking times
+  note?: string;
+  promoCode?: string | null;
+  bookingDetails: BookingDetail[];
+  assignments?: BookingAssignment[] | null;
+  paymentMethodId: number;
+  title?: string;
+}
+
+// Multiple bookings response
+export interface MultipleBookingsResponse {
+  totalBookingsCreated: number;
+  successfulBookings: number;
+  failedBookings: number;
+  totalAmount: number;
+  formattedTotalAmount: string;
+  bookings: BookingResponse[];
+  errors: Array<{
+    bookingTime: string;
+    error: string;
+  }>;
+}
+
 export interface BookingValidationRequest {
   addressId?: string;
   newAddress?: NewBookingAddress | null;
@@ -220,8 +247,9 @@ export interface BookingResponse {
   note?: string;
   title?: string;
   imageUrl?: string;
+  imageUrls?: string[];
   isVerified?: boolean;
-  adminComment?: string;
+  cancelReason?: string;
   address?: {
     addressId: string;
     fullAddress: string;

@@ -176,7 +176,7 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
   const loadCommunes = async (provinceCode: string) => {
     setLoadingCommunes(true);
     try {
-      const communesList = await addressService.getCommunes(provinceCode);
+      const communesList = await addressService.getCommunesByProvince(provinceCode);
       setCommunes(communesList);
       console.log('✅ Loaded communes for province', provinceCode, ':', communesList.length);
     } catch (error) {

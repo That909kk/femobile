@@ -5,3 +5,4 @@ export { LanguageSwitcher } from './LanguageSwitcher';
 export { Checkbox } from './Checkbox';
 export { TermsModal } from './TermsModal';
 export { AddressPicker } from './AddressPicker';
+export { SkeletonPlaceholder } from './SkeletonPlaceholder';

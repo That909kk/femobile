@@ -7,6 +7,7 @@
     "icon": "./assets/logo-house-service.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "housekeeping",
     "locales": {
       "vi": {
         "CFBundleDisplayName": "Dịch vụ Giúp việc",

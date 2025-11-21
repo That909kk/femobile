@@ -152,11 +152,11 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const roleOptions = staticData?.form?.role?.options ? [
     { label: staticData.form.role.options.customer, value: 'CUSTOMER' },
     { label: staticData.form.role.options.employee, value: 'EMPLOYEE' },
-    { label: staticData.form.role.options.admin, value: 'ADMIN' },
+    // Admin role is not allowed for registration
   ] : [
     { label: staticData?.form?.role?.options?.customer || 'Khách hàng', value: 'CUSTOMER' },
     { label: staticData?.form?.role?.options?.employee || 'Nhân viên', value: 'EMPLOYEE' },
-    { label: staticData?.form?.role?.options?.admin || 'Quản trị viên', value: 'ADMIN' },
+    // Admin role is not allowed for registration
   ];
 
   if (!staticData) {

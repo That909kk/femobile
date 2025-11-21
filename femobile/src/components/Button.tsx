@@ -1,6 +1,7 @@
-import React, { useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Animated } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS, UI } from '../constants';
 
 interface ButtonProps {
@@ -27,6 +28,29 @@ export const Button: React.FC<ButtonProps> = ({
   gradient = false,
 }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  // Rotating animation for loading spinner
+  useEffect(() => {
+    if (loading) {
+      rotateAnim.setValue(0);
+      Animated.loop(
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 800,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      rotateAnim.setValue(0);
+    }
+  }, [loading, rotateAnim]);
+
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -127,20 +151,25 @@ export const Button: React.FC<ButtonProps> = ({
 
   const renderButtonContent = () => (
     <View style={styles.buttonContent}>
-      {icon && <View style={styles.iconContainer}>{icon}</View>}
+      {icon && !loading && <View style={styles.iconContainer}>{icon}</View>}
       {loading ? (
-        <ActivityIndicator
-          color={variant === 'primary' && !gradient ? COLORS.text.inverse : 
-                 variant === 'outline' || variant === 'ghost' ? COLORS.primary : COLORS.text.inverse}
-          size="small"
-        />
+        <View style={styles.loadingContainer}>
+          <Animated.View style={{ transform: [{ rotate: spin }] }}>
+            <Ionicons
+              name="sync-outline"
+              size={size === 'large' ? 24 : size === 'small' ? 16 : 20}
+              color={variant === 'primary' || gradient ? COLORS.text.inverse : COLORS.primary}
+            />
+          </Animated.View>
+          <Text style={[getTextStyle(), styles.loadingText]}>{title}</Text>
+        </View>
       ) : (
         <Text style={getTextStyle()}>{title}</Text>
       )}
     </View>
   );
 
-  if (gradient && variant === 'primary' && !disabled && !loading) {
+  if (gradient && variant === 'primary' && !disabled) {
     return (
       <Animated.View style={[{ transform: [{ scale: scaleAnim }] }, fullWidth && { width: '100%' }]}>
         <TouchableOpacity
@@ -198,7 +227,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconContainer: {
-    marginRight: UI.SPACING.sm,
+    marginRight: UI.SPACING.xs,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    marginLeft: 4,
   },
   
   // Variant styles

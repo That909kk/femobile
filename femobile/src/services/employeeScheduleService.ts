@@ -252,10 +252,22 @@ class EmployeeScheduleService {
     status?: string;
     limit?: number;
     city?: string;
+    startDate?: string; // Format: YYYY-MM-DD or ISO datetime
+    endDate?: string;   // Format: YYYY-MM-DD or ISO datetime
   }): Promise<ApiResponse<any[]>> {
     try {
       // Build URL manually to avoid encoding Vietnamese city names
       const queryParts: string[] = [];
+      
+      // Add startDate (required by backend) - default to today if not provided
+      const startDate = params?.startDate || new Date().toISOString().split('T')[0];
+      queryParts.push(`startDate=${startDate}`);
+      
+      // Add endDate if provided
+      if (params?.endDate) {
+        queryParts.push(`endDate=${params.endDate}`);
+      }
+      
       if (params?.status) queryParts.push(`status=${params.status}`);
       if (params?.limit) queryParts.push(`limit=${params.limit}`);
       if (params?.city) queryParts.push(`city=${params.city}`);

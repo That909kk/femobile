@@ -13,8 +13,7 @@ import type {
   VerifyOTPRequest,
   UserRole,
   CustomerData,
-  EmployeeData,
-  AdminData
+  EmployeeData
 } from '../types/auth';
 
 // Custom storage for Zustand persistence with SecureStore

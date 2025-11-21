@@ -15,8 +15,14 @@ import {
   EditProfileScreen,
   ChangePasswordScreen,
 } from '../screens';
-import { OrderDetailScreen, NotificationsScreen as CustomerNotificationsScreen } from '../screens/main/customer';
+import {
+  OrderDetailScreen,
+  NotificationsScreen as CustomerNotificationsScreen,
+  RecurringBookingsScreen,
+  RecurringBookingDetailScreen,
+} from '../screens/main/customer';
 import { NotificationsScreen as EmployeeNotificationsScreen } from '../screens/main/employee';
+import { ChatScreen } from '../screens/ChatScreen';
 import { MainTabNavigator } from './MainTabNavigator';
 import type { RootStackParamList, MainStackParamList } from '../types/auth';
 import { COLORS, ANIMATION_CONFIGS, getBaseScreenOptions } from '../constants';
@@ -157,6 +163,24 @@ const MainStack = () => {
           ...ANIMATION_CONFIGS.slideFromRight,
         }}
       />
+      {/* Recurring booking list */}
+      <MainStackNavigator.Screen
+        name="RecurringBookings"
+        component={RecurringBookingsScreen}
+        options={{
+          headerShown: false,
+          ...ANIMATION_CONFIGS.slideFromRight,
+        }}
+      />
+      {/* Recurring booking detail */}
+      <MainStackNavigator.Screen
+        name="RecurringBookingDetail"
+        component={RecurringBookingDetailScreen}
+        options={{
+          headerShown: false,
+          ...ANIMATION_CONFIGS.slideFromRight,
+        }}
+      />
       {/* Edit Profile Screen */}
       <MainStackNavigator.Screen 
         name="EditProfile" 
@@ -179,6 +203,15 @@ const MainStack = () => {
       <MainStackNavigator.Screen 
         name="NotificationList" 
         component={NotificationScreen}
+        options={{
+          headerShown: false,
+          ...ANIMATION_CONFIGS.slideFromRight,
+        }}
+      />
+      {/* Chat Screen */}
+      <MainStackNavigator.Screen 
+        name="ChatScreen" 
+        component={ChatScreen}
         options={{
           headerShown: false,
           ...ANIMATION_CONFIGS.slideFromRight,

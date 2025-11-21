@@ -10,7 +10,6 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { Checkbox } from '../../../../components';
 import { colors, responsiveSpacing, responsiveFontSize } from '../../../../styles';
@@ -31,10 +30,14 @@ interface BookingConfirmationProps {
   selectedService: Service | null;
   selectedOptions: SelectedOption[];
   selectedLocation: LocationData | null;
-  selectedDate: string;
+  selectedDates: string[]; // Changed to support multiple dates
   selectedTime: string;
+  bookingMode: 'single' | 'multiple' | 'recurring';
+  recurringConfig: any;
   selectedEmployeeId: string | null;
   selectedEmployee: Employee | null;
+  isCreatingPost: boolean;
+  postData: any;
   totalPrice: number;
   quantity: number;
   availablePaymentMethods: PaymentMethod[];
@@ -44,7 +47,7 @@ interface BookingConfirmationProps {
   onPaymentMethodSelect: (methodId: number) => void;
   onNoteChange: (note: string) => void;
   onPromoCodeChange: (code: string) => void;
-  onConfirm: (bookingData: any) => void;
+  onConfirm: (bookingData: any, images?: Array<{ uri: string; name: string; type: string }>) => void;
   onBack: () => void;
   isSubmitting: boolean;
 }
@@ -53,7 +56,11 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   selectedService,
   selectedOptions,
   selectedLocation,
-  selectedDate,
+  selectedDates,
+  bookingMode,
+  recurringConfig,
+  isCreatingPost,
+  postData,
   selectedTime,
   selectedEmployeeId,
   selectedEmployee,
@@ -90,14 +97,10 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   const [acceptReschedule, setAcceptReschedule] = useState(false);
   const [finalPrice, setFinalPrice] = useState(totalPrice);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [postTitle, setPostTitle] = useState<string>('');
-  const [postImageUri, setPostImageUri] = useState<string>('');
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const bookingDateTime =
-    selectedDate && selectedTime ? `${selectedDate}T${selectedTime}:00` : '';
+    selectedDates.length > 0 && selectedTime ? `${selectedDates[0]}T${selectedTime}:00` : '';
   const normalizedQuantity = Math.max(1, quantity || 1);
-  const isBookingPost = !selectedEmployeeId; // Nếu không chọn nhân viên thì là bài post
 
   useEffect(() => {
     setFinalPrice(totalPrice);
@@ -108,95 +111,6 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
       onPaymentMethodSelect(availablePaymentMethods[0].methodId);
     }
   }, [availablePaymentMethods, selectedPaymentMethodId, onPaymentMethodSelect]);
-
-  // Request permission and pick image
-  const pickImage = async () => {
-    try {
-      // Request permission
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (!permissionResult.granted) {
-        Alert.alert(
-          'Cần quyền truy cập',
-          'Vui lòng cấp quyền truy cập thư viện ảnh để tải ảnh lên.'
-        );
-        return;
-      }
-
-      // Pick image
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        setPostImageUri(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Lỗi', 'Không thể chọn ảnh. Vui lòng thử lại.');
-    }
-  };
-
-  // Take photo with camera
-  const takePhoto = async () => {
-    try {
-      // Request permission
-      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-      
-      if (!permissionResult.granted) {
-        Alert.alert(
-          'Cần quyền truy cập',
-          'Vui lòng cấp quyền truy cập camera để chụp ảnh.'
-        );
-        return;
-      }
-
-      // Take photo
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        setPostImageUri(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error('Error taking photo:', error);
-      Alert.alert('Lỗi', 'Không thể chụp ảnh. Vui lòng thử lại.');
-    }
-  };
-
-  // Show image picker options
-  const handleImagePicker = () => {
-    Alert.alert(
-      'Chọn ảnh',
-      'Bạn muốn chọn ảnh từ đâu?',
-      [
-        {
-          text: 'Thư viện',
-          onPress: pickImage,
-        },
-        {
-          text: 'Chụp ảnh',
-          onPress: takePhoto,
-        },
-        {
-          text: 'Hủy',
-          style: 'cancel',
-        },
-      ],
-      { cancelable: true }
-    );
-  };
-
-  // Remove selected image
-  const removeImage = () => {
-    setPostImageUri('');
-  };
 
   const formatPrice = (price?: number) =>
     new Intl.NumberFormat('vi-VN', {
@@ -222,6 +136,17 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
     });
   };
 
+  const formatDateShort = (dateString: string) => {
+    if (!dateString) return '';
+    const parsedDate = new Date(dateString);
+    if (Number.isNaN(parsedDate.getTime())) return dateString;
+    
+    const day = parsedDate.getDate();
+    const month = parsedDate.getMonth() + 1;
+    const year = parsedDate.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
   const perUnitBasePrice = selectedService?.basePrice ?? 0;
   const perUnitOptionsTotal = selectedOptions.reduce(
     (sum, option) => sum + (option.priceAdjustment ?? 0),
@@ -236,9 +161,24 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   const finalAdjustment = effectiveFinalPrice - selectionTotal;
 
   const handleConfirmBooking = async () => {
-    if (!selectedService || !selectedDate || !selectedTime || !selectedAddress) {
-      Alert.alert('Thiếu thông tin', 'Vui lòng kiểm tra lại dịch vụ, địa chỉ và thời gian.');
+    // Validate based on booking mode
+    if (!selectedService || !selectedAddress) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng kiểm tra lại dịch vụ và địa chỉ.');
       return;
+    }
+
+    if (bookingMode === 'recurring') {
+      // For recurring, validate recurringConfig instead of selectedDates
+      if (!recurringConfig || !recurringConfig.startDate || !recurringConfig.bookingTime || !recurringConfig.recurrenceDays || recurringConfig.recurrenceDays.length === 0) {
+        Alert.alert('Thiếu thông tin', 'Vui lòng kiểm tra lại cấu hình lịch định kỳ.');
+        return;
+      }
+    } else {
+      // For single and multiple, validate selectedDates and selectedTime
+      if (selectedDates.length === 0 || !selectedTime) {
+        Alert.alert('Thiếu thông tin', 'Vui lòng kiểm tra lại thời gian đặt lịch.');
+        return;
+      }
     }
 
     if (!acceptTerms) {
@@ -256,8 +196,8 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
       return;
     }
 
-    // Validate title for booking post (when no employee selected)
-    if (!selectedEmployeeId && !postTitle.trim()) {
+    // Validate title for booking post (when creating post without employee)
+    if (isCreatingPost && !postData?.title?.trim()) {
       Alert.alert('Thiếu thông tin', 'Vui lòng nhập tiêu đề cho bài đăng.');
       return;
     }
@@ -321,84 +261,122 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
       const baseUnitPrice =
         normalizedQuantity > 0 ? baseExpectedPrice / normalizedQuantity : baseExpectedPrice;
 
-      // Tạo booking data trực tiếp mà không cần validate API trước
-      const bookingData: BookingRequest = {
-        addressId,
-        newAddress: newAddressPayload,
-        bookingTime: bookingDateTime,
-        bookingDetails: [
-          {
-            serviceId: selectedService.serviceId,
-            quantity: normalizedQuantity,
-            expectedPrice: baseExpectedPrice,
-            expectedPricePerUnit: baseUnitPrice,
-            selectedChoiceIds: choiceIds,
-          },
-        ],
-        assignments: assignmentsPayload,
-        paymentMethodId: selectedPaymentMethodId,
-        promoCode: promoValue,
-      };
+      let bookingData: any;
 
-      if (noteValue) {
-        bookingData.note = noteValue;
-      }
-
-      // Upload ảnh và thêm thông tin CHỈ KHI KHÔNG CHỌN NHÂN VIÊN (booking post)
-      if (!selectedEmployeeId) {
-        if (postTitle.trim()) {
-          bookingData.title = postTitle.trim();
+      if (bookingMode === 'recurring') {
+        if (!recurringConfig || !recurringConfig.recurrenceType || !recurringConfig.recurrenceDays || !recurringConfig.startDate) {
+          Alert.alert('Thiếu thông tin', 'Vui lòng cấu hình đầy đủ thông tin đặt lịch định kỳ.');
+          return;
         }
-        
-        // Upload image if selected
-        if (postImageUri) {
-          try {
-            console.log('📤 Uploading booking image...');
-            const uploadResult = await uploadService.uploadBookingImage(postImageUri);
-            
-            if (uploadResult.imageUrl) {
-              bookingData.imageUrl = uploadResult.imageUrl;
-              console.log('✅ Image uploaded successfully:', uploadResult.imageUrl);
-            }
-          } catch (uploadError: any) {
-            console.error('❌ Error uploading image:', uploadError);
-            
-            // Ask user if they want to continue without image
-            const continueWithoutImage = await new Promise<boolean>((resolve) => {
-              Alert.alert(
-                'Không thể upload ảnh',
-                'Không thể tải ảnh lên server. Bạn có muốn tiếp tục đặt lịch không?',
-                [
-                  { 
-                    text: 'Hủy', 
-                    style: 'cancel', 
-                    onPress: () => resolve(false) 
-                  },
-                  { 
-                    text: 'Tiếp tục', 
-                    onPress: () => resolve(true) 
-                  },
-                ]
-              );
-            });
-            
-            if (!continueWithoutImage) {
-              setIsProcessing(false);
-              return;
-            }
+
+        // Recurring booking has different format - no payment, price, or assignments
+        bookingData = {
+          addressId,
+          newAddress: newAddressPayload,
+          recurrenceType: recurringConfig.recurrenceType,
+          recurrenceDays: recurringConfig.recurrenceDays,
+          bookingTime: recurringConfig.bookingTime,
+          startDate: recurringConfig.startDate,
+          endDate: recurringConfig.endDate || null,
+          note: noteValue,
+          title: isCreatingPost && postData?.title?.trim() ? postData.title.trim() : undefined,
+          promoCode: promoValue,
+          bookingDetails: [
+            {
+              serviceId: selectedService.serviceId,
+              quantity: normalizedQuantity,
+            },
+          ],
+        };
+
+        console.log('📅 RECURRING booking data:', bookingData);
+
+      } else if (bookingMode === 'multiple') {
+        if (selectedDates.length < 2) {
+          Alert.alert('Thiếu thông tin', 'Vui lòng chọn ít nhất 2 ngày.');
+          return;
+        }
+
+        const bookingTimes = selectedDates.map(date => `${date}T${selectedTime}:00`);
+
+        bookingData = {
+          addressId,
+          newAddress: newAddressPayload,
+          bookingTimes,
+          note: noteValue,
+          title: isCreatingPost && postData?.title?.trim() ? postData.title.trim() : undefined,
+          promoCode: promoValue,
+          bookingDetails: [
+            {
+              serviceId: selectedService.serviceId,
+              quantity: normalizedQuantity,
+              expectedPrice: baseExpectedPrice,
+              expectedPricePerUnit: baseUnitPrice,
+              selectedChoiceIds: choiceIds,
+            },
+          ],
+          assignments: assignmentsPayload,
+          paymentMethodId: selectedPaymentMethodId,
+        };
+
+        console.log('MULTIPLE booking data:', bookingData);
+
+      } else {
+        bookingData = {
+          addressId,
+          newAddress: newAddressPayload,
+          bookingTime: bookingDateTime,
+          bookingDetails: [
+            {
+              serviceId: selectedService.serviceId,
+              quantity: normalizedQuantity,
+              expectedPrice: baseExpectedPrice,
+              expectedPricePerUnit: baseUnitPrice,
+              selectedChoiceIds: choiceIds,
+            },
+          ],
+          assignments: assignmentsPayload,
+          paymentMethodId: selectedPaymentMethodId,
+          promoCode: promoValue,
+        };
+
+        if (noteValue) {
+          bookingData.note = noteValue;
+        }
+
+        // Thêm thông tin post CHỈ KHI TẠO BÀI ĐĂNG (booking post)
+        if (isCreatingPost && postData) {
+          if (postData.title?.trim()) {
+            bookingData.title = postData.title.trim();
           }
         }
       }
 
-      console.log('🚀 Creating booking with data:', bookingData);
+      console.log('� Creating booking with data:', bookingData);
 
-      // Gọi trực tiếp API tạo booking, backend sẽ validate và trả về lỗi nếu có
-      await onConfirm(bookingData);
+      // Gọi API tạo booking với ảnh (nếu có)
+      const images = isCreatingPost && postData?.images ? postData.images : undefined;
+      await onConfirm(bookingData, images);
     } catch (error: any) {
       console.error('❌ Booking confirmation error:', error);
       
       let errorMessage = 'Có lỗi xảy ra. Vui lòng thử lại.';
       let errorTitle = 'Lỗi';
+      
+      // Handle 504 Gateway Timeout specially for recurring bookings
+      if (error.response?.status === 504 && bookingMode === 'recurring') {
+        errorTitle = 'Quá thời gian chờ';
+        errorMessage = 'Yêu cầu tạo lịch định kỳ đang mất nhiều thời gian hơn dự kiến.\n\n' +
+                      'Có thể do:\n' +
+                      '• Số lượng lịch hẹn quá lớn\n' +
+                      '• Server đang xử lý nhiều yêu cầu\n\n' +
+                      'Vui lòng:\n' +
+                      '1. Kiểm tra lại danh sách đặt lịch sau 2-3 phút\n' +
+                      '2. Hoặc giảm thời gian lặp lại (chọn khoảng ngắn hơn)\n' +
+                      '3. Liên hệ hỗ trợ nếu vấn đề vẫn tiếp diễn';
+        Alert.alert(errorTitle, errorMessage);
+        return;
+      }
       
       // Xử lý lỗi từ backend response
       if (error.response?.data) {
@@ -449,7 +427,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
   };
 
   const isConfirmDisabled =
-    !acceptTerms || !acceptReschedule || isProcessing || isSubmitting || isUploadingImage;
+    !acceptTerms || !acceptReschedule || isProcessing || isSubmitting;
 
   return (
     <View style={commonStyles.container}>
@@ -475,6 +453,30 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
         contentContainerStyle={{ paddingHorizontal: responsiveSpacing.md, paddingTop: responsiveSpacing.md, paddingBottom: responsiveSpacing.xxl }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Recurring Booking Info */}
+        {bookingMode === 'recurring' && recurringConfig && (
+          <View style={{
+            backgroundColor: accentColor + '10',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 16,
+            borderLeftWidth: 4,
+            borderLeftColor: accentColor,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+              <Ionicons name="information-circle" size={24} color={accentColor} style={{ marginRight: 12, marginTop: 2 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={[commonStyles.cardTitle, { color: accentColor, marginBottom: 6 }]}>
+                  Đặt lịch định kỳ
+                </Text>
+                <Text style={[commonStyles.cardDescription, { fontSize: 13, lineHeight: 18 }]}>
+                  Hệ thống sẽ tự động tạo các lịch hẹn theo chu kỳ đã chọn. Quá trình này có thể mất 2-3 phút tùy thuộc vào số lượng lịch hẹn. Vui lòng kiên nhẫn chờ đợi.
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+        
         <View style={commonStyles.section}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
             <View style={{
@@ -610,12 +612,83 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                 <Text style={[commonStyles.cardDescription, { fontWeight: '600', marginBottom: 4 }]}>
                   Thời gian
                 </Text>
-                <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.body }]}>
-                  {formatDate(selectedDate)}
-                </Text>
-                <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.heading3, color: accentColor, marginTop: 2 }]}>
-                  {selectedTime || '--:--'}
-                </Text>
+                
+                {bookingMode === 'single' && (
+                  <>
+                    <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.body }]}>
+                      {formatDate(selectedDates[0])}
+                    </Text>
+                    <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.heading3, color: accentColor, marginTop: 2 }]}>
+                      {selectedTime || '--:--'}
+                    </Text>
+                  </>
+                )}
+
+                {bookingMode === 'multiple' && (
+                  <>
+                    <View style={{ 
+                      flexDirection: 'row', 
+                      alignItems: 'center',
+                      backgroundColor: accentColor + '10',
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 8,
+                      alignSelf: 'flex-start',
+                      marginBottom: 8,
+                    }}>
+                      <Ionicons name="calendar" size={16} color={accentColor} style={{ marginRight: 6 }} />
+                      <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.body, color: accentColor }]}>
+                        {selectedDates.length} ngày
+                      </Text>
+                    </View>
+                    <Text style={[commonStyles.cardDescription, { fontSize: 13, lineHeight: 18 }]}>
+                      {selectedDates.slice(0, 3).map(date => formatDate(date)).join(', ')}
+                      {selectedDates.length > 3 && `, +${selectedDates.length - 3} ngày nữa`}
+                    </Text>
+                    <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.heading3, color: accentColor, marginTop: 6 }]}>
+                      {selectedTime || '--:--'}
+                    </Text>
+                  </>
+                )}
+
+                {bookingMode === 'recurring' && recurringConfig && (
+                  <>
+                    <View style={{ 
+                      flexDirection: 'row', 
+                      alignItems: 'center',
+                      backgroundColor: accentColor + '10',
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 8,
+                      alignSelf: 'flex-start',
+                      marginBottom: 8,
+                    }}>
+                      <Ionicons name="repeat" size={16} color={accentColor} style={{ marginRight: 6 }} />
+                      <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.body, color: accentColor }]}>
+                        Định kỳ {recurringConfig.recurrenceType === 'WEEKLY' ? 'hàng tuần' : 'hàng tháng'}
+                      </Text>
+                    </View>
+                    
+                    <Text style={[commonStyles.cardDescription, { fontSize: 13, marginBottom: 4 }]}>
+                      {recurringConfig.recurrenceType === 'WEEKLY' 
+                        ? `Các ngày: ${recurringConfig.recurrenceDays?.map((day: number) => {
+                            const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+                            return dayNames[day];
+                          }).join(', ')}`
+                        : `Ngày ${recurringConfig.recurrenceDays?.[0]} hàng tháng`
+                      }
+                    </Text>
+                    
+                    <Text style={[commonStyles.cardDescription, { fontSize: 13, marginBottom: 4 }]}>
+                      Từ {formatDateShort(recurringConfig.startDate)} 
+                      {recurringConfig.endDate ? ` đến ${formatDateShort(recurringConfig.endDate)}` : ' (không giới hạn)'}
+                    </Text>
+
+                    <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.heading3, color: accentColor, marginTop: 6 }]}>
+                      {recurringConfig.bookingTime?.substring(0, 5) || selectedTime || '--:--'}
+                    </Text>
+                  </>
+                )}
               </View>
             </View>
           </View>
@@ -657,16 +730,97 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
               width: 32,
               height: 32,
               borderRadius: 16,
-              backgroundColor: colors.highlight.teal + '20',
+              backgroundColor: isCreatingPost ? colors.highlight.purple + '20' : colors.highlight.teal + '20',
               alignItems: 'center',
               justifyContent: 'center',
               marginRight: 12,
             }}>
-              <Ionicons name="people-outline" size={18} color={accentColor} />
+              <Ionicons 
+                name={isCreatingPost ? "megaphone-outline" : "people-outline"} 
+                size={18} 
+                color={isCreatingPost ? colors.highlight.purple : accentColor} 
+              />
             </View>
-            <Text style={commonStyles.sectionTitle}>Nhân viên thực hiện</Text>
+            <Text style={commonStyles.sectionTitle}>
+              {isCreatingPost ? 'Thông tin bài đăng' : 'Nhân viên thực hiện'}
+            </Text>
           </View>
-          {selectedEmployeeId && selectedEmployee ? (
+          
+          {/* Show Post Information if creating post */}
+          {isCreatingPost && postData ? (
+            <View style={[commonStyles.card, { borderLeftWidth: 4, borderLeftColor: colors.highlight.purple }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                <View style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: colors.highlight.purple + '15',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: 12,
+                }}>
+                  <Ionicons name="document-text" size={20} color={colors.highlight.purple} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.body }]}>
+                    {postData.title || 'Tiêu đề bài đăng'}
+                  </Text>
+                  <View style={{
+                    marginTop: 4,
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    backgroundColor: colors.highlight.purple + '10',
+                    borderRadius: 6,
+                    alignSelf: 'flex-start',
+                  }}>
+                    <Text style={[commonStyles.cardDescription, { color: colors.highlight.purple, fontWeight: '600', fontSize: 10 }]}>
+                      Bài đăng của bạn sẽ được hiển thị công khai sau khi quản trị viên duyệt
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Display all images */}
+              {postData.images && postData.images.length > 0 && (
+                <View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                    <Ionicons name="images" size={16} color={colors.neutral.textSecondary} style={{ marginRight: 6 }} />
+                    <Text style={[commonStyles.cardDescription, { fontSize: 13, fontWeight: '600' }]}>
+                      Hình ảnh đính kèm ({postData.images.length})
+                    </Text>
+                  </View>
+                  <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false}
+                    style={{ marginHorizontal: -16, paddingHorizontal: 16 }}
+                  >
+                    {postData.images.map((image: any, index: number) => (
+                      <View 
+                        key={index}
+                        style={{
+                          marginRight: 12,
+                          borderRadius: 12,
+                          overflow: 'hidden',
+                          borderWidth: 1,
+                          borderColor: colors.neutral.border,
+                        }}
+                      >
+                        <Image
+                          source={{ uri: image.uri }}
+                          style={{
+                            width: 120,
+                            height: 120,
+                            backgroundColor: colors.neutral.background,
+                          }}
+                          resizeMode="cover"
+                        />
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+          ) : selectedEmployeeId && selectedEmployee ? (
             <View style={commonStyles.card}>
               <View style={commonStyles.flexRow}>
                 {selectedEmployee.avatar ? (
@@ -907,12 +1061,71 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
               marginVertical: 16,
               opacity: 0.3,
             }} />
-            <View style={[commonStyles.flexRowBetween, { backgroundColor: accentColor + '10', padding: 12, borderRadius: 12, marginTop: 4 }]}>
-              <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.heading3 }]}>Tổng cộng</Text>
-              <Text style={[commonStyles.cardPrice, { fontSize: 24, fontWeight: '800' }]}>
-                {formatPrice(effectiveFinalPrice)}
-              </Text>
-            </View>
+            
+            {bookingMode === 'single' ? (
+              <View style={[commonStyles.flexRowBetween, { backgroundColor: accentColor + '10', padding: 12, borderRadius: 12, marginTop: 4 }]}>
+                <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.heading3 }]}>Tổng cộng</Text>
+                <Text style={[commonStyles.cardPrice, { fontSize: 24, fontWeight: '800' }]}>
+                  {formatPrice(effectiveFinalPrice)}
+                </Text>
+              </View>
+            ) : bookingMode === 'multiple' ? (
+              <>
+                <View style={[commonStyles.flexRowBetween, { paddingVertical: 6 }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="calendar" size={16} color={colors.neutral.textSecondary} style={{ marginRight: 6 }} />
+                    <Text style={[commonStyles.cardDescription, { fontSize: responsiveFontSize.body }]}>
+                      Giá mỗi ngày
+                    </Text>
+                  </View>
+                  <Text style={[commonStyles.cardDescription, { fontSize: responsiveFontSize.body, fontWeight: '600' }]}>
+                    {formatPrice(effectiveFinalPrice)}
+                  </Text>
+                </View>
+                <View style={[commonStyles.flexRowBetween, { paddingVertical: 6, marginTop: 4 }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="close-circle" size={16} color={colors.neutral.textSecondary} style={{ marginRight: 6 }} />
+                    <Text style={[commonStyles.cardDescription, { fontSize: responsiveFontSize.body }]}>
+                      Số ngày
+                    </Text>
+                  </View>
+                  <Text style={[commonStyles.cardDescription, { fontSize: responsiveFontSize.body, fontWeight: '600' }]}>
+                    {selectedDates.length}
+                  </Text>
+                </View>
+                <View style={[commonStyles.flexRowBetween, { backgroundColor: accentColor + '10', padding: 12, borderRadius: 12, marginTop: 8 }]}>
+                  <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.heading3 }]}>Tổng cộng</Text>
+                  <Text style={[commonStyles.cardPrice, { fontSize: 24, fontWeight: '800' }]}>
+                    {formatPrice(effectiveFinalPrice * selectedDates.length)}
+                  </Text>
+                </View>
+              </>
+            ) : bookingMode === 'recurring' ? (
+              <>
+                <View style={[commonStyles.flexRowBetween, { paddingVertical: 6 }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="repeat" size={16} color={colors.neutral.textSecondary} style={{ marginRight: 6 }} />
+                    <Text style={[commonStyles.cardDescription, { fontSize: responsiveFontSize.body }]}>
+                      Giá mỗi lần
+                    </Text>
+                  </View>
+                  <Text style={[commonStyles.cardDescription, { fontSize: responsiveFontSize.body, fontWeight: '600' }]}>
+                    {formatPrice(effectiveFinalPrice)}
+                  </Text>
+                </View>
+                <View style={[commonStyles.flexRowBetween, { backgroundColor: accentColor + '10', padding: 12, borderRadius: 12, marginTop: 8 }]}>
+                  <View>
+                    <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.heading3 }]}>Đặt lịch định kỳ</Text>
+                    <Text style={[commonStyles.cardDescription, { fontSize: 12, marginTop: 4 }]}>
+                      Thanh toán sau mỗi lần thực hiện
+                    </Text>
+                  </View>
+                  <Text style={[commonStyles.cardPrice, { fontSize: 24, fontWeight: '800' }]}>
+                    {formatPrice(effectiveFinalPrice)}
+                  </Text>
+                </View>
+              </>
+            ) : null}
           </View>
         </View>
 
@@ -1055,143 +1268,6 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
           </View>
         </View>
 
-        {/* Thêm phần title và image URL CHỈ KHI KHÔNG CHỌN NHÂN VIÊN (booking post) */}
-        {!selectedEmployeeId && (
-          <View style={commonStyles.section}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-              <View style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                backgroundColor: accentColor + '20',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginRight: 12,
-              }}>
-                <Ionicons name="create-outline" size={18} color={accentColor} />
-              </View>
-              <Text style={commonStyles.sectionTitle}>Thông tin bài đăng</Text>
-            </View>
-            <View style={[commonStyles.card, { marginBottom: 12 }]}>
-              <Text style={[commonStyles.cardDescription, { marginBottom: 8, fontWeight: '600' }]}>
-                Tiêu đề <Text style={{ color: warningColor }}>*</Text>
-              </Text>
-              <TextInput
-                style={{
-                  fontSize: responsiveFontSize.body,
-                  color: colors.neutral.textPrimary,
-                  borderWidth: 1,
-                  borderColor: dividerColor,
-                  borderRadius: 8,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                }}
-                value={postTitle}
-                onChangeText={setPostTitle}
-                placeholder="Ví dụ: Cần nhân viên dọn dẹp nhà cấp tốc"
-                placeholderTextColor={colors.neutral.textSecondary}
-                maxLength={200}
-              />
-              <Text style={[commonStyles.cardDescription, { marginTop: 4, textAlign: 'right' }]}>
-                {postTitle.length}/200
-              </Text>
-            </View>
-            
-            {/* Image Upload Section */}
-            <View style={commonStyles.card}>
-              <Text style={[commonStyles.cardDescription, { marginBottom: 12, fontWeight: '600' }]}>
-                Hình ảnh (tùy chọn)
-              </Text>
-              
-              {postImageUri ? (
-                // Show selected image
-                <View>
-                  <Image
-                    source={{ uri: postImageUri }}
-                    style={{
-                      width: '100%',
-                      height: 200,
-                      borderRadius: 12,
-                      backgroundColor: colors.neutral.border,
-                    }}
-                    resizeMode="cover"
-                  />
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-                    <TouchableOpacity
-                      onPress={handleImagePicker}
-                      style={{
-                        flex: 1,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        paddingVertical: 12,
-                        borderRadius: 8,
-                        borderWidth: 1,
-                        borderColor: accentColor,
-                        backgroundColor: colors.neutral.white,
-                      }}
-                    >
-                      <Ionicons name="images-outline" size={18} color={accentColor} />
-                      <Text style={{ marginLeft: 6, color: accentColor, fontWeight: '600' }}>
-                        Đổi ảnh
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={removeImage}
-                      style={{
-                        flex: 1,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        paddingVertical: 12,
-                        borderRadius: 8,
-                        borderWidth: 1,
-                        borderColor: colors.feedback.error,
-                        backgroundColor: colors.neutral.white,
-                      }}
-                    >
-                      <Ionicons name="trash-outline" size={18} color={colors.feedback.error} />
-                      <Text style={{ marginLeft: 6, color: colors.feedback.error, fontWeight: '600' }}>
-                        Xóa
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : (
-                // Show image picker button
-                <TouchableOpacity
-                  onPress={handleImagePicker}
-                  style={{
-                    borderWidth: 2,
-                    borderColor: dividerColor,
-                    borderStyle: 'dashed',
-                    borderRadius: 12,
-                    padding: 32,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: colors.neutral.background,
-                  }}
-                >
-                  <Ionicons name="cloud-upload-outline" size={48} color={colors.neutral.textSecondary} />
-                  <Text style={[commonStyles.cardDescription, { marginTop: 12, textAlign: 'center', fontWeight: '600' }]}>
-                    Chọn ảnh từ thư viện hoặc chụp ảnh
-                  </Text>
-                  <Text style={[commonStyles.cardDescription, { marginTop: 4, textAlign: 'center', fontSize: 12 }]}>
-                    JPG, PNG (tối đa 5MB)
-                  </Text>
-                </TouchableOpacity>
-              )}
-              
-              <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'flex-start' }}>
-                <Ionicons name="information-circle-outline" size={14} color={colors.neutral.textSecondary} style={{ marginTop: 2 }} />
-                <Text style={[commonStyles.cardDescription, { marginLeft: 6, flex: 1 }]}>
-                  Bài đăng của bạn cần được admin phê duyệt trước khi hiển thị cho nhân viên
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
-
         <View style={commonStyles.section}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
             <View style={{
@@ -1332,7 +1408,9 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <ActivityIndicator size="small" color={colors.neutral.white} />
               <Text style={[commonStyles.primaryButtonText, { marginLeft: 12 }]}>
-                {isUploadingImage ? 'Đang tải ảnh lên...' : 'Đang xử lý...'}
+                {bookingMode === 'recurring' 
+                  ? 'Đang tạo lịch định kỳ...' 
+                  : 'Đang xử lý...'}
               </Text>
             </View>
           ) : (

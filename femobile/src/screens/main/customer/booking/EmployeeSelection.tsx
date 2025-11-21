@@ -8,21 +8,31 @@ import {
   ActivityIndicator,
   Alert,
   StatusBar,
+  TextInput,
+  ActionSheetIOS,
+  Platform,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../../../styles';
-import { serviceService, type Service, type Employee } from '../../../../services';
-import { type LocationData, BookingStep } from './types';
+import { bookingService, type Service, type Employee } from '../../../../services';
+import { type LocationData, BookingStep, type PostBookingData, type BookingMode } from './types';
 import { commonStyles } from './styles';
 import { ProgressIndicator } from './ProgressIndicator';
+import { useUserInfo } from '../../../../hooks';
 
 interface EmployeeSelectionProps {
   selectedService: Service | null;
   selectedLocation: LocationData | null;
-  selectedDate: string;
+  selectedDates: string[]; // Changed to support multiple dates
   selectedTime: string;
+  bookingMode: BookingMode;
   selectedEmployeeId: string | null;
+  isCreatingPost: boolean;
+  postData: PostBookingData | null;
   onEmployeeSelect: (employeeId: string | null, employee: Employee | null) => void;
+  onPostDataChange: (data: PostBookingData | null) => void;
+  onCreatePostToggle: (isPost: boolean) => void;
   onNext: () => void;
   onBack: () => void;
 }
@@ -30,10 +40,15 @@ interface EmployeeSelectionProps {
 export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
   selectedService,
   selectedLocation,
-  selectedDate,
+  selectedDates,
   selectedTime,
+  bookingMode,
   selectedEmployeeId,
+  isCreatingPost,
+  postData,
   onEmployeeSelect,
+  onPostDataChange,
+  onCreatePostToggle,
   onNext,
   onBack,
 }) => {
@@ -42,19 +57,22 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
   const warningColor = colors.feedback.warning;
   const errorColor = colors.feedback.error;
 
+  const { userInfo } = useUserInfo();
   const [loading, setLoading] = useState(false);
   const [suitableEmployees, setSuitableEmployees] = useState<Employee[]>([]);
   const [error, setError] = useState<string>('');
+  const [postTitle, setPostTitle] = useState(postData?.title || '');
+  const [postImages, setPostImages] = useState<Array<{ uri: string; name: string; type: string }>>(postData?.images || []);
 
-  // Load suitable employees when component mounts
+  // Load suitable employees when component mounts (not for recurring bookings)
   useEffect(() => {
-    if (selectedService && selectedLocation && selectedDate && selectedTime) {
+    if (selectedService && selectedLocation && selectedDates.length > 0 && selectedTime && bookingMode !== 'recurring' && !isCreatingPost) {
       loadSuitableEmployees();
     }
-  }, [selectedService, selectedLocation, selectedDate, selectedTime]);
+  }, [selectedService, selectedLocation, selectedDates, selectedTime, bookingMode, isCreatingPost]);
 
   const loadSuitableEmployees = async () => {
-    if (!selectedService || !selectedLocation || !selectedDate || !selectedTime) {
+    if (!selectedService || !selectedLocation || selectedDates.length === 0 || !selectedTime) {
       return;
     }
 
@@ -68,41 +86,156 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
     setError('');
     
     try {
-      // Format booking time for API
-      const bookingDateTime = `${selectedDate}T${selectedTime}:00`;
+      // Format booking times for API
+      const bookingTimes = selectedDates.map(date => `${date}T${selectedTime}:00`);
       
       console.log('[EmployeeSelection] Loading suitable employees with:', {
         serviceId: selectedService.serviceId,
-        bookingTime: bookingDateTime,
+        bookingTimes,
         ward: selectedLocation.ward,
         city: selectedLocation.city,
+        customerId: userInfo?.id,
       });
       
-      const response = await serviceService.getSuitableEmployees({
+      const employees = await bookingService.findSuitableEmployees({
         serviceId: selectedService.serviceId,
-        bookingTime: bookingDateTime,
+        bookingTimes,
         ward: selectedLocation.ward,
         city: selectedLocation.city,
+        customerId: userInfo?.id,
       });
 
-      console.log('[EmployeeSelection] Response received:', response);
-
-      // httpClient.get returns ApiResponse<T> where T is SuitableEmployee[]
-      if (response.success && response.data && Array.isArray(response.data)) {
-        setSuitableEmployees(response.data);
-        console.log('[EmployeeSelection] Set employees:', response.data.length);
-      } else {
-        const errorMsg = response.message || 'Không thể tải danh sách nhân viên';
-        setError(errorMsg);
-        console.warn('[EmployeeSelection] Error response:', errorMsg);
-        setSuitableEmployees([]);
-      }
+      console.log('[EmployeeSelection] Employees received:', employees.length);
+      setSuitableEmployees(employees);
     } catch (err) {
       console.error('[EmployeeSelection] Error loading suitable employees:', err);
       setError('Có lỗi xảy ra khi tải danh sách nhân viên');
       setSuitableEmployees([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePickImage = async () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Hủy', 'Chụp ảnh', 'Chọn từ thư viện'],
+          cancelButtonIndex: 0,
+        },
+        async (buttonIndex) => {
+          if (buttonIndex === 1) {
+            await pickImageFromCamera();
+          } else if (buttonIndex === 2) {
+            await pickImageFromLibrary();
+          }
+        }
+      );
+    } else {
+      // Android: Show Alert
+      Alert.alert(
+        'Chọn ảnh',
+        'Bạn muốn chụp ảnh mới hay chọn từ thư viện?',
+        [
+          { text: 'Hủy', style: 'cancel' },
+          { text: 'Chụp ảnh', onPress: pickImageFromCamera },
+          { text: 'Chọn từ thư viện', onPress: pickImageFromLibrary },
+        ]
+      );
+    }
+  };
+
+  const pickImageFromCamera = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Lỗi', 'Cần quyền truy cập máy ảnh');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        quality: 0.8,
+        allowsEditing: true,
+      });
+
+      if (!result.canceled && result.assets) {
+        const newImages = result.assets.map((asset) => ({
+          uri: asset.uri,
+          name: asset.fileName || `image_${Date.now()}.jpg`,
+          type: asset.type || 'image/jpeg',
+        }));
+        
+        const updatedImages = [...postImages, ...newImages].slice(0, 10);
+        setPostImages(updatedImages);
+        onPostDataChange({ title: postTitle, images: updatedImages });
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Lỗi', 'Không thể chụp ảnh');
+    }
+  };
+
+  const pickImageFromLibrary = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Lỗi', 'Cần quyền truy cập thư viện ảnh');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        selectionLimit: 10 - postImages.length,
+      });
+
+      if (!result.canceled && result.assets) {
+        const newImages = result.assets.map((asset) => ({
+          uri: asset.uri,
+          name: asset.fileName || `image_${Date.now()}.jpg`,
+          type: asset.type || 'image/jpeg',
+        }));
+        
+        const updatedImages = [...postImages, ...newImages].slice(0, 10);
+        setPostImages(updatedImages);
+        onPostDataChange({ title: postTitle, images: updatedImages });
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Lỗi', 'Không thể chọn ảnh');
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    const updatedImages = postImages.filter((_, i) => i !== index);
+    setPostImages(updatedImages);
+    onPostDataChange({ title: postTitle, images: updatedImages });
+  };
+
+  const handleTitleChange = (text: string) => {
+    setPostTitle(text);
+    onPostDataChange({ title: text, images: postImages });
+  };
+
+  const handleTogglePostMode = () => {
+    const newIsPost = !isCreatingPost;
+    onCreatePostToggle(newIsPost);
+    
+    if (!newIsPost) {
+      // Switching back to employee selection - clear post data
+      setPostTitle('');
+      setPostImages([]);
+      onPostDataChange(null);
+      onEmployeeSelect(null, null);
+      // Reload employees
+      if (selectedDates.length > 0 && bookingMode !== 'recurring') {
+        loadSuitableEmployees();
+      }
+    } else {
+      // Switching to post mode - clear employee selection
+      onEmployeeSelect(null, null);
     }
   };
 
@@ -252,20 +385,25 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
         )}
 
         {/* Time & Date Summary */}
-        {selectedDate && selectedTime && (
+        {selectedDates.length > 0 && selectedTime && (
           <View style={[commonStyles.card, { margin: 20, marginTop: 0, marginBottom: 12 }]}>
             <View style={commonStyles.flexRowBetween}>
               <View style={{ flex: 1 }}>
-                <Text style={[commonStyles.cardDescription, { marginBottom: 4 }]}>Ngày thực hiện</Text>
+                <Text style={[commonStyles.cardDescription, { marginBottom: 4 }]}>
+                  {bookingMode === 'single' ? 'Ngày thực hiện' : `Số ngày: ${selectedDates.length}`}
+                </Text>
                 <View style={[commonStyles.flexRow, { marginTop: 4 }]}>
                   <Ionicons name="calendar-outline" size={16} color={colors.highlight.teal} />
                   <Text style={[commonStyles.cardTitle, { marginLeft: 6, fontSize: 15 }]}>
-                    {new Date(selectedDate).toLocaleDateString('vi-VN', {
-                      weekday: 'short',
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric'
-                    })}
+                    {bookingMode === 'single' 
+                      ? new Date(selectedDates[0]).toLocaleDateString('vi-VN', {
+                          weekday: 'short',
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        })
+                      : `${new Date(selectedDates[0]).toLocaleDateString('vi-VN')} - ${new Date(selectedDates[selectedDates.length - 1]).toLocaleDateString('vi-VN')}`
+                    }
                   </Text>
                 </View>
               </View>
@@ -304,12 +442,123 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
           </View>
         )}
 
-        {/* Section Header */}
-        <View style={[commonStyles.section, { margin: 20, marginTop: 0, paddingTop: 0 }]}>
-          <Text style={commonStyles.sectionTitle}>Nhân viên được đề xuất</Text>
-          <Text style={commonStyles.sectionSubtitle}>
-            Chọn nhân viên để đặt lịch trực tiếp, hoặc bỏ qua để tạo bài đăng tìm nhân viên
-          </Text>
+        {/* Toggle Mode */}
+        {bookingMode !== 'recurring' && (
+          <View style={[commonStyles.card, { margin: 20, marginTop: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={commonStyles.cardTitle}>Tạo bài đăng tìm nhân viên</Text>
+              <Text style={commonStyles.cardDescription}>Hệ thống tự động tìm nhân viên phù hợp</Text>
+            </View>
+            <TouchableOpacity
+              style={{
+                width: 50,
+                height: 30,
+                borderRadius: 15,
+                backgroundColor: isCreatingPost ? accentColor : colors.neutral.border,
+                justifyContent: 'center',
+                padding: 2,
+              }}
+              onPress={handleTogglePostMode}
+            >
+              <View
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 13,
+                  backgroundColor: colors.neutral.white,
+                  transform: [{ translateX: isCreatingPost ? 20 : 0 }],
+                }}
+              />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Post Mode UI */}
+        {isCreatingPost && bookingMode !== 'recurring' && (
+          <View style={[commonStyles.section, { margin: 20, marginTop: 0 }]}>
+            <Text style={commonStyles.sectionTitle}>Thông tin bài đăng</Text>
+            
+            {/* Title Input */}
+            <View style={{ marginTop: 16 }}>
+              <Text style={[commonStyles.cardDescription, { marginBottom: 8 }]}>Tiêu đề bài đăng</Text>
+              <TextInput
+                style={{
+                  backgroundColor: colors.neutral.white,
+                  borderWidth: 1,
+                  borderColor: colors.neutral.border,
+                  borderRadius: 12,
+                  padding: 12,
+                  fontSize: 16,
+                  color: colors.primary.navy,
+                }}
+                placeholder="Nhập tiêu đề (vd: Cần dọn dẹp nhà 3 tầng)"
+                placeholderTextColor={colors.neutral.label}
+                value={postTitle}
+                onChangeText={handleTitleChange}
+                maxLength={255}
+              />
+            </View>
+
+            {/* Images */}
+            <View style={{ marginTop: 16 }}>
+              <Text style={[commonStyles.cardDescription, { marginBottom: 8 }]}>
+                Hình ảnh ({postImages.length}/10)
+              </Text>
+              
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {postImages.map((image, index) => (
+                  <View key={index} style={{ marginRight: 12, position: 'relative' }}>
+                    <Image source={{ uri: image.uri }} style={{ width: 100, height: 100, borderRadius: 8 }} />
+                    <TouchableOpacity
+                      style={{
+                        position: 'absolute',
+                        top: -8,
+                        right: -8,
+                        backgroundColor: colors.feedback.error,
+                        borderRadius: 12,
+                        width: 24,
+                        height: 24,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      onPress={() => handleRemoveImage(index)}
+                    >
+                      <Ionicons name="close" size={16} color={colors.neutral.white} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                
+                {postImages.length < 10 && (
+                  <TouchableOpacity
+                    style={{
+                      width: 100,
+                      height: 100,
+                      borderRadius: 8,
+                      borderWidth: 2,
+                      borderColor: colors.neutral.border,
+                      borderStyle: 'dashed',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: colors.warm.beige,
+                    }}
+                    onPress={handlePickImage}
+                  >
+                    <Ionicons name="camera-outline" size={32} color={accentColor} />
+                    <Text style={[commonStyles.cardDescription, { marginTop: 4 }]}>Thêm ảnh</Text>
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        )}
+
+        {/* Employee Selection UI */}
+        {!isCreatingPost && bookingMode !== 'recurring' && (
+          <View style={[commonStyles.section, { margin: 20, marginTop: 0, paddingTop: 0 }]}>
+            <Text style={commonStyles.sectionTitle}>Nhân viên được đề xuất</Text>
+            <Text style={commonStyles.sectionSubtitle}>
+              Chọn nhân viên để đặt lịch trực tiếp
+            </Text>
 
           {loading ? (
             <View style={commonStyles.loadingContainer}>
@@ -337,17 +586,28 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
               {suitableEmployees.map(renderEmployee)}
             </View>
           )}
-        </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* Bottom Button Container */}
       <View style={commonStyles.buttonContainer}>
         <TouchableOpacity
           onPress={onNext}
-          style={[commonStyles.primaryButton, commonStyles.flexRow, { justifyContent: 'center' }]}
+          style={[
+            commonStyles.primaryButton,
+            { justifyContent: 'center', alignItems: 'center', flexDirection: 'row' }
+          ]}
+          disabled={loading}
         >
           <Text style={commonStyles.primaryButtonText}>
-            {selectedEmployeeId ? "Tiếp tục với nhân viên đã chọn" : "Tạo bài đăng tìm nhân viên"}
+            {isCreatingPost 
+              ? "Tiếp tục tạo bài đăng" 
+              : selectedEmployeeId 
+              ? "Tiếp tục với nhân viên đã chọn" 
+              : bookingMode === 'recurring'
+              ? "Tiếp tục"
+              : "Bỏ qua (Hệ thống tự phân công)"}
           </Text>
           <Ionicons
             name="arrow-forward"

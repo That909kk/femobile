@@ -118,6 +118,25 @@ class PaymentService {
 
     return response.data ?? [];
   }
+
+  async createVNPayPaymentUrl(bookingId: string, amount: number, orderInfo?: string): Promise<string> {
+    const response = await httpClient.post<{ paymentUrl: string }>('/payment/vnpay/create', {
+      bookingId,
+      amount,
+      orderInfo: orderInfo || `Thanh toan don hang ${bookingId}`,
+      orderType: 'other',
+      locale: 'vn',
+      bankCode: '',
+      returnUrl: 'housekeeping://payment/vnpay-result',
+      clientType: 'mobile'  // Tell backend this is mobile app
+    });
+
+    if (!response.success || !response.data?.paymentUrl) {
+      throw new Error(response.message || 'Khong the tao URL thanh toan VNPay');
+    }
+
+    return response.data.paymentUrl;
+  }
 }
 
 export const paymentService = new PaymentService();

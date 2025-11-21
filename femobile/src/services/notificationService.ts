@@ -5,17 +5,24 @@ export type NotificationType =
   | 'BOOKING_CONFIRMED'
   | 'BOOKING_CANCELLED'
   | 'BOOKING_COMPLETED'
+  | 'BOOKING_VERIFIED'
+  | 'BOOKING_REJECTED'
+  | 'ASSIGNMENT_CREATED'
+  | 'ASSIGNMENT_CANCELLED'
   | 'ASSIGNMENT_ASSIGNED'
   | 'ASSIGNMENT_COMPLETED'
   | 'ASSIGNMENT_CRISIS'
   | 'PAYMENT_SUCCESS'
   | 'PAYMENT_FAILED'
+  | 'REVIEW_RECEIVED'
+  | 'SYSTEM_ANNOUNCEMENT'
+  | 'PROMOTION_AVAILABLE'
   | 'SYSTEM'
   | 'OTHER';
 
 export type NotificationPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 
-export type RelatedType = 'BOOKING' | 'ASSIGNMENT' | 'PAYMENT' | 'SYSTEM' | 'OTHER';
+export type RelatedType = 'BOOKING' | 'ASSIGNMENT' | 'PAYMENT' | 'REVIEW' | 'PROMOTION' | 'SYSTEM' | 'OTHER';
 
 export interface Notification {
   notificationId: string;
@@ -72,11 +79,12 @@ class NotificationService {
     const endpoint = `${this.BASE_PATH}${query.toString() ? `?${query.toString()}` : ''}`;
     const response = await httpClient.get<NotificationListResponse>(endpoint);
 
-    if (!response.success || !response.data) {
+    // API trả về trực tiếp: { success, data: [...], currentPage, totalItems, totalPages }
+    if (!response.success) {
       throw new Error(response.message || 'Khong the tai danh sach thong bao');
     }
 
-    return response.data;
+    return response.data as NotificationListResponse;
   }
 
   async getUnreadCount(): Promise<number> {

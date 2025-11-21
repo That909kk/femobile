@@ -112,7 +112,7 @@ export const OrderDetailScreen = () => {
         city: addressInfo?.city,
         notes: (response as any).note,
         estimatedCompletion: response.estimatedDuration || primaryService?.formattedDuration,
-        cancelReason: (response as any).cancelReason || (response as any).adminComment,
+        cancelReason: (response as any).cancelReason,
         paymentStatus: paymentInfo?.paymentStatus,
         paymentMethod: typeof paymentInfo?.paymentMethod === 'string'
           ? paymentInfo.paymentMethod

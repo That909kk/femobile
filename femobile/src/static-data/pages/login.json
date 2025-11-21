@@ -7,8 +7,7 @@
         "label": "Vai trò",
         "options": {
           "customer": "Khách hàng",
-          "employee": "Nhân viên", 
-          "admin": "Quản trị viên"
+          "employee": "Nhân viên"
         }
       },
       "username": {
@@ -41,7 +40,7 @@
       "invalid_credentials": "Thông tin đăng nhập không đúng",
       "account_inactive": "Tài khoản chưa kích hoạt hoặc đã bị khóa",
       "account_locked": "Tài khoản bị khóa do đăng nhập sai quá nhiều lần",
-      "admin_not_supported": "Ứng dụng di động không hỗ trợ vai trò ADMIN",
+      "admin_not_supported": "Ứng dụng không hỗ trợ cho vai trò ADMIN. Vui lòng đăng nhập tại homemate.io.vn",
       "loading": "Đang tải...",
       "alert_success": "Thành công",
       "alert_error": "Lỗi",

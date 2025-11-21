@@ -77,8 +77,6 @@ const RoleSelectionScreen: React.FC<Props> = ({ route, navigation }) => {
         return 'person-outline';
       case 'EMPLOYEE':
         return 'briefcase-outline';
-      case 'ADMIN':
-        return 'shield-checkmark-outline';
       default:
         return 'person-outline';
     }

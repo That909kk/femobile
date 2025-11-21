@@ -9,6 +9,7 @@ import {
   CustomerHomeScreen,
   BookingScreen,
   OrdersScreen,
+  ConversationListScreen,
   EmployeeDashboard,
   ScheduleScreen,
   RequestsScreen,
@@ -45,6 +46,13 @@ export const MainTabNavigator = () => {
       title: 'Đơn hàng',
       icon: 'list-outline',
       focusedIcon: 'list',
+    },
+    {
+      name: 'Messages',
+      component: ConversationListScreen,
+      title: 'Tin nhắn',
+      icon: 'chatbubbles-outline',
+      focusedIcon: 'chatbubbles',
     },
     {
       name: 'CustomerProfile',

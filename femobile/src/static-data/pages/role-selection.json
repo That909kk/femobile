@@ -8,13 +8,11 @@
     },
     "roles": {
       "CUSTOMER": "Khách hàng",
-      "EMPLOYEE": "Nhân viên lao động",
-      "ADMIN": "Quản trị viên"
+      "EMPLOYEE": "Nhân viên lao động"
     },
     "roleDescriptions": {
       "CUSTOMER": "Đặt dịch vụ, theo dõi đơn hàng và thanh toán minh bạch",
-      "EMPLOYEE": "Nhận ca phù hợp kỹ năng, quản lý lịch làm và thu nhập",
-      "ADMIN": "Quản lý hệ thống trên nền tảng web"
+      "EMPLOYEE": "Nhận ca phù hợp kỹ năng, quản lý lịch làm và thu nhập"
     },
     "messages": {
       "selectRole": "Vui lòng chọn một vai trò",
@@ -31,13 +29,11 @@
     },
     "roles": {
       "CUSTOMER": "Khách hàng",
-      "EMPLOYEE": "Nhân viên lao động",
-      "ADMIN": "Quản trị viên"
+      "EMPLOYEE": "Nhân viên lao động"
     },
     "roleDescriptions": {
       "CUSTOMER": "Đặt dịch vụ, theo dõi đơn hàng và thanh toán minh bạch",
-      "EMPLOYEE": "Nhận ca phù hợp kỹ năng, quản lý lịch làm và thu nhập",
-      "ADMIN": "Quản lý hệ thống trên nền tảng web"
+      "EMPLOYEE": "Nhận ca phù hợp kỹ năng, quản lý lịch làm và thu nhập"
     },
     "messages": {
       "selectRole": "Vui lòng chọn một vai trò",

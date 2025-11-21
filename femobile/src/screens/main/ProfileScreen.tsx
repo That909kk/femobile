@@ -276,29 +276,53 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     },
   ].filter(item => item.visible !== false);
 
+  const getRatingDisplay = () => {
+    if (!userData?.rating) return null;
+    
+    // Both Customer and Employee now use string rating: "HIGH" | "MEDIUM" | "LOW"
+    if (typeof userData.rating === 'string') {
+      const ratingMap = {
+        'HIGH': { text: 'Cao', color: COLORS.success },
+        'MEDIUM': { text: 'TB', color: COLORS.warning },
+        'LOW': { text: 'Thấp', color: COLORS.error }
+      };
+      const ratingInfo = ratingMap[userData.rating as 'HIGH' | 'MEDIUM' | 'LOW'];
+      return { text: ratingInfo?.text || 'N/A', color: ratingInfo?.color || COLORS.text.secondary };
+    }
+    
+    return null;
+  };
+
   const renderStatsCard = () => {
     if (!userData) return null;
     
     if (role === 'CUSTOMER') {
+      const hasStats = userData.vipLevel || userData.rating;
+      if (!hasStats) return null;
+
+      const ratingDisplay = getRatingDisplay();
+      
       return (
         <View style={styles.statsCard}>
           {userData.vipLevel && (
             <View style={styles.statItem}>
               <Text style={[styles.statNumber, styles.membershipText]}>
-                {userData.vipLevel}
+                VIP {userData.vipLevel}
               </Text>
               <Text style={styles.statLabel}>Hạng thành viên</Text>
             </View>
           )}
-          {userData.rating && (
+          {ratingDisplay && (
             <>
               {userData.vipLevel && <View style={styles.statDivider} />}
               <View style={styles.statItem}>
                 <View style={styles.ratingContainer}>
-                  <Text style={styles.statNumber}>{userData.rating.toFixed(1)}</Text>
-                  <Ionicons name="star" size={16} color={COLORS.warning} />
+                  <Text style={[styles.statNumber, { color: ratingDisplay.color }]}>
+                    {ratingDisplay.text}
+                  </Text>
+                  <Ionicons name="star" size={16} color={ratingDisplay.color} />
                 </View>
-                <Text style={styles.statLabel}>Đánh giá</Text>
+                <Text style={styles.statLabel}>Uy tín</Text>
               </View>
             </>
           )}
@@ -306,14 +330,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       );
     }
 
-    // Employee stats - only show rating if available
-    if (userData.rating) {
+    // Employee stats - show rating if available
+    const ratingDisplay = getRatingDisplay();
+    if (ratingDisplay) {
       return (
         <View style={styles.statsCard}>
           <View style={styles.statItem}>
             <View style={styles.ratingContainer}>
-              <Text style={styles.statNumber}>{userData.rating.toFixed(1)}</Text>
-              <Ionicons name="star" size={16} color={COLORS.warning} />
+              <Text style={[styles.statNumber, { color: ratingDisplay.color }]}>
+                {ratingDisplay.text}
+              </Text>
+              <Ionicons name="star" size={16} color={ratingDisplay.color} />
             </View>
             <Text style={styles.statLabel}>Đánh giá</Text>
           </View>
@@ -473,15 +500,24 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               </View>
             )}
 
-            {userData.rating !== null && (
-              <View style={styles.accountInfoRow}>
-                <Text style={styles.accountInfoLabel}>Đánh giá:</Text>
-                <View style={styles.phoneVerificationContainer}>
-                  <Text style={styles.accountInfoValue}>{userData.rating.toFixed(1)}</Text>
-                  <Ionicons name="star" size={16} color={COLORS.warning} />
+            {userData.rating && (() => {
+              const ratingDisplay = getRatingDisplay();
+              if (!ratingDisplay) return null;
+              
+              return (
+                <View style={styles.accountInfoRow}>
+                  <Text style={styles.accountInfoLabel}>
+                    {role === 'CUSTOMER' ? 'Uy tín:' : 'Đánh giá:'}
+                  </Text>
+                  <View style={styles.phoneVerificationContainer}>
+                    <Text style={[styles.accountInfoValue, { color: ratingDisplay.color }]}>
+                      {ratingDisplay.text}
+                    </Text>
+                    <Ionicons name="star" size={16} color={ratingDisplay.color} />
+                  </View>
                 </View>
-              </View>
-            )}
+              );
+            })()}
 
             {/* Employee specific info */}
             {role === 'EMPLOYEE' && (
