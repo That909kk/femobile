@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../../hooks/useAuth';
+import { useNotificationStore } from '../../../store/notificationStore';
 import { serviceService } from '../../../services/serviceService';
 import { employeeScheduleService } from '../../../services/employeeScheduleService';
 import { colors, responsive, screenDimensions, responsiveSpacing, responsiveFontSize, getGridItemWidth } from '../../../styles';
@@ -24,6 +25,8 @@ interface CustomerHomeScreenProps {}
 const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
+  const unreadCount = useNotificationStore(state => state.unreadCount);
+  const getUnreadCount = useNotificationStore(state => state.getUnreadCount);
   const [services, setServices] = useState<Service[]>([]);
   const userAvatar = user && 'avatar' in user ? user.avatar : undefined;
   const userFullName = user?.fullName ?? user?.username ?? 'Khách hàng';
@@ -76,6 +79,23 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  // Refresh unread count when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('[CustomerHomeScreen] 🔔 Screen focused, current unreadCount before fetch:', unreadCount);
+      getUnreadCount().then(() => {
+        console.log('[CustomerHomeScreen] 🔔 After getUnreadCount, checking store...');
+        const freshCount = useNotificationStore.getState().unreadCount;
+        console.log('[CustomerHomeScreen] 🔔 Fresh unreadCount from store:', freshCount);
+      });
+    }, [getUnreadCount]),
+  );
+
+  // Debug: Log unreadCount when it changes
+  useEffect(() => {
+    console.log('[CustomerHomeScreen] 🔔 Unread count:', unreadCount);
+  }, [unreadCount]);
 
   const loadInitialData = async () => {
     try {
@@ -177,7 +197,10 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
         </View>
         <TouchableOpacity
           style={styles.notificationButton}
-          onPress={() => navigation.navigate('NotificationList')}
+          onPress={() => {
+            console.log('[CustomerHomeScreen] 🔔 Notification bell tapped, unreadCount:', unreadCount);
+            navigation.navigate('NotificationList');
+          }}
           activeOpacity={0.7}
         >
           <Ionicons
@@ -185,7 +208,15 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
             size={responsive.moderateScale(24)}
             color={colors.primary.navy}
           />
-          <View style={styles.notificationBadge} />
+          {unreadCount > 0 ? (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>
+          ) : (
+            console.log('[CustomerHomeScreen] 🔔 Badge hidden, unreadCount:', unreadCount) as any
+          )}
         </TouchableOpacity>
       </View>
 
@@ -482,12 +513,23 @@ const styles = StyleSheet.create({
   },
   notificationBadge: {
     position: 'absolute',
-    top: responsive.moderateScale(8),
-    right: responsive.moderateScale(8),
-    width: responsive.moderateScale(8),
-    height: responsive.moderateScale(8),
-    borderRadius: responsive.moderateScale(4),
+    top: responsive.moderateScale(-4),
+    right: responsive.moderateScale(-4),
+    minWidth: responsive.moderateScale(18),
+    height: responsive.moderateScale(18),
+    borderRadius: responsive.moderateScale(9),
     backgroundColor: colors.feedback.error,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: responsive.moderateScale(4),
+    borderWidth: 2,
+    borderColor: colors.neutral.white,
+  },
+  notificationBadgeText: {
+    color: colors.neutral.white,
+    fontSize: responsive.moderateScale(10),
+    fontWeight: '700',
+    textAlign: 'center',
   },
   
   // Wallet Card

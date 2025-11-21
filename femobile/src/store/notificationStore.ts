@@ -5,6 +5,7 @@ import {
   NotificationPriority,
   notificationService,
 } from '../services/notificationService';
+import type { NotificationWebSocketDTO } from '../types/websocketNotification';
 
 interface NotificationState {
   notifications: Notification[];
@@ -29,6 +30,7 @@ interface NotificationActions {
   deleteNotification: (notificationId: string) => Promise<void>;
   getUnreadCount: () => Promise<void>;
   addNotification: (notification: Notification) => void;
+  addWebSocketNotification: (wsNotification: NotificationWebSocketDTO) => void;
   clearNotifications: () => void;
 }
 
@@ -45,24 +47,49 @@ export const useNotificationStore = create<NotificationState & NotificationActio
   // Fetch notifications
   fetchNotifications: async (params = {}) => {
     try {
+      console.log('[NotificationStore] 🔄 Fetching notifications with params:', params);
       set({ loading: true, error: null });
       const response = await notificationService.getNotifications(params);
       
+      console.log('[NotificationStore] 📦 Received response:', {
+        success: response.success,
+        dataLength: response.data?.length || 0,
+        currentPage: response.currentPage,
+        totalPages: response.totalPages,
+        totalItems: response.totalItems
+      });
+      
       if (response.success && response.data) {
         const isFirstPage = !params.page || params.page === 0;
+        const newNotifications = isFirstPage ? response.data : [
+          ...get().notifications,
+          ...response.data,
+        ];
+        
+        console.log('[NotificationStore] 💾 Saving to store:', newNotifications.length, 'notifications');
+        
         set({
-          notifications: isFirstPage ? response.data : [
-            ...get().notifications,
-            ...response.data,
-          ],
+          notifications: newNotifications,
           currentPage: response.currentPage,
           totalPages: response.totalPages,
           hasMore: response.currentPage < response.totalPages - 1,
           loading: false,
         });
+        
+        console.log('[NotificationStore] ✅ Store updated successfully');
+      } else {
+        // API returned but no success
+        console.warn('[NotificationStore] ⚠️ API returned unsuccessful response:', response);
+        set({ loading: false });
       }
     } catch (error: any) {
-      set({ error: error.message || 'Không thể tải thông báo', loading: false });
+      // Gracefully handle error - don't throw
+      console.error('[NotificationStore] ❌ fetchNotifications error:', error.message);
+      set({ 
+        error: error.message || 'Không thể tải thông báo', 
+        loading: false 
+      });
+      // Don't throw - let app continue with WebSocket notifications
     }
   },
 
@@ -124,11 +151,13 @@ export const useNotificationStore = create<NotificationState & NotificationActio
   // Get unread count
   getUnreadCount: async () => {
     try {
+      console.log('[NotificationStore] 🔔 Fetching unread count...');
       const count = await notificationService.getUnreadCount();
+      console.log('[NotificationStore] 🔔 Unread count received:', count);
       set({ unreadCount: count });
     } catch (error: any) {
       // Silent fail for unread count
-      console.error('Failed to get unread count:', error);
+      console.error('[NotificationStore] ❌ Failed to get unread count:', error);
     }
   },
 
@@ -138,6 +167,35 @@ export const useNotificationStore = create<NotificationState & NotificationActio
       notifications: [notification, ...state.notifications],
       unreadCount: notification.isRead ? state.unreadCount : state.unreadCount + 1,
     }));
+  },
+
+  // Add WebSocket notification (convert DTO to Notification)
+  addWebSocketNotification: (wsNotification: NotificationWebSocketDTO) => {
+    // Convert WebSocket DTO to local Notification format
+    const notification: Notification = {
+      ...wsNotification,
+      isRead: false, // WebSocket notifications are always unread initially
+      receivedAt: new Date().toISOString(),
+    };
+
+    console.log('[NotificationStore] Adding WebSocket notification:', notification);
+
+    set(state => {
+      // Check if notification already exists (prevent duplicates)
+      const exists = state.notifications.some(
+        n => n.notificationId === notification.notificationId
+      );
+
+      if (exists) {
+        console.warn('[NotificationStore] Notification already exists, skipping:', notification.notificationId);
+        return state;
+      }
+
+      return {
+        notifications: [notification, ...state.notifications],
+        unreadCount: state.unreadCount + 1,
+      };
+    });
   },
 
   // Clear notifications

@@ -7,6 +7,13 @@ declare const __DEV__: boolean;
 
 type RawApiResponse<T> = ApiResponse<T> | (T & Record<string, unknown>);
 
+// Session expired callback - will be set by authStore
+let onSessionExpired: (() => void) | null = null;
+
+export const setSessionExpiredCallback = (callback: () => void) => {
+  onSessionExpired = callback;
+};
+
 class HttpClient {
   private instance: AxiosInstance;
 
@@ -79,29 +86,51 @@ class HttpClient {
           try {
             const refreshToken = await SecureStore.getItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
 
-            if (refreshToken) {
-              const refreshResponse = await this.instance.post('/auth/refresh-token', {
-                refreshToken,
-              });
+            if (!refreshToken) {
+              console.warn('[httpClient] No refresh token available, clearing session');
+              await this.clearTokens();
+              return Promise.reject(error);
+            }
 
-              if (refreshResponse.data?.success && refreshResponse.data.data) {
-                const { accessToken, refreshToken: newRefreshToken } = refreshResponse.data.data;
+            console.log('[httpClient] 🔄 Attempting to refresh token...');
 
-                await SecureStore.setItemAsync(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
-                await SecureStore.setItemAsync(STORAGE_KEYS.REFRESH_TOKEN, newRefreshToken);
+            const refreshResponse = await this.instance.post('/auth/refresh-token', {
+              refreshToken,
+            });
 
-                originalRequest.headers = originalRequest.headers ?? {};
-                originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-                return this.instance(originalRequest);
+            if (refreshResponse.data?.success && refreshResponse.data.data) {
+              const { accessToken, refreshToken: newRefreshToken } = refreshResponse.data.data;
+
+              console.log('[httpClient] ✅ Token refreshed successfully');
+
+              await SecureStore.setItemAsync(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
+              await SecureStore.setItemAsync(STORAGE_KEYS.REFRESH_TOKEN, newRefreshToken);
+
+              originalRequest.headers = originalRequest.headers ?? {};
+              originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+              return this.instance(originalRequest);
+            } else {
+              console.warn('[httpClient] ❌ Refresh token response invalid');
+              await this.clearTokens();
+            }
+          } catch (refreshError: any) {
+            console.error('[httpClient] ❌ Token refresh failed:', {
+              status: refreshError?.response?.status,
+              message: refreshError?.response?.data?.message || refreshError?.message,
+            });
+            
+            // Clear tokens if refresh failed with 401 (invalid/expired refresh token)
+            if (refreshError?.response?.status === 401) {
+              console.warn('[httpClient] 🔒 Refresh token invalid/expired, clearing session');
+              await this.clearTokens();
+              
+              // Notify app that session has expired
+              if (onSessionExpired) {
+                console.log('[httpClient] 📢 Triggering session expired callback');
+                onSessionExpired();
               }
             }
-          } catch (refreshError) {
-            if (__DEV__) {
-              console.warn('[httpClient] token refresh failed', refreshError);
-            }
           }
-
-          await this.clearTokens();
         }
 
         return Promise.reject(error);

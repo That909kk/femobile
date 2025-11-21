@@ -14,9 +14,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useChatStore } from '../../../store/chatStore';
-import { useUserInfo } from '../../../hooks';
+import { useUserInfo, useTotalUnreadCount } from '../../../hooks';
 import { colors, responsiveSpacing, responsiveFontSize } from '../../../styles';
 import type { Conversation } from '../../../services/chatService';
+import { ConversationUnreadBadge } from '../../../components';
 
 export const ConversationListScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -29,6 +30,21 @@ export const ConversationListScreen: React.FC = () => {
   // API /api/v1/conversations/sender/{senderId} sẽ tự động tìm conversations
   // mà user là customer HOẶC employee
   const senderId = userInfo?.id;
+
+  // Hook to get total unread count (auto-refreshes every 30s)
+  const { unreadCount: totalUnreadCount, refreshUnreadCount } = useTotalUnreadCount(
+    !!senderId, // Only fetch if senderId exists
+    30000, // Refresh every 30 seconds
+  );
+
+  // Debug logging
+  useEffect(() => {
+    console.log('📊 ConversationList: Unread count status:', {
+      senderId,
+      totalUnreadCount,
+      hasSenderId: !!senderId,
+    });
+  }, [senderId, totalUnreadCount]);
 
   // Debug userInfo
   useEffect(() => {
@@ -84,7 +100,10 @@ export const ConversationListScreen: React.FC = () => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadConversations();
+    await Promise.all([
+      loadConversations(),
+      refreshUnreadCount(), // Also refresh unread count
+    ]);
     setRefreshing(false);
   };
 
@@ -172,11 +191,14 @@ export const ConversationListScreen: React.FC = () => {
           </View>
         </View>
 
-        <Ionicons
-          name="chevron-forward"
-          size={20}
-          color={colors.neutral.textSecondary}
-        />
+        <View style={styles.rightSection}>
+          <ConversationUnreadBadge conversationId={item.conversationId} />
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={colors.neutral.textSecondary}
+          />
+        </View>
       </TouchableOpacity>
     );
   };
@@ -220,7 +242,16 @@ export const ConversationListScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Tin nhắn</Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Tin nhắn</Text>
+          {totalUnreadCount > 0 && (
+            <View style={styles.headerBadge}>
+              <Text style={styles.headerBadgeText}>
+                {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* Search Bar */}
@@ -286,10 +317,30 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral.border,
   },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: responsiveSpacing.sm,
+  },
   headerTitle: {
     fontSize: responsiveFontSize.heading2,
     fontWeight: '700',
     color: colors.primary.navy,
+  },
+  headerBadge: {
+    backgroundColor: colors.feedback.error,
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    paddingHorizontal: responsiveSpacing.xs,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerBadgeText: {
+    color: colors.neutral.white,
+    fontSize: responsiveFontSize.caption,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -367,6 +418,11 @@ const styles = StyleSheet.create({
   },
   bookingIcon: {
     marginLeft: responsiveSpacing.xs,
+  },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: responsiveSpacing.xs,
   },
   loadingContainer: {
     flex: 1,

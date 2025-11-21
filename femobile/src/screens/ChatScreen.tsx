@@ -22,6 +22,7 @@ import { chatService, websocketService } from '../services';
 import type { ChatMessage } from '../services/chatService';
 import { useAuthStore } from '../store/authStore';
 import { colors, responsiveSpacing, responsiveFontSize } from '../styles';
+import { useMarkAsRead } from '../hooks';
 
 type RootStackParamList = {
   ChatScreen: { conversationId: string; recipientName: string };
@@ -61,10 +62,25 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
+  // Hook to mark messages as read
+  const { markConversationAsRead } = useMarkAsRead();
+
   // Load messages khi vào màn hình
   useEffect(() => {
     loadMessages();
   }, [conversationId]);
+
+  // Mark messages as read when entering conversation
+  useEffect(() => {
+    if (conversationId) {
+      // Delay to ensure user has actually viewed the conversation
+      const timer = setTimeout(() => {
+        markConversationAsRead(conversationId);
+      }, 1000); // 1 second delay
+
+      return () => clearTimeout(timer);
+    }
+  }, [conversationId, markConversationAsRead]);
 
   // Handler for receiving new messages via WebSocket
   const handleNewMessage = useCallback((message: ChatMessage) => {
@@ -104,12 +120,12 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
     });
 
     // Mark as read nếu tin nhắn từ người khác (so sánh với accountId)
-    if (message.senderId !== accountId && senderId) {
+    if (message.senderId !== accountId) {
       console.log('[ChatScreen] Message from other user, marking as read');
       // Delay a bit to ensure message is rendered first
       setTimeout(() => {
-        markMessagesAsRead();
-      }, 300);
+        markConversationAsRead(conversationId);
+      }, 500);
     } else {
       console.log('[ChatScreen] Message from me, not marking as read');
     }
@@ -172,8 +188,8 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
                 console.log('[ChatScreen] 📥 Polling found', newMessages.length, 'new message(s)');
                 
                 // Mark as read if from other user
-                if (newMessages.some(m => m.senderId !== accountId) && senderId) {
-                  chatService.markMessagesAsRead(conversationId, senderId).catch(err => 
+                if (newMessages.some(m => m.senderId !== accountId)) {
+                  markConversationAsRead(conversationId).catch(err => 
                     console.error('[ChatScreen] Error marking as read:', err)
                   );
                 }
@@ -215,13 +231,6 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
     };
   }, [conversationId, handleNewMessage]);
 
-  // Mark messages as read khi vào màn hình
-  useEffect(() => {
-    if (senderId) {
-      markMessagesAsRead();
-    }
-  }, [conversationId, senderId]);
-
   const loadMessages = async () => {
     try {
       setLoading(true);
@@ -239,17 +248,6 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
       Alert.alert('Lỗi', 'Không thể tải tin nhắn');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const markMessagesAsRead = async () => {
-    if (!senderId) return;
-    
-    try {
-      // receiverId là senderId (customerId hoặc employeeId) của người đang đọc
-      await chatService.markMessagesAsRead(conversationId, senderId);
-    } catch (error) {
-      console.error('Error marking messages as read:', error);
     }
   };
 

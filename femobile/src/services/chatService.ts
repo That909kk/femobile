@@ -60,7 +60,21 @@ export interface MessageListResponse {
 
 export interface UnreadCountResponse {
   success: boolean;
-  count: number;
+  data: {
+    receiverId: string;
+    conversationId?: string;
+    unreadCount: number;
+  };
+}
+
+export interface MarkReadResponse {
+  success: boolean;
+  message: string;
+  data: {
+    receiverId: string;
+    conversationId?: string;
+    markedCount: number;
+  };
 }
 
 class ChatService {
@@ -274,35 +288,122 @@ class ChatService {
     return response.data;
   }
 
-  async getUnreadCount(conversationId: string): Promise<number> {
+  /**
+   * Get unread count for a specific conversation
+   * @param conversationId - ID of the conversation
+   * @param receiverId - ID of the receiver (customerId or employeeId)
+   */
+  async getUnreadCountByConversation(conversationId: string, receiverId: string): Promise<number> {
     try {
-      const response = await httpClient.get<UnreadCountResponse>(
-        `${this.MESSAGE_PATH}/conversation/${conversationId}/unread-count`,
-      );
+      const endpoint = `${this.MESSAGE_PATH}/conversation/${conversationId}/unread-count?receiverId=${receiverId}`;
+      console.log('[ChatService] getUnreadCountByConversation calling:', endpoint);
+      
+      const response = await httpClient.get<UnreadCountResponse>(endpoint);
 
-      if (!response.success) {
-        console.warn('[ChatService] getUnreadCount failed:', response.message);
+      console.log('[ChatService] getUnreadCountByConversation response:', {
+        success: response.success,
+        hasData: !!response.data,
+        unreadCount: response.data?.data?.unreadCount,
+      });
+
+      if (!response.success || !response.data) {
+        console.warn('[ChatService] getUnreadCountByConversation failed:', response.message);
         return 0;
       }
 
-      return response.data?.count ?? 0;
+      return response.data.data?.unreadCount ?? 0;
     } catch (error) {
-      console.error('[ChatService] getUnreadCount error:', error);
+      console.error('[ChatService] getUnreadCountByConversation error:', error);
       return 0;
     }
   }
 
-  async markMessagesAsRead(conversationId: string, receiverId: string): Promise<boolean> {
-    const response = await httpClient.put<{ success: boolean; message: string }>(
-      `${this.MESSAGE_PATH}/conversation/${conversationId}/mark-read?receiverId=${receiverId}`,
-      {},
-    );
+  /**
+   * Get total unread count across all conversations
+   * @param receiverId - ID of the receiver (customerId or employeeId)
+   */
+  async getTotalUnreadCount(receiverId: string): Promise<number> {
+    try {
+      const endpoint = `${this.MESSAGE_PATH}/unread-count?receiverId=${receiverId}`;
+      console.log('[ChatService] getTotalUnreadCount calling:', endpoint);
+      
+      const response = await httpClient.get<UnreadCountResponse>(endpoint);
 
-    if (!response.success) {
-      throw new Error(response.message || 'Khong the danh dau da doc');
+      console.log('[ChatService] getTotalUnreadCount response:', {
+        success: response.success,
+        hasData: !!response.data,
+        unreadCount: response.data?.data?.unreadCount,
+      });
+
+      if (!response.success || !response.data) {
+        console.warn('[ChatService] getTotalUnreadCount failed:', response.message);
+        return 0;
+      }
+
+      return response.data.data?.unreadCount ?? 0;
+    } catch (error) {
+      console.error('[ChatService] getTotalUnreadCount error:', error);
+      return 0;
     }
+  }
 
-    return response.data?.success ?? response.success;
+  /**
+   * Mark messages as read in a specific conversation
+   * @param conversationId - ID of the conversation
+   * @param receiverId - ID of the receiver (customerId or employeeId)
+   */
+  async markConversationAsRead(conversationId: string, receiverId: string): Promise<number> {
+    try {
+      const response = await httpClient.put<MarkReadResponse>(
+        `${this.MESSAGE_PATH}/conversation/${conversationId}/mark-read?receiverId=${receiverId}`,
+        {},
+      );
+
+      if (!response.success || !response.data) {
+        console.warn('[ChatService] markConversationAsRead failed:', response.message);
+        return 0;
+      }
+
+      return response.data.data?.markedCount ?? 0;
+    } catch (error) {
+      console.error('[ChatService] markConversationAsRead error:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Mark all messages as read across all conversations
+   * @param receiverId - ID of the receiver (customerId or employeeId)
+   */
+  async markAllAsRead(receiverId: string): Promise<number> {
+    try {
+      const response = await httpClient.put<MarkReadResponse>(
+        `${this.MESSAGE_PATH}/mark-all-read?receiverId=${receiverId}`,
+        {},
+      );
+
+      if (!response.success || !response.data) {
+        console.warn('[ChatService] markAllAsRead failed:', response.message);
+        return 0;
+      }
+
+      return response.data.data?.markedCount ?? 0;
+    } catch (error) {
+      console.error('[ChatService] markAllAsRead error:', error);
+      return 0;
+    }
+  }
+
+  // Legacy methods - kept for backward compatibility
+  async getUnreadCount(conversationId: string): Promise<number> {
+    console.warn('[ChatService] getUnreadCount is deprecated, use getUnreadCountByConversation instead');
+    return 0;
+  }
+
+  async markMessagesAsRead(conversationId: string, receiverId: string): Promise<boolean> {
+    console.warn('[ChatService] markMessagesAsRead is deprecated, use markConversationAsRead instead');
+    const markedCount = await this.markConversationAsRead(conversationId, receiverId);
+    return markedCount > 0;
   }
 }
 

@@ -11,6 +11,7 @@ export { employeeAssignmentService } from './employeeAssignmentService';
 export { addressService } from './addressService';
 export { reviewService } from './reviewService';
 export { notificationService } from './notificationService';
+export { notificationWebSocketService } from './notificationWebSocketService';
 export { uploadService } from './uploadService';
 export { chatService } from './chatService';
 export { bookingMediaService } from './bookingMediaService';

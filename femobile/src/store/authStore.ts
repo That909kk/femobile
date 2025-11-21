@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import * as SecureStore from 'expo-secure-store';
 import { authService } from '../services/authService';
+import { setSessionExpiredCallback } from '../services/httpClient';
 import { STORAGE_KEYS, APP_CONFIG } from '../constants';
 import type { 
   AuthState, 
@@ -71,18 +72,25 @@ interface AuthActions {
 
 export const useAuthStore = create<AuthState & AuthActions>()(
   persist(
-    (set, get) => ({
-      // Initial state
-      isAuthenticated: false,
-      user: null,
-      role: null,
-      accessToken: null,
-      refreshToken: null,
-      loading: false,
-      error: null,
+    (set, get) => {
+      // Setup session expired callback when store is created
+      setSessionExpiredCallback(() => {
+        console.log('[AuthStore] 🔒 Session expired, clearing auth state');
+        get().clearAuth();
+      });
 
-      // Login action
-      login: async (credentials: LoginRequest) => {
+      return {
+        // Initial state
+        isAuthenticated: false,
+        user: null,
+        role: null,
+        accessToken: null,
+        refreshToken: null,
+        loading: false,
+        error: null,
+
+        // Login action
+        login: async (credentials: LoginRequest) => {
         try {
           set({ loading: true, error: null });
           
@@ -404,7 +412,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           error: null,
         });
       },
-    }),
+    };
+  },
     {
       name: 'auth-store',
       storage: createJSONStorage(() => secureStorage),

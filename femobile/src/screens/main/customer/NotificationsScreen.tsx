@@ -13,6 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth, useEnsureValidToken } from '../../../hooks';
+import { useNotificationStore } from '../../../store/notificationStore';
+import { useWebSocketNotifications } from '../../../hooks/useWebSocketNotifications';
 import { COLORS, UI } from '../../../constants';
 import {
   notificationService,
@@ -99,16 +101,44 @@ const formatDateTime = (dateTimeStr: string) => {
 export const NotificationsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const ensureValidToken = useEnsureValidToken();
-  const { user } = useAuth();
+  const { user, accountId, role } = useAuth();
 
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
-  const [unreadCount, setUnreadCount] = useState(0);
+  
+  // Use Zustand store directly - auto-updates from WebSocket
+  const allNotifications = useNotificationStore(state => state.notifications);
+  const unreadCount = useNotificationStore(state => state.unreadCount);
+  const addWebSocketNotification = useNotificationStore(state => state.addWebSocketNotification);
+
+  // Filter notifications based on current filter
+  const notifications = filter === 'unread' 
+    ? allNotifications.filter(n => !n.isRead)
+    : allNotifications;
+
+  // WebSocket connection for real-time notifications
+  const { status: wsStatus, isConnected } = useWebSocketNotifications({
+    accountId: accountId,
+    role: role as any,
+    autoConnect: true,
+    onNotification: (notification) => {
+      console.log('[NotificationsScreen] 📩 Received WebSocket notification:', notification);
+      addWebSocketNotification(notification);
+    },
+    onError: (error) => {
+      console.error('[NotificationsScreen] ❌ WebSocket error:', error);
+    },
+  });
+
+  // Log WebSocket status
+  useEffect(() => {
+    console.log('[NotificationsScreen] WebSocket Status:', wsStatus, '| Connected:', isConnected);
+  }, [wsStatus, isConnected]);
 
   const fetchNotifications = useCallback(async (isRefreshing = false) => {
     if (!user) {
+      console.log('[NotificationsScreen] No user, skipping fetch');
       setLoading(false);
       return;
     }
@@ -120,33 +150,33 @@ export const NotificationsScreen: React.FC = () => {
 
       await ensureValidToken.ensureValidToken();
 
-      const response = await notificationService.getNotifications({
+      console.log('[NotificationsScreen] 🔄 Fetching notifications from REST API...');
+      
+      // Sync from REST API (history/backup)
+      await useNotificationStore.getState().fetchNotifications({
         page: 0,
         size: 50,
-        unreadOnly: filter === 'unread',
       });
 
-      // Response trả về trực tiếp là { success, data, currentPage, totalItems, totalPages }
-      setNotifications(response.data || []);
-
-      const count = await notificationService.getUnreadCount();
-      setUnreadCount(count);
-    } catch (error) {
-      console.error('Fetch notifications error:', error);
-      // Không hiển thị alert nữa, chỉ set empty array
-      setNotifications([]);
-      setUnreadCount(0);
+      // Update unread count
+      await useNotificationStore.getState().getUnreadCount();
+      
+      console.log('[NotificationsScreen] ✅ Fetched notifications:', allNotifications.length);
+    } catch (error: any) {
+      console.error('[NotificationsScreen] ❌ Fetch error:', error);
     } finally {
       setLoading(false);
       if (isRefreshing) {
         setRefreshing(false);
       }
     }
-  }, [user, ensureValidToken, filter]);
+  }, [user, ensureValidToken, allNotifications.length]);
 
   useEffect(() => {
+    console.log('[NotificationsScreen] 🚀 Component mounted');
+    console.log('[NotificationsScreen] User:', { accountId, role });
     fetchNotifications();
-  }, [fetchNotifications]);
+  }, []); // Load on mount
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -156,23 +186,19 @@ export const NotificationsScreen: React.FC = () => {
   const handleMarkAsRead = async (notificationId: string) => {
     try {
       await ensureValidToken.ensureValidToken();
-      await notificationService.markAsRead(notificationId);
-      // Cập nhật lại danh sách
-      fetchNotifications();
+      await useNotificationStore.getState().markAsRead(notificationId);
     } catch (error: any) {
-      console.error('Mark as read error:', error);
+      console.error('[NotificationsScreen] Mark as read error:', error);
     }
   };
 
   const handleMarkAllAsRead = async () => {
     try {
       await ensureValidToken.ensureValidToken();
-      await notificationService.markAllAsRead();
+      await useNotificationStore.getState().markAllAsRead();
       Alert.alert('Thành công', 'Đã đánh dấu tất cả thông báo là đã đọc');
-      // Cập nhật lại danh sách
-      fetchNotifications();
     } catch (error: any) {
-      console.error('Mark all as read error:', error);
+      console.error('[NotificationsScreen] Mark all as read error:', error);
       Alert.alert('Lỗi', 'Không thể đánh dấu tất cả đã đọc');
     }
   };
@@ -186,11 +212,9 @@ export const NotificationsScreen: React.FC = () => {
         onPress: async () => {
           try {
             await ensureValidToken.ensureValidToken();
-            await notificationService.deleteNotification(notificationId);
-            // Cập nhật lại danh sách
-            fetchNotifications();
+            await useNotificationStore.getState().deleteNotification(notificationId);
           } catch (error: any) {
-            console.error('Delete notification error:', error);
+            console.error('[NotificationsScreen] Delete error:', error);
             Alert.alert('Lỗi', 'Không thể xóa thông báo');
           }
         },
@@ -202,7 +226,6 @@ export const NotificationsScreen: React.FC = () => {
     if (!notification.isRead) {
       handleMarkAsRead(notification.notificationId);
     }
-    // TODO: Navigate to related screen based on relatedType and relatedId
   };
 
   const renderNotificationItem = ({ item }: { item: Notification }) => (
@@ -269,7 +292,14 @@ export const NotificationsScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Thông báo</Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>Thông báo</Text>
+          {isConnected && (
+            <View style={styles.connectionIndicator}>
+              <View style={styles.connectionDot} />
+            </View>
+          )}
+        </View>
         {unreadCount > 0 && (
           <TouchableOpacity onPress={handleMarkAllAsRead} style={styles.markAllButton}>
             <Text style={styles.markAllText}>Đọc tất cả</Text>
@@ -319,8 +349,14 @@ export const NotificationsScreen: React.FC = () => {
             <Text style={styles.emptySubtext}>
               {filter === 'unread' 
                 ? 'Tất cả thông báo đã được đọc' 
-                : 'Các thông báo sẽ xuất hiện ở đây'}
+                : 'Thông báo của bạn sẽ xuất hiện ở đây'}
             </Text>
+            <View style={styles.wsStatusContainer}>
+              <View style={[styles.wsStatusDot, isConnected ? styles.wsConnected : styles.wsDisconnected]} />
+              <Text style={styles.wsStatusText}>
+                {isConnected ? 'Đã kết nối real-time' : `Đang kết nối... (${wsStatus})`}
+              </Text>
+            </View>
           </View>
         }
       />
@@ -346,10 +382,27 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 4,
   },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#1a1a1a',
+  },
+  connectionIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4ade80',
+  },
+  connectionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4ade80',
   },
   markAllButton: {
     paddingVertical: 4,
@@ -485,5 +538,26 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: UI.SPACING.sm,
     textAlign: 'center',
+  },
+  wsStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: UI.SPACING.lg,
+    gap: 6,
+  },
+  wsStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  wsConnected: {
+    backgroundColor: '#4ade80',
+  },
+  wsDisconnected: {
+    backgroundColor: '#fbbf24',
+  },
+  wsStatusText: {
+    fontSize: 12,
+    color: '#999',
   },
 });

@@ -27,6 +27,7 @@ export type RelatedType = 'BOOKING' | 'ASSIGNMENT' | 'PAYMENT' | 'REVIEW' | 'PRO
 export interface Notification {
   notificationId: string;
   accountId: string;
+  targetRole?: string; // CUSTOMER, EMPLOYEE, ADMIN - for WebSocket notifications
   type: NotificationType;
   title: string;
   message: string;
@@ -37,6 +38,7 @@ export interface Notification {
   priority: NotificationPriority;
   actionUrl?: string;
   createdAt: string;
+  receivedAt?: string; // Timestamp khi nhận được qua WebSocket
 }
 
 export interface NotificationListResponse {
@@ -68,40 +70,76 @@ class NotificationService {
     type?: NotificationType;
     priority?: NotificationPriority;
   }): Promise<NotificationListResponse> {
-    const query = new URLSearchParams();
-    if (typeof params?.page === 'number') query.append('page', params.page.toString());
-    if (typeof params?.size === 'number') query.append('size', params.size.toString());
-    if (typeof params?.unreadOnly === 'boolean')
-      query.append('unreadOnly', params.unreadOnly.toString());
-    if (params?.type) query.append('type', params.type);
-    if (params?.priority) query.append('priority', params.priority);
+    try {
+      const query = new URLSearchParams();
+      if (typeof params?.page === 'number') query.append('page', params.page.toString());
+      if (typeof params?.size === 'number') query.append('size', params.size.toString());
+      if (typeof params?.unreadOnly === 'boolean')
+        query.append('unreadOnly', params.unreadOnly.toString());
+      if (params?.type) query.append('type', params.type);
+      if (params?.priority) query.append('priority', params.priority);
 
-    const endpoint = `${this.BASE_PATH}${query.toString() ? `?${query.toString()}` : ''}`;
-    const response = await httpClient.get<NotificationListResponse>(endpoint);
+      const endpoint = `${this.BASE_PATH}${query.toString() ? `?${query.toString()}` : ''}`;
+      console.log('[NotificationService] 📡 Calling endpoint:', endpoint);
+      
+      const response = await httpClient.get<any>(endpoint);
+      console.log('[NotificationService] 📥 Raw response:', JSON.stringify(response).substring(0, 300));
 
-    // API trả về trực tiếp: { success, data: [...], currentPage, totalItems, totalPages }
-    if (!response.success) {
-      throw new Error(response.message || 'Khong the tai danh sach thong bao');
+      // API trả về: { success, data: [...], currentPage, totalItems, totalPages }
+      if (!response.success) {
+        console.error('[NotificationService] ❌ API returned success=false:', response.message);
+        throw new Error(response.message || 'Khong the tai danh sach thong bao');
+      }
+
+      // Cast to correct type - backend returns pagination fields at top level
+      const typedResponse = response as any;
+      
+      const result: NotificationListResponse = {
+        success: typedResponse.success,
+        data: typedResponse.data || [],
+        currentPage: typedResponse.currentPage || 0,
+        totalItems: typedResponse.totalItems || 0,
+        totalPages: typedResponse.totalPages || 0,
+      };
+      
+      console.log('[NotificationService] ✅ Parsed notifications:', result.data?.length || 0, 'items');
+      return result;
+    } catch (error: any) {
+      console.error('[NotificationService] getNotifications failed:', error?.message);
+      // Return empty data instead of throwing to prevent app crash
+      return {
+        success: false,
+        data: [],
+        currentPage: 0,
+        totalItems: 0,
+        totalPages: 0,
+      } as NotificationListResponse;
     }
-
-    return response.data as NotificationListResponse;
   }
 
   async getUnreadCount(): Promise<number> {
     try {
+      console.log('[NotificationService] 📡 Calling /unread-count...');
       const response = await httpClient.get<UnreadCountResponse>(
         `${this.BASE_PATH}/unread-count`,
       );
 
+      console.log('[NotificationService] 📥 Unread count response:', JSON.stringify(response).substring(0, 200));
+
       if (!response.success) {
-        console.warn('[NotificationService] getUnreadCount failed:', response.message);
-        return 0; // Trả về 0 thay vì throw error
+        console.warn('[NotificationService] ⚠️ getUnreadCount failed:', response.message);
+        return 0;
       }
 
-      return response.data?.count || 0;
-    } catch (error) {
-      console.warn('[NotificationService] getUnreadCount error:', error);
-      return 0; // Trả về 0 khi có lỗi
+      // API response structure: { success: true, count: X }
+      // But httpClient wraps it in ApiResponse: { success: true, data: { success: true, count: X } }
+      const rawResponse = response as any;
+      const count = rawResponse.count ?? rawResponse.data?.count ?? 0;
+      console.log('[NotificationService] ✅ Unread count parsed:', count);
+      return count;
+    } catch (error: any) {
+      console.warn('[NotificationService] ❌ getUnreadCount error:', error?.message);
+      return 0;
     }
   }
 
