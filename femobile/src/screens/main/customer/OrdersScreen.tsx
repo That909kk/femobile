@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Button } from '../../../components';
 import { useAuth, useEnsureValidToken, useUserInfo } from '../../../hooks';
-import { bookingService } from '../../../services';
+import { bookingService, chatService } from '../../../services';
 import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../styles';
 import type { BookingStatus } from '../../../types/booking';
 
@@ -30,6 +30,7 @@ interface Order {
   employeeName?: string;
   employeePhone?: string;
   employeeAvatar?: string;
+  employeeId?: string;
   price: string;
   address: string;
   fullAddress?: string;
@@ -45,6 +46,15 @@ interface Order {
 
 type FilterTab = 'all' | 'upcoming' | 'inProgress' | 'completed' | 'cancelled';
 
+interface BookingStatistics {
+  PENDING?: number;
+  AWAITING_EMPLOYEE?: number;
+  CONFIRMED?: number;
+  IN_PROGRESS?: number;
+  COMPLETED?: number;
+  CANCELLED?: number;
+}
+
 export const OrdersScreen = () => {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
@@ -54,16 +64,106 @@ export const OrdersScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<FilterTab>('all');
   
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  
+  // Use ref to track loading page synchronously (avoid race condition)
+  const loadingPageRef = useRef<number | null>(null);
+  
+  // Statistics states
+  const [statistics, setStatistics] = useState<BookingStatistics>({});
+  const [loadingStats, setLoadingStats] = useState(false);
+  
   // Ensure token is valid when component mounts
   useEnsureValidToken();
 
   useEffect(() => {
-    loadOrders();
+    loadOrders(true);
+    loadStatistics();
   }, []);
 
-  const loadOrders = async () => {
+  // Don't reload when filter changes - just filter locally
+  // useEffect(() => {
+  //   loadOrders(true);
+  // }, [selectedFilter]);
+
+  useEffect(() => {
+    console.log('Statistics updated:', statistics);
+    console.log('Orders count:', orders.length);
+    console.log('Current filter:', selectedFilter);
+    
+    // Check if we've loaded all orders
+    if (!hasMore && orders.length > 0 && totalElements > 0) {
+      if (orders.length < totalElements) {
+        console.error(`🚨 MISSING ORDERS: Loaded ${orders.length} but expected ${totalElements}. Missing: ${totalElements - orders.length}`);
+      } else if (orders.length === totalElements) {
+        console.log(`✅ All orders loaded successfully: ${orders.length}/${totalElements}`);
+      }
+    }
+  }, [statistics, orders.length, selectedFilter, hasMore, totalElements]);
+
+  const loadStatistics = async () => {
     try {
-      setLoading(true);
+      setLoadingStats(true);
+      const customerId =
+        userInfo?.id || (user && 'customerId' in user ? (user as any).customerId : undefined);
+
+      if (!customerId) {
+        return;
+      }
+
+      // Call statistics API - GET /api/v1/customer/{customerId}/bookings/statistics?timeUnit=MONTH
+      const response = await bookingService.getBookingStatistics(customerId, 'MONTH');
+      
+      console.log('Statistics response:', response);
+      
+      // Handle response structure - could be wrapped or direct
+      if (response.data?.countByStatus) {
+        setStatistics(response.data.countByStatus);
+        console.log('Statistics loaded:', response.data.countByStatus);
+      } else if (response.success && response.data) {
+        setStatistics(response.data.countByStatus || {});
+      } else {
+        console.warn('Statistics response invalid structure:', response);
+      }
+    } catch (error) {
+      console.error('Error loading statistics:', error);
+      // Don't show error to user, just use empty stats
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  const loadOrders = async (resetPage: boolean = false, append: boolean = false) => {
+    try {
+      const pageToLoad = resetPage ? 0 : currentPage;
+      
+      if (resetPage) {
+        setLoading(true);
+        setOrders([]);
+        setCurrentPage(0);
+        setHasMore(true);
+        loadingPageRef.current = 0;
+      } else {
+        // Don't load if already loading or no more data
+        if (loadingMore || !hasMore) {
+          console.log('Skip loading: already loading or no more data');
+          return;
+        }
+        
+        // Prevent loading the same page twice (synchronous check)
+        if (loadingPageRef.current === pageToLoad) {
+          console.log(`⚠️ Already loading page ${pageToLoad}, skipping duplicate request`);
+          return;
+        }
+        
+        setLoadingMore(true);
+        loadingPageRef.current = pageToLoad;
+      }
 
       const customerId =
         userInfo?.id || (user && 'customerId' in user ? (user as any).customerId : undefined);
@@ -74,36 +174,48 @@ export const OrdersScreen = () => {
         return;
       }
 
+      console.log(`Loading orders - page: ${pageToLoad}, reset: ${resetPage}, append: ${append}`);
+
+      // Call API: GET /api/v1/customer/bookings/customer/{customerId}
       const response = await bookingService.getCustomerBookings(customerId, {
-        page: 0,
-        size: 20,
-        sort: 'bookingTime,desc',
+        page: pageToLoad,
+        size: 10, // Load 10 items per page
+        sort: 'bookingId,desc', // Use bookingId for stable sort (unique)
       });
 
-      const transformedOrders: Order[] = (response.content || []).map((booking) => {
+      const transformedOrders: Order[] = (response.content || []).map((booking: any) => {
         const bookingDate = booking.bookingTime ? new Date(booking.bookingTime) : null;
         
-        // Try to get service name from various possible locations in API response
-        const bookingDetails = (booking as any).bookingDetails || booking.serviceDetails;
-        const primaryService = bookingDetails?.[0];
-        const serviceName = primaryService?.service?.name || 
-                           primaryService?.serviceName ||
-                           (booking as any).serviceName || 
-                           'Dịch vụ gia đình';
+        // API returns 'services' array according to docs
+        // Example: [{ serviceId, name, description, basePrice, ... }]
+        const services = booking.services || [];
+        const serviceName = services.length > 0 
+          ? services.map((s: any) => s.name || s.serviceName).join(', ')
+          : 'Dịch vụ gia đình';
         
-        // Get employee from assignments or assignedEmployees
-        const primaryAssignment = primaryService?.assignments?.[0];
-        const primaryEmployee = primaryAssignment?.employee || booking.assignedEmployees?.[0];
+        // API returns 'assignedEmployees' array according to docs
+        const primaryEmployee = booking.assignedEmployees?.[0];
 
-        // Handle address - API returns 'address' field
-        const addressInfo = (booking as any).address || booking.customerInfo;
+        // API returns 'address' object: { addressId, fullAddress, ward, city, latitude, longitude }
+        const addressInfo = booking.address;
         const fullAddress = addressInfo?.fullAddress || '';
         
-        // Handle payment - API returns 'payment' field
-        const paymentInfo = (booking as any).payment || booking.paymentInfo;
+        // API returns 'payment' object: { id, amount, paymentMethodName, paymentStatus, transactionCode, ... }
+        const paymentInfo = booking.payment;
         
-        // Handle promotion - API returns 'promotion' field
-        const promotionInfo = (booking as any).promotion || booking.promotionApplied;
+        // API returns 'promotion' object: { promotionId, promoCode, description, discountType, ... }
+        const promotionInfo = booking.promotion;
+
+        // Format price - API returns formattedTotalAmount as string like "120,000đ"
+        // or payment.amount as number
+        let formattedPrice = '0đ';
+        if (booking.formattedTotalAmount) {
+          // Use formattedTotalAmount if available (e.g., "120,000đ")
+          formattedPrice = booking.formattedTotalAmount;
+        } else if (paymentInfo?.amount && typeof paymentInfo.amount === 'number') {
+          // Fallback to payment.amount if formattedTotalAmount is not available
+          formattedPrice = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(paymentInfo.amount);
+        }
 
         return {
           id: booking.bookingId,
@@ -118,30 +230,88 @@ export const OrdersScreen = () => {
           employeeName: primaryEmployee?.fullName,
           employeePhone: primaryEmployee?.phoneNumber,
           employeeAvatar: primaryEmployee?.avatar,
-          price: booking.formattedTotalAmount ?? `${new Intl.NumberFormat('vi-VN').format(booking.totalAmount ?? 0)} VND`,
+          employeeId: primaryEmployee?.employeeId,
+          price: formattedPrice,
           address: fullAddress || 'Chưa cập nhật địa chỉ',
           fullAddress: fullAddress,
-          rating: (booking as any).rating,
-          notes: (booking as any).note,
-          estimatedCompletion: booking.estimatedDuration || primaryService?.formattedDuration,
-          cancelReason: (booking as any).cancelReason,
+          rating: booking.rating,
+          notes: booking.note,
+          estimatedCompletion: services[0]?.estimatedDurationHours ? `${services[0].estimatedDurationHours} giờ` : undefined,
+          cancelReason: booking.cancelReason,
           paymentStatus: paymentInfo?.paymentStatus,
-          paymentMethod: typeof paymentInfo?.paymentMethod === 'string' 
-            ? paymentInfo.paymentMethod 
-            : paymentInfo?.paymentMethod?.methodName,
+          paymentMethod: paymentInfo?.paymentMethodName || paymentInfo?.paymentMethod,
           promotionCode: promotionInfo?.promoCode,
           promotionDescription: promotionInfo?.description,
         };
       });
 
-      setOrders(transformedOrders);
+      // Update pagination info
+      // Response structure: { content: [], page: { totalElements, totalPages, number, size } }
+      // Or direct: { content: [], totalElements, totalPages, last, number }
+      const pageInfo = (response as any).page || response;
+      const newTotalPages = pageInfo.totalPages || totalPages;
+      const newTotalElements = pageInfo.totalElements || totalElements; // Keep existing if not in response
+      const isLastPage = pageInfo.last || false;
+      const currentPageNumber = pageInfo.number ?? pageToLoad;
+
+      console.log(`📄 Page ${currentPageNumber}: ${transformedOrders.length} orders, total: ${newTotalElements}, last: ${isLastPage}`);
+
+      // Stop loading if response is empty or we've reached the last page
+      const shouldStop = isLastPage || transformedOrders.length === 0 || currentPageNumber >= newTotalPages - 1;
+
+      setTotalPages(newTotalPages);
+      setTotalElements(newTotalElements);
+      setHasMore(!shouldStop);
+
+      if (append) {
+        // Append new orders and filter duplicates (API sometimes returns duplicates)
+        setOrders(prev => {
+          const existingIds = new Set(prev.map(order => order.bookingId));
+          const newOrders = transformedOrders.filter(order => !existingIds.has(order.bookingId));
+          const duplicateCount = transformedOrders.length - newOrders.length;
+          
+          if (duplicateCount > 0) {
+            console.warn(`⚠️ Filtered ${duplicateCount} duplicates from page ${pageToLoad}`);
+          }
+          
+          console.log(`Appending: ${newOrders.length} orders. Total: ${prev.length} → ${prev.length + newOrders.length}/${newTotalElements}`);
+          return [...prev, ...newOrders];
+        });
+        // Update page number after successful load
+        setCurrentPage(pageToLoad + 1);
+        loadingPageRef.current = null; // Clear loading page
+      } else {
+        setOrders(transformedOrders);
+        setCurrentPage(1); // Reset to page 1 after loading first page
+        loadingPageRef.current = null;
+      }
     } catch (error) {
       console.error('Error loading orders:', error);
-      Alert.alert('Loi', 'Khong the tai danh sach don hang. Vui long thu lai.');
-      setOrders([]);
+      if (resetPage) {
+        Alert.alert('Lỗi', 'Không thể tải danh sách đơn hàng. Vui lòng thử lại.');
+        setOrders([]);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+      setRefreshing(false);
+      loadingPageRef.current = null; // Always clear loading page in finally
     }
+  };
+
+  const handleLoadMore = () => {
+    if (!loadingMore && !loading && hasMore) {
+      console.log(`📥 Loading more... Current: ${orders.length}/${totalElements}, Page: ${currentPage}`);
+      loadOrders(false, true);
+    } else {
+      console.log(`❌ Cannot load more: loading=${loading}, loadingMore=${loadingMore}, hasMore=${hasMore}`);
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadOrders(true);
+    loadStatistics();
   };
 
   const FILTER_STATUS_MAP: Record<FilterTab, BookingStatus[]> = {
@@ -162,14 +332,66 @@ export const OrdersScreen = () => {
 
   const filterOrder: FilterTab[] = ['all', 'upcoming', 'inProgress', 'completed', 'cancelled'];
 
-  const filterOptions = filterOrder.map((key) => ({
-    id: key,
-    label: FILTER_LABELS[key],
-    count:
-      key === 'all'
-        ? orders.length
-        : orders.filter((order) => FILTER_STATUS_MAP[key].includes(order.status)).length,
-  }));
+  // Get total count from API response (totalElements) or statistics
+  const getFilterCount = (filterKey: FilterTab): number => {
+    // For 'all' filter, use totalElements from API response (real total count)
+    if (filterKey === 'all') {
+      return totalElements || 0;
+    }
+    
+    // For other filters, use statistics API if available
+    const hasStatistics = Object.keys(statistics).length > 0;
+    
+    if (hasStatistics) {
+      if (filterKey === 'upcoming') {
+        return (statistics.PENDING || 0) + (statistics.AWAITING_EMPLOYEE || 0) + (statistics.CONFIRMED || 0);
+      }
+      if (filterKey === 'inProgress') {
+        return statistics.IN_PROGRESS || 0;
+      }
+      if (filterKey === 'completed') {
+        return statistics.COMPLETED || 0;
+      }
+      if (filterKey === 'cancelled') {
+        return statistics.CANCELLED || 0;
+      }
+    } else {
+      // Fallback: count from loaded orders only
+      return orders.filter(order => FILTER_STATUS_MAP[filterKey].includes(order.status)).length;
+    }
+    
+    return 0;
+  };
+
+  // Get loaded count (currently displayed) for each filter
+  const getLoadedCount = (filterKey: FilterTab): number => {
+    if (filterKey === 'all') {
+      return orders.length;
+    }
+    return orders.filter(order => FILTER_STATUS_MAP[filterKey].includes(order.status)).length;
+  };
+
+  const filterOptions = useMemo(() => {
+    return filterOrder.map((key) => {
+      if (key === 'all') {
+        // For "Tất cả": loaded count / total count from API
+        return {
+          id: key,
+          label: FILTER_LABELS[key],
+          loadedCount: getLoadedCount(key), // Currently loaded count
+          count: getFilterCount(key), // Total count from API
+        };
+      } else {
+        // For other filters: count of this status / total loaded orders
+        return {
+          id: key,
+          label: FILTER_LABELS[key],
+          loadedCount: getLoadedCount(key), // Count of this specific status in loaded orders
+          count: orders.length, // Total loaded orders
+        };
+      }
+    });
+  }, [orders, statistics, totalElements]);
 
   const getStatusColor = (status: BookingStatus) => {
     switch (status) {
@@ -225,15 +447,27 @@ export const OrdersScreen = () => {
     }
   };
 
-  const filteredOrders =
-    selectedFilter === 'all'
-      ? orders
-      : orders.filter((order) => FILTER_STATUS_MAP[selectedFilter].includes(order.status));
+  // Filter orders locally based on selected filter tab
+  // Memoized to avoid re-filtering on every render for better performance
+  const filteredOrders = useMemo(() => {
+    if (selectedFilter === 'all') {
+      return orders;
+    }
+    return orders.filter((order) => FILTER_STATUS_MAP[selectedFilter].includes(order.status));
+  }, [orders, selectedFilter]);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadOrders();
-    setRefreshing(false);
+  const handleScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    
+    // Calculate how far user has scrolled (percentage)
+    const scrollPercentage = (layoutMeasurement.height + contentOffset.y) / contentSize.height;
+    
+    // Prefetch next page when user reaches 70% of scroll
+    // This makes scrolling feel smoother as data is already loading
+    if (scrollPercentage >= 0.7 && !loadingMore && !loading && hasMore) {
+      console.log('Prefetching next page at 70% scroll...');
+      handleLoadMore();
+    }
   };
 
   const handleOrderAction = (orderId: string, action: string) => {
@@ -297,12 +531,90 @@ export const OrdersScreen = () => {
     Alert.alert('Thông báo', 'Tính năng đang được phát triển');
   };
 
-  const handleMessageEmployee = () => {
-    Alert.alert('Thông báo', 'Tính năng đang được phát triển');
+  const handleMessageEmployee = async (order: Order) => {
+    try {
+      // Kiểm tra xem có thông tin nhân viên không
+      if (!order.employeeId) {
+        Alert.alert('Thông báo', 'Đơn hàng chưa có nhân viên được phân công');
+        return;
+      }
+
+      // Lấy customerId từ userInfo hoặc user
+      const customerId = userInfo?.id || (user && 'customerId' in user ? (user as any).customerId : undefined);
+      
+      if (!customerId) {
+        Alert.alert('Lỗi', 'Không tìm thấy thông tin khách hàng');
+        return;
+      }
+
+      console.log('Opening chat with employee:', order.employeeId, 'for booking:', order.bookingId);
+
+      let conversation;
+      
+      try {
+        // Ưu tiên: Nếu có bookingId, thử lấy conversation theo booking trước
+        if (order.bookingId) {
+          try {
+            conversation = await chatService.getConversationByBooking(order.bookingId);
+            console.log('Found conversation by booking:', conversation.conversationId);
+          } catch (bookingError) {
+            console.log('No conversation found for booking, will search by participants');
+          }
+        }
+
+        // Nếu chưa có conversation, tìm trong danh sách conversations hiện có
+        if (!conversation) {
+          const conversations = await chatService.getConversationsBySender({
+            senderId: customerId,
+            page: 0,
+            size: 100, // Lấy nhiều để tìm
+          });
+
+          // Tìm conversation với employee này (ưu tiên conversation có bookingId trùng)
+          conversation = conversations.find(
+            (conv) => 
+              conv.employeeId === order.employeeId && 
+              (!order.bookingId || conv.bookingId === order.bookingId)
+          );
+
+          // Nếu không tìm thấy conversation có cùng bookingId, lấy bất kỳ conversation nào với employee
+          if (!conversation) {
+            conversation = conversations.find((conv) => conv.employeeId === order.employeeId);
+          }
+
+          if (conversation) {
+            console.log('Found existing conversation:', conversation.conversationId);
+          }
+        }
+
+        // Nếu vẫn không có, tạo mới với bookingId
+        if (!conversation) {
+          console.log('Creating new conversation with booking:', order.bookingId);
+          conversation = await chatService.createConversation({
+            customerId,
+            employeeId: order.employeeId,
+            bookingId: order.bookingId,
+          });
+          console.log('Created new conversation:', conversation.conversationId);
+        }
+      } catch (error: any) {
+        console.error('Error getting/creating conversation:', error);
+        throw error;
+      }
+
+      // Navigate đến ChatScreen với conversationId và tên nhân viên
+      navigation.navigate('ChatScreen', {
+        conversationId: conversation.conversationId,
+        recipientName: order.employeeName || 'Nhân viên',
+      });
+    } catch (error: any) {
+      console.error('Error opening chat:', error);
+      Alert.alert('Lỗi', error.message || 'Không thể mở cuộc trò chuyện. Vui lòng thử lại.');
+    }
   };
 
-  const renderOrder = (order: any) => (
-    <View key={order.id} style={styles.orderCard}>
+  const renderOrder = (order: Order) => (
+    <View style={styles.orderCard}>
       {/* Header với trạng thái */}
       <View style={styles.orderHeader}>
         <View style={styles.orderTitleRow}>
@@ -364,7 +676,7 @@ export const OrdersScreen = () => {
             <TouchableOpacity 
               style={styles.messageButtonSmall} 
               activeOpacity={0.7}
-              onPress={handleMessageEmployee}
+              onPress={() => handleMessageEmployee(order)}
             >
               <Ionicons name="chatbubble-outline" size={responsive.moderateScale(16)} color={colors.highlight.teal} />
             </TouchableOpacity>
@@ -466,25 +778,6 @@ export const OrdersScreen = () => {
     </View>
   );
 
-  const renderRecurringBanner = () => (
-    <TouchableOpacity
-      style={styles.recurringBanner}
-      activeOpacity={0.85}
-      onPress={() => navigation.navigate('RecurringBookings')}
-    >
-      <View style={styles.recurringIcon}>
-        <Ionicons name="repeat" size={responsive.moderateScale(20)} color={colors.neutral.white} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.recurringTitle}>Lịch định kỳ</Text>
-        <Text style={styles.recurringSubtitle} numberOfLines={2}>
-          Tự động hoá dịch vụ vệ sinh và theo dõi các lịch lặp lại của bạn.
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={responsive.moderateScale(20)} color={colors.primary.navy} />
-    </TouchableOpacity>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -499,8 +792,6 @@ export const OrdersScreen = () => {
           <Ionicons name="search-outline" size={responsive.moderateScale(22)} color={colors.primary.navy} />
         </TouchableOpacity>
       </View>
-
-      {renderRecurringBanner()}
 
       {/* Filter Tabs */}
       <View style={styles.filterSection}>
@@ -539,7 +830,7 @@ export const OrdersScreen = () => {
                     styles.filterCountText,
                     isActive && styles.activeFilterCountText
                   ]}>
-                    {filter.count}
+                    {filter.loadedCount}/{filter.count}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -561,16 +852,41 @@ export const OrdersScreen = () => {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={onRefresh}
+              onRefresh={handleRefresh}
               colors={[colors.highlight.teal]}
               tintColor={colors.highlight.teal}
             />
           }
+          onScroll={handleScroll}
+          scrollEventThrottle={100}
           showsVerticalScrollIndicator={false}
         >
           {filteredOrders.length > 0 ? (
-          filteredOrders.map(renderOrder)
-        ) : (
+            <>
+              {filteredOrders.map((order) => (
+                <React.Fragment key={order.bookingId}>
+                  {renderOrder(order)}
+                </React.Fragment>
+              ))}
+              
+              {/* Load More Indicator - Compact design for smooth scrolling */}
+              {loadingMore && (
+                <View style={styles.loadMoreIndicator}>
+                  <ActivityIndicator size="small" color={colors.highlight.teal} />
+                  <Text style={styles.loadMoreText}>Đang tải thêm...</Text>
+                </View>
+              )}
+              
+              {/* End of List Indicator */}
+              {!hasMore && orders.length > 0 && (
+                <View style={{ paddingVertical: responsiveSpacing.lg, alignItems: 'center' }}>
+                  <Text style={[styles.loadingText, { color: colors.neutral.label }]}>
+                    Đã tải tất cả đơn hàng ({totalElements})
+                  </Text>
+                </View>
+              )}
+            </>
+          ) : (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconContainer}>
               <Ionicons name="receipt-outline" size={responsive.moderateScale(64)} color={colors.neutral.label} />
@@ -623,6 +939,20 @@ const styles = StyleSheet.create({
     color: colors.neutral.textSecondary,
     fontWeight: '500',
   },
+  
+  // Load More Indicator (compact)
+  loadMoreIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: responsiveSpacing.md,
+    gap: responsiveSpacing.sm,
+  },
+  loadMoreText: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
+    fontWeight: '500',
+  },
 
   // Header
   header: {
@@ -660,40 +990,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 2,
-  },
-  recurringBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.neutral.white,
-    marginHorizontal: responsiveSpacing.lg,
-    marginTop: -responsiveSpacing.xl,
-    marginBottom: responsiveSpacing.md,
-    padding: responsiveSpacing.md,
-    borderRadius: responsive.moderateScale(18),
-    shadowColor: colors.primary.navy,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
-    gap: responsiveSpacing.md,
-  },
-  recurringIcon: {
-    width: responsive.moderateScale(48),
-    height: responsive.moderateScale(48),
-    borderRadius: responsive.moderateScale(24),
-    backgroundColor: colors.highlight.teal,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recurringTitle: {
-    fontSize: responsiveFontSize.heading3,
-    fontWeight: '700',
-    color: colors.primary.navy,
-  },
-  recurringSubtitle: {
-    fontSize: responsiveFontSize.body,
-    color: colors.neutral.textSecondary,
-    marginTop: 2,
   },
 
   // Filter Section - New Design
@@ -747,23 +1043,23 @@ const styles = StyleSheet.create({
   filterCountBadge: {
     backgroundColor: colors.neutral.background,
     borderRadius: responsive.moderateScale(12),
-    minWidth: responsive.moderateScale(28),
+    minWidth: responsive.moderateScale(42),
     height: responsive.moderateScale(28),
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: responsiveSpacing.xs,
+    paddingHorizontal: responsiveSpacing.xs + 2,
   },
   activeFilterCountBadge: {
     backgroundColor: colors.neutral.white + '25',
   },
   filterCountText: {
-    fontSize: responsiveFontSize.body,
+    fontSize: responsiveFontSize.caption,
     fontWeight: '700',
     color: colors.neutral.textSecondary,
   },
   activeFilterCountText: {
     color: colors.neutral.white,
-    fontSize: responsiveFontSize.bodyLarge,
+    fontSize: responsiveFontSize.body,
   },
 
   // Old filter styles (deprecated but kept for safety)

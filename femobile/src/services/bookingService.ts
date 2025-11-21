@@ -25,6 +25,25 @@ export interface CustomerBookingsResponse {
   number: number;
   size: number;
   empty: boolean;
+  last?: boolean;
+}
+
+export interface BookingStatisticsResponse {
+  success: boolean;
+  data: {
+    timeUnit: string;
+    startDate: string;
+    endDate: string;
+    totalBookings: number;
+    countByStatus: {
+      PENDING?: number;
+      AWAITING_EMPLOYEE?: number;
+      CONFIRMED?: number;
+      IN_PROGRESS?: number;
+      COMPLETED?: number;
+      CANCELLED?: number;
+    };
+  };
 }
 
 class BookingService {
@@ -139,6 +158,7 @@ class BookingService {
       size?: number;
       status?: string;
       sort?: string;
+      fromDate?: string;
     },
   ): Promise<CustomerBookingsResponse> {
     const queryParams = new URLSearchParams();
@@ -154,17 +174,65 @@ class BookingService {
     if (params?.sort) {
       queryParams.append('sort', params.sort);
     }
+    if (params?.fromDate) {
+      queryParams.append('fromDate', params.fromDate);
+    }
 
     const queryString = queryParams.toString();
-    const endpoint = `${this.BASE_PATH}/customer/${customerId}${queryString ? `?${queryString}` : ''}`;
+    // API endpoint: GET /api/v1/customer/bookings/customer/{customerId}
+    const endpoint = `/customer/bookings/customer/${customerId}${queryString ? `?${queryString}` : ''}`;
 
     const response = await httpClient.get<CustomerBookingsResponse>(endpoint);
 
-    if (!response.success || !response.data) {
+    // API returns pagination response directly without wrapper
+    // Response structure: { content: [], totalElements, totalPages, last, ... }
+    if (response.data) {
+      return response.data;
+    }
+    
+    // If response has wrapper (success/data structure), extract data
+    if (!response.success) {
       throw new Error(response.message || 'Khong the lay danh sach don dat');
     }
 
-    return response.data;
+    // Fallback: return empty result
+    return {
+      content: [],
+      totalElements: 0,
+      totalPages: 0,
+      number: 0,
+      size: params?.size || 10,
+      empty: true,
+      last: true,
+    };
+  }
+
+  async getBookingStatistics(
+    customerId: string,
+    timeUnit: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR',
+    startDate?: string,
+    endDate?: string,
+  ): Promise<BookingStatisticsResponse> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('timeUnit', timeUnit);
+    
+    if (startDate) {
+      queryParams.append('startDate', startDate);
+    }
+    if (endDate) {
+      queryParams.append('endDate', endDate);
+    }
+
+    const queryString = queryParams.toString();
+    const endpoint = `/customer/${customerId}/bookings/statistics${queryString ? `?${queryString}` : ''}`;
+
+    const response = await httpClient.get<BookingStatisticsResponse>(endpoint);
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Khong the lay thong ke booking');
+    }
+
+    return response.data as BookingStatisticsResponse;
   }
 
   async cancelBooking(bookingId: string, reason?: string): Promise<boolean> {
