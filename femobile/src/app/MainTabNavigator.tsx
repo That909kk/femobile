@@ -15,14 +15,19 @@ import {
   RequestsScreen,
   ProfileScreen,
 } from '../screens/main';
-import { AvailableBookingsScreen } from '../screens/main/employee';
+import { WorkScreen } from '../screens/main/employee';
 
 const Tab = createBottomTabNavigator();
 
 export const MainTabNavigator = () => {
-  const { user, role } = useAuth();
+  const { user, role, loading } = useAuth();
   
-  console.log('MainTabNavigator rendered with role:', role);
+  console.log('MainTabNavigator rendered with role:', role, 'loading:', loading);
+
+  // Show loading while determining role
+  if (loading || !role) {
+    return null; // Or a loading spinner
+  }
 
   // Customer tabs configuration
   const customerTabs = [
@@ -69,27 +74,27 @@ export const MainTabNavigator = () => {
       name: 'EmployeeHome',
       component: EmployeeDashboard,
       title: 'Trang chủ',
-      icon: 'home',
+      icon: 'home-outline',
       focusedIcon: 'home',
     },
     {
       name: 'Schedule',
       component: ScheduleScreen,
-      title: 'Lịch làm việc',
+      title: 'Lịch trình',
       icon: 'calendar-outline',
       focusedIcon: 'calendar',
     },
     {
-      name: 'AvailableBookings',
-      component: AvailableBookingsScreen,
-      title: 'Bài đăng',
-      icon: 'document-text-outline',
-      focusedIcon: 'document-text',
+      name: 'Work',
+      component: WorkScreen,
+      title: 'Công việc',
+      icon: 'briefcase-outline',
+      focusedIcon: 'briefcase',
     },
     {
-      name: 'Requests',
-      component: RequestsScreen,
-      title: 'Chat',
+      name: 'EmployeeMessages',
+      component: ConversationListScreen,
+      title: 'Tin nhắn',
       icon: 'chatbubbles-outline',
       focusedIcon: 'chatbubbles',
     },

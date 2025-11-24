@@ -14,7 +14,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { chatService } from '../services';
 import type { Conversation } from '../services/chatService';
 import { useAuthStore } from '../store/authStore';
-import { COLORS } from '../constants';
+import { colors } from '../styles';
 
 type RootStackParamList = {
   ConversationsScreen: undefined;
@@ -144,7 +144,7 @@ export const ConversationsScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <ActivityIndicator size="large" color={colors.highlight.teal} />
         </View>
       </SafeAreaView>
     );
@@ -184,17 +184,18 @@ export const ConversationsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.neutral.background,
   },
   header: {
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    paddingTop: 8,
+    backgroundColor: colors.warm.beige,
+    borderBottomWidth: 0,
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.text.primary,
+    fontWeight: '600',
+    color: colors.primary.navy,
   },
   searchbar: {
     margin: 12,
@@ -211,9 +212,15 @@ const styles = StyleSheet.create({
   conversationItem: {
     flexDirection: 'row',
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    backgroundColor: colors.neutral.white,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   avatarContainer: {
     position: 'relative',
@@ -222,7 +229,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     right: 0,
-    backgroundColor: COLORS.error,
+    backgroundColor: colors.feedback.error,
   },
   conversationContent: {
     flex: 1,
@@ -237,22 +244,22 @@ const styles = StyleSheet.create({
   },
   recipientName: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.text.primary,
+    fontWeight: '600',
+    color: colors.neutral.textPrimary,
     flex: 1,
   },
   timestamp: {
     fontSize: 12,
-    color: COLORS.text.secondary,
+    color: colors.neutral.textSecondary,
     marginLeft: 8,
   },
   lastMessage: {
     fontSize: 14,
-    color: COLORS.text.secondary,
+    color: colors.neutral.textSecondary,
   },
   unreadMessage: {
-    fontWeight: 'bold',
-    color: COLORS.text.primary,
+    fontWeight: '600',
+    color: colors.neutral.textPrimary,
   },
   emptyContainer: {
     flex: 1,
@@ -262,7 +269,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: COLORS.text.secondary,
+    color: colors.neutral.textSecondary,
     textAlign: 'center',
   },
 });

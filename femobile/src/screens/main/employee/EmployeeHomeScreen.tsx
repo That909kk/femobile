@@ -13,18 +13,25 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Button } from '../../../components';
 import { useAuth, useEnsureValidToken, useUserInfo } from '../../../hooks';
 import { COLORS, UI } from '../../../constants';
+import { colors, responsive } from '../../../styles';
+import { useNotificationStore } from '../../../store/notificationStore';
 import {
   employeeAssignmentService,
   type EmployeeAssignment,
-  type AvailableBookingDetail,
 } from '../../../services';
 
 const formatCurrency = (value: number) =>
   `${new Intl.NumberFormat('vi-VN').format(value || 0)} VND`;
+
+const parseBookingTime = (bookingTime?: string) => {
+  if (!bookingTime) return null;
+  const date = new Date(bookingTime);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 
 const combineDateTime = (dateStr?: string, timeStr?: string) => {
   if (!dateStr) return null;
@@ -48,18 +55,40 @@ export const EmployeeDashboard: React.FC = () => {
   const { userInfo } = useUserInfo();
 
   const [assignments, setAssignments] = useState<EmployeeAssignment[]>([]);
-  const [availableBookings, setAvailableBookings] = useState<AvailableBookingDetail[]>([]);
+  const [statistics, setStatistics] = useState<{
+    todayCount: number;
+    upcomingCount: number;
+    inProgressCount: number;
+    completedCount: number;
+    totalRevenue: number;
+  }>({ todayCount: 0, upcomingCount: 0, inProgressCount: 0, completedCount: 0, totalRevenue: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasServerError = useRef(false);
   const contentOpacity = useRef(new Animated.Value(0)).current;
 
-  const employeeId =
-    userInfo?.id || (user && 'employeeId' in user ? (user as any).employeeId : undefined);
+  const unreadCount = useNotificationStore(state => state.unreadCount);
+  const getUnreadCount = useNotificationStore(state => state.getUnreadCount);
+
+  // Lấy employeeId từ user object (giống như web)
+  const employeeId = user && 'employeeId' in user 
+    ? (user as any).employeeId 
+    : userInfo?.id;
   
   const userAvatar = userInfo?.avatar || (user && 'avatar' in user ? (user as any).avatar : undefined);
   const userFullName = userInfo?.fullName || user?.fullName || user?.username || 'Nhân viên';
+  
+  console.log('[EmployeeDashboard] 🔑 EmployeeId:', employeeId);
+  console.log('[EmployeeDashboard] 👤 User:', user);
+
+  // Refresh unread count when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('[EmployeeHomeScreen] 🔔 Screen focused, refreshing unread count');
+      getUnreadCount();
+    }, [getUnreadCount]),
+  );
 
   useEffect(() => {
     loadDashboard();
@@ -85,19 +114,41 @@ export const EmployeeDashboard: React.FC = () => {
 
       await ensureValidToken.ensureValidToken();
 
-      const [assignmentData, availableData] = await Promise.all([
-        employeeAssignmentService.getAssignments(employeeId, {
-          size: 50,
-          sort: 'scheduledDate,asc',
-        }),
-        employeeAssignmentService
-          .getAvailableBookings(employeeId, { size: 10 })
-          .then((res) => res.data || [])
-          .catch(() => []),
-      ]);
+      const assignmentData = await employeeAssignmentService.getAssignments(employeeId, {
+        size: 50,
+        sort: 'scheduledDate,asc',
+      });
+
+      console.log('[EmployeeDashboard] 📊 API Response - Assignments:', assignmentData?.length || 0);
 
       setAssignments(assignmentData || []);
-      setAvailableBookings(availableData || []);
+      
+      // Tính toán statistics từ assignments data (fallback vì API statistics chưa có)
+      const today = new Date().toISOString().split('T')[0];
+      const todayAssignments = (assignmentData || []).filter(a => {
+        const bookingDate = a.bookingTime?.split(' ')[0];
+        return bookingDate === today;
+      });
+      const upcomingAssignments = (assignmentData || []).filter(a => a.status === 'ASSIGNED');
+      const inProgressAssignments = (assignmentData || []).filter(a => a.status === 'IN_PROGRESS');
+      const completedAssignments = (assignmentData || []).filter(a => a.status === 'COMPLETED');
+      const totalRevenue = completedAssignments.reduce((sum, a) => sum + (a.totalAmount || 0), 0);
+
+      setStatistics({
+        todayCount: todayAssignments.length,
+        upcomingCount: upcomingAssignments.length,
+        inProgressCount: inProgressAssignments.length,
+        completedCount: completedAssignments.length,
+        totalRevenue,
+      });
+
+      console.log('[EmployeeDashboard] 📊 Statistics calculated:', {
+        todayCount: todayAssignments.length,
+        upcomingCount: upcomingAssignments.length,
+        inProgressCount: inProgressAssignments.length,
+        completedCount: completedAssignments.length,
+        totalRevenue,
+      });
       hasServerError.current = false; // Reset error flag khi thành công
     } catch (error: any) {
       console.error('Employee dashboard data error:', error);
@@ -140,19 +191,12 @@ export const EmployeeDashboard: React.FC = () => {
 
       await ensureValidToken.ensureValidToken();
 
-      const [assignmentData, requestsData] = await Promise.all([
-        employeeAssignmentService.getAssignments(employeeId, {
-          size: 50,
-          sort: 'scheduledDate,asc',
-        }),
-        employeeAssignmentService
-          .getAvailableBookings(employeeId, { size: 10 })
-          .then((res) => res.data || [])
-          .catch(() => []),
-      ]);
+      const assignmentData = await employeeAssignmentService.getAssignments(employeeId, {
+        size: 50,
+        sort: 'scheduledDate,asc',
+      });
 
       setAssignments(assignmentData || []);
-      setAvailableBookings(requestsData || []);
       hasServerError.current = false; // Reset error flag khi thành công
     } catch (error: any) {
       console.error('Employee dashboard data error:', error);
@@ -194,8 +238,8 @@ export const EmployeeDashboard: React.FC = () => {
   const upcomingAssignments = useMemo(
     () =>
       assignments.filter((assignment) => assignment.status === 'ASSIGNED').sort((a, b) => {
-        const first = combineDateTime(a.scheduledDate, a.scheduledTime)?.getTime() ?? 0;
-        const second = combineDateTime(b.scheduledDate, b.scheduledTime)?.getTime() ?? 0;
+        const first = parseBookingTime(a.bookingTime)?.getTime() ?? 0;
+        const second = parseBookingTime(b.bookingTime)?.getTime() ?? 0;
         return first - second;
       }),
     [assignments],
@@ -206,29 +250,14 @@ export const EmployeeDashboard: React.FC = () => {
     [assignments],
   );
 
-  const completedAssignments = useMemo(
-    () => assignments.filter((assignment) => assignment.status === 'COMPLETED'),
-    [assignments],
-  );
-
   const nextAssignment =
     upcomingAssignments[0] ??
     inProgressAssignments.slice().sort((a, b) => {
-      const first = combineDateTime(a.scheduledDate, a.scheduledTime)?.getTime() ?? 0;
-      const second = combineDateTime(b.scheduledDate, b.scheduledTime)?.getTime() ?? 0;
+      const first = parseBookingTime(a.bookingTime)?.getTime() ?? 0;
+      const second = parseBookingTime(b.bookingTime)?.getTime() ?? 0;
       return first - second;
     })[0] ??
     null;
-
-  const totalRevenue = useMemo(
-    () => completedAssignments.reduce((sum, assignment) => sum + (assignment.price || 0), 0),
-    [completedAssignments],
-  );
-
-  const todayAssignmentCount = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    return assignments.filter((assignment) => assignment.scheduledDate === today).length;
-  }, [assignments]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -238,32 +267,32 @@ export const EmployeeDashboard: React.FC = () => {
   const statsCards = [
     {
       key: 'today' as const,
-      label: 'Ca hom nay',
-      value: todayAssignmentCount,
+      label: 'Ca hôm nay',
+      value: statistics.todayCount,
       icon: 'time-outline' as const,
       accent: COLORS.accent,
       isCurrency: false,
     },
     {
       key: 'upcoming' as const,
-      label: 'Sap toi',
-      value: upcomingAssignments.length,
+      label: 'Sắp tới',
+      value: statistics.upcomingCount,
       icon: 'calendar-outline' as const,
       accent: COLORS.secondaryLight,
       isCurrency: false,
     },
     {
       key: 'inProgress' as const,
-      label: 'Dang lam',
-      value: inProgressAssignments.length,
+      label: 'Đang làm',
+      value: statistics.inProgressCount,
       icon: 'play-outline' as const,
       accent: COLORS.secondary,
       isCurrency: false,
     },
     {
       key: 'revenue' as const,
-      label: 'Thu nhap',
-      value: formatCurrency(totalRevenue),
+      label: 'Thu nhập',
+      value: formatCurrency(statistics.totalRevenue),
       icon: 'wallet-outline' as const,
       accent: COLORS.primaryLight,
       isCurrency: true,
@@ -299,29 +328,60 @@ export const EmployeeDashboard: React.FC = () => {
         </View>
         <TouchableOpacity
           style={styles.notificationButton}
-          onPress={() => navigation.navigate('NotificationList')}
+          onPress={() => {
+            console.log('[EmployeeHomeScreen] 🔔 Notification bell tapped, unreadCount:', unreadCount);
+            navigation.navigate('EmployeeNotifications');
+          }}
           activeOpacity={0.7}
         >
-          <Ionicons name="notifications-outline" size={24} color={COLORS.primary} />
-          <View style={styles.notificationBadge} />
+          <Ionicons
+            name="notifications-outline"
+            size={responsive.moderateScale(24)}
+            color={colors.primary.navy}
+          />
+          {unreadCount > 0 ? (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationBadgeText}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>
+          ) : (
+            console.log('[EmployeeHomeScreen] 🔔 Badge hidden, unreadCount:', unreadCount) as any
+          )}
         </TouchableOpacity>
       </View>
 
       <View style={styles.walletCard}>
         <View style={styles.walletInfo}>
           <Text style={styles.walletLabel}>
-            Bạn đã hoàn thành {completedAssignments.length} công việc trong tháng này
+            Bạn đã hoàn thành {statistics.completedCount} công việc trong {new Date().toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })}
           </Text>
-          {!!userInfo?.skills?.length && (
-            <View style={styles.skillTags}>
-              {userInfo.skills.slice(0, 3).map((skill) => (
-                <View key={skill} style={styles.skillTag}>
-                  <Ionicons name="checkmark-circle" size={14} color={COLORS.primary} />
-                  <Text style={styles.skillTagText}>{skill}</Text>
-                </View>
-              ))}
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <View style={styles.statTextContainer}>
+                <Text style={styles.statValue}>{statistics.todayCount}</Text>
+                <Text style={styles.statLabel}>Ca hôm nay</Text>
+              </View>
             </View>
-          )}
+            
+            <View style={styles.statDivider} />
+            
+            <View style={styles.statItem}>
+              <View style={styles.statTextContainer}>
+                <Text style={styles.statValue}>{statistics.upcomingCount}</Text>
+                <Text style={styles.statLabel}>Sắp tới</Text>
+              </View>
+            </View>
+            
+            <View style={styles.statDivider} />
+            
+            <View style={styles.statItem}>
+              <View style={styles.statTextContainer}>
+                <Text style={styles.statValue}>{statistics.inProgressCount}</Text>
+                <Text style={styles.statLabel}>Đang làm</Text>
+              </View>
+            </View>
+          </View>
         </View>
       </View>
     </View>
@@ -361,26 +421,8 @@ export const EmployeeDashboard: React.FC = () => {
           {renderHeader()}
           {renderErrorMessage()}
 
-          <Animated.View style={[styles.contentWrapper, { opacity: contentOpacity }]}>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Tổng quan</Text>
-              <View style={styles.statsGrid}>
-                {statsCards.map((card) => (
-                  <View key={card.key} style={[styles.statCard, { backgroundColor: card.accent }]}>
-                    <View style={styles.statIcon}>
-                      <Ionicons name={card.icon as any} size={20} color={COLORS.text.inverse} />
-                    </View>
-                    <Text style={styles.statValue}>
-                      {card.isCurrency ? card.value : String(card.value)}
-                    </Text>
-                    <Text style={styles.statLabel}>{card.label}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Công việc sắp tới</Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Công việc sắp tới</Text>
               {nextAssignment ? (
                 <View style={styles.nextJobCard}>
                   <View style={styles.nextJobHeader}>
@@ -394,17 +436,17 @@ export const EmployeeDashboard: React.FC = () => {
                   <View style={styles.nextJobMetaRow}>
                     <Ionicons name="calendar-outline" size={16} color={COLORS.secondary} />
                     <Text style={styles.nextJobMetaText}>
-                      {formatDateTime(combineDateTime(nextAssignment.scheduledDate, nextAssignment.scheduledTime))}
+                      {formatDateTime(parseBookingTime(nextAssignment.bookingTime))}
                     </Text>
                   </View>
                   <View style={styles.nextJobMetaRow}>
                     <Ionicons name="location-outline" size={16} color={COLORS.secondary} />
                     <Text style={styles.nextJobMetaText} numberOfLines={2}>
-                      {nextAssignment.address}
+                      {nextAssignment.serviceAddress}
                     </Text>
                   </View>
                   <View style={styles.nextJobFooter}>
-                    <Text style={styles.nextJobPrice}>{formatCurrency(nextAssignment.price)}</Text>
+                    <Text style={styles.nextJobPrice}>{formatCurrency(nextAssignment.totalAmount)}</Text>
                     <Button
                       title="Chi tiết"
                       variant="outline"
@@ -428,44 +470,44 @@ export const EmployeeDashboard: React.FC = () => {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Bài đăng mới</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('AvailableBookings')}>
+                <TouchableOpacity onPress={() => navigation.navigate('Work')}>
                   <Text style={styles.sectionActionText}>Xem tất cả</Text>
                 </TouchableOpacity>
               </View>
-              {availableBookings.length === 0 ? (
+              {assignments.filter(a => a.status === 'ASSIGNED').length === 0 ? (
                 <View style={styles.emptyInlineCard}>
                   <Text style={styles.emptyInlineText}>Không có bài đăng đang chờ</Text>
                 </View>
               ) : (
-                availableBookings.slice(0, 3).map((booking) => (
-                  <View key={booking.detailId} style={styles.requestCard}>
+                assignments.filter(a => a.status === 'ASSIGNED').slice(0, 3).map((booking, index) => (
+                  <View key={booking.assignmentId || `booking-${index}`} style={styles.requestCard}>
                     <View style={styles.requestHeader}>
                       <Text style={styles.requestService}>{booking.serviceName}</Text>
                       <Text style={styles.requestPrice}>
-                        {booking.price ? formatCurrency(booking.price) : 'Liên hệ'}
+                        {booking.totalAmount ? formatCurrency(booking.totalAmount) : 'Liên hệ'}
                       </Text>
                     </View>
                     <Text style={styles.requestCustomer}>#{booking.bookingCode}</Text>
                     <View style={styles.requestMetaRow}>
                       <Ionicons name="calendar-outline" size={14} color={COLORS.text.secondary} />
                       <Text style={styles.requestMetaText}>
-                        {new Date(booking.bookingTime).toLocaleDateString('vi-VN')} ·{' '}
-                        {new Date(booking.bookingTime).toLocaleTimeString('vi-VN', {
+                        {booking.bookingTime ? new Date(booking.bookingTime).toLocaleDateString('vi-VN') : 'N/A'} ·{' '}
+                        {booking.bookingTime ? new Date(booking.bookingTime).toLocaleTimeString('vi-VN', {
                           hour: '2-digit',
                           minute: '2-digit',
-                        })}
+                        }) : 'N/A'}
                       </Text>
                     </View>
                     <View style={styles.requestMetaRow}>
                       <Ionicons name="location-outline" size={14} color={COLORS.text.secondary} />
                       <Text style={styles.requestMetaText} numberOfLines={1}>
-                        {booking.address}
+                        {booking.serviceAddress}
                       </Text>
                     </View>
                     <View style={styles.requestActions}>
                       <Button
                         title="Nhận việc"
-                        onPress={() => navigation.navigate('AvailableBookings')}
+                        onPress={() => navigation.navigate('Work')}
                         size="small"
                         fullWidth
                       />
@@ -488,7 +530,7 @@ export const EmployeeDashboard: React.FC = () => {
                 </View>
               ) : (
                 activeAssignments.map((assignment) => {
-                  const startDate = combineDateTime(assignment.scheduledDate, assignment.scheduledTime);
+                  const startDate = parseBookingTime(assignment.bookingTime);
                   return (
                     <View key={assignment.assignmentId} style={styles.assignmentCard}>
                       <View style={styles.assignmentHeader}>
@@ -503,17 +545,17 @@ export const EmployeeDashboard: React.FC = () => {
                       <View style={styles.assignmentMetaRow}>
                         <Ionicons name="calendar-outline" size={14} color={COLORS.text.secondary} />
                         <Text style={styles.assignmentMetaText}>
-                          {formatDateTime(startDate)} · {assignment.estimatedDuration} giờ
+                          {formatDateTime(startDate)} · {assignment.estimatedDurationHours} giờ
                         </Text>
                       </View>
                       <View style={styles.assignmentMetaRow}>
                         <Ionicons name="location-outline" size={14} color={COLORS.text.secondary} />
                         <Text style={styles.assignmentMetaText} numberOfLines={2}>
-                          {assignment.address}
+                          {assignment.serviceAddress}
                         </Text>
                       </View>
                       <View style={styles.assignmentFooter}>
-                        <Text style={styles.assignmentPrice}>{formatCurrency(assignment.price)}</Text>
+                        <Text style={styles.assignmentPrice}>{formatCurrency(assignment.totalAmount)}</Text>
                         <Button
                           title="Cập nhật"
                           size="small"
@@ -531,7 +573,7 @@ export const EmployeeDashboard: React.FC = () => {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Thống kê hiệu suất</Text>
               <View style={styles.placeholderCard}>
-                <Ionicons name="bar-chart-outline" size={24} color={COLORS.primary} />
+                <Ionicons name="bar-chart-outline" size={24} color={colors.highlight.teal} />
                 <Text style={styles.placeholderText}>Tính năng đang được phát triển</Text>
               </View>
             </View>
@@ -539,11 +581,10 @@ export const EmployeeDashboard: React.FC = () => {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Phần thưởng & Khuyến mãi</Text>
               <View style={styles.placeholderCard}>
-                <Ionicons name="gift-outline" size={24} color={COLORS.primary} />
+                <Ionicons name="gift-outline" size={24} color={colors.highlight.teal} />
                 <Text style={styles.placeholderText}>Tính năng đang được phát triển</Text>
               </View>
             </View>
-          </Animated.View>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -594,7 +635,7 @@ const getStatusTextStyle = (status: EmployeeAssignment['status']) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.neutral.background,
   },
   scroll: {
     flex: 1,
@@ -602,18 +643,13 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 32,
   },
-  contentWrapper: {
-    gap: 24,
-    paddingHorizontal: UI.SCREEN_PADDING,
-  },
   header: {
     paddingHorizontal: UI.SCREEN_PADDING,
     paddingTop: 16,
     paddingBottom: 20,
-    backgroundColor: COLORS.surface,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    ...UI.SHADOW.small,
+    backgroundColor: colors.warm.beige,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
   headerTop: {
     flexDirection: 'row',
@@ -648,26 +684,34 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.backgroundDark,
+    backgroundColor: colors.neutral.white,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
   },
   notificationBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 6,
+    right: 6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: COLORS.error,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: COLORS.text.inverse,
+    fontSize: 10,
+    fontWeight: '700',
   },
   walletCard: {
     padding: 16,
     borderRadius: UI.BORDER_RADIUS.medium,
-    backgroundColor: COLORS.primaryLight + '15',
+    backgroundColor: colors.neutral.white,
     borderWidth: 1,
-    borderColor: COLORS.primaryLight + '30',
+    borderColor: colors.neutral.border,
   },
   walletInfo: {
     gap: 12,
@@ -676,6 +720,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.text.primary,
     lineHeight: 20,
+    marginBottom: 12,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statTextContainer: {
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.primary.navy,
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: colors.neutral.textSecondary,
+    fontWeight: '500',
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.neutral.border,
+    marginHorizontal: 8,
   },
   skillTags: {
     flexDirection: 'row',
@@ -689,12 +764,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.highlight.teal + '15',
   },
   skillTagText: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: colors.highlight.teal,
   },
   errorContainer: {
     flexDirection: 'row',
@@ -719,22 +794,24 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   section: {
-    gap: 12,
+    marginTop: 20,
+    paddingHorizontal: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text.primary,
+    color: colors.primary.navy,
+    fontWeight: '600',
   },
   sectionActionText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.primary,
+    color: colors.highlight.teal,
+    fontWeight: '500',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -756,23 +833,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text.inverse,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: COLORS.text.inverse,
-    opacity: 0.85,
-    marginTop: 2,
-  },
   nextJobCard: {
     padding: 18,
-    borderRadius: UI.BORDER_RADIUS.large,
-    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    backgroundColor: colors.neutral.white,
     gap: 12,
-    ...UI.SHADOW.medium,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   nextJobHeader: {
     flexDirection: 'row',
@@ -782,7 +852,7 @@ const styles = StyleSheet.create({
   nextJobService: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.text.primary,
+    color: colors.neutral.textPrimary,
     flex: 1,
   },
   statusBadge: {
@@ -801,7 +871,7 @@ const styles = StyleSheet.create({
   },
   nextJobMetaText: {
     fontSize: 13,
-    color: COLORS.text.secondary,
+    color: colors.neutral.textSecondary,
     flex: 1,
   },
   nextJobFooter: {
@@ -813,43 +883,59 @@ const styles = StyleSheet.create({
   nextJobPrice: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: colors.highlight.teal,
   },
   emptyStateCard: {
     padding: 24,
-    borderRadius: UI.BORDER_RADIUS.large,
-    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    backgroundColor: colors.neutral.white,
     alignItems: 'center',
     gap: 12,
-    ...UI.SHADOW.small,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   emptyStateTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.text.primary,
+    color: colors.neutral.textPrimary,
   },
   emptyStateSubtitle: {
     fontSize: 13,
-    color: COLORS.text.secondary,
+    color: colors.neutral.textSecondary,
     textAlign: 'center',
   },
   emptyInlineCard: {
-    padding: 16,
-    borderRadius: UI.BORDER_RADIUS.medium,
-    backgroundColor: COLORS.surface,
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.neutral.white,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   emptyInlineText: {
+    flex: 1,
     fontSize: 13,
-    color: COLORS.text.secondary,
+    color: colors.neutral.textSecondary,
+    fontWeight: '500',
   },
   requestCard: {
     padding: 16,
-    borderRadius: UI.BORDER_RADIUS.medium,
-    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    backgroundColor: colors.neutral.white,
     gap: 10,
-    ...UI.SHADOW.small,
     marginBottom: 10,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   requestHeader: {
     flexDirection: 'row',
@@ -859,16 +945,16 @@ const styles = StyleSheet.create({
   requestService: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.text.primary,
+    color: colors.neutral.textPrimary,
   },
   requestPrice: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: colors.highlight.teal,
   },
   requestCustomer: {
     fontSize: 13,
-    color: COLORS.text.secondary,
+    color: colors.neutral.textSecondary,
   },
   requestMetaRow: {
     flexDirection: 'row',
@@ -877,18 +963,22 @@ const styles = StyleSheet.create({
   },
   requestMetaText: {
     fontSize: 12,
-    color: COLORS.text.secondary,
+    color: colors.neutral.textSecondary,
   },
   requestActions: {
     marginTop: 4,
   },
   assignmentCard: {
     padding: 16,
-    borderRadius: UI.BORDER_RADIUS.medium,
-    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    backgroundColor: colors.neutral.white,
     gap: 10,
-    ...UI.SHADOW.small,
     marginBottom: 10,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   assignmentHeader: {
     flexDirection: 'row',
@@ -898,7 +988,7 @@ const styles = StyleSheet.create({
   assignmentService: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.text.primary,
+    color: colors.neutral.textPrimary,
     flex: 1,
   },
   statusPill: {
@@ -912,7 +1002,7 @@ const styles = StyleSheet.create({
   },
   assignmentCustomer: {
     fontSize: 13,
-    color: COLORS.text.secondary,
+    color: colors.neutral.textSecondary,
   },
   assignmentMetaRow: {
     flexDirection: 'row',
@@ -921,7 +1011,7 @@ const styles = StyleSheet.create({
   },
   assignmentMetaText: {
     fontSize: 12,
-    color: COLORS.text.secondary,
+    color: colors.neutral.textSecondary,
     flex: 1,
   },
   assignmentFooter: {
@@ -933,19 +1023,26 @@ const styles = StyleSheet.create({
   assignmentPrice: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.primary,
+    color: colors.highlight.teal,
   },
   placeholderCard: {
-    padding: 20,
-    borderRadius: UI.BORDER_RADIUS.medium,
-    backgroundColor: COLORS.surface,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    ...UI.SHADOW.small,
+    backgroundColor: colors.neutral.white,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
   placeholderText: {
+    flex: 1,
     fontSize: 13,
-    color: COLORS.text.secondary,
+    color: colors.neutral.textSecondary,
+    fontWeight: '500',
+    marginLeft: 12,
   },
   loadingContainer: {
     flex: 1,

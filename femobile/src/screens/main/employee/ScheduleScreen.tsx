@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Button } from '../../../components';
 import { useAuth, useEnsureValidToken, useUserInfo } from '../../../hooks';
 import { COLORS, UI } from '../../../constants';
+import { colors } from '../../../styles';
 import { 
   employeeScheduleService,
   type TimeSlot,
@@ -28,7 +29,9 @@ export const ScheduleScreen = () => {
   
   const [refreshing, setRefreshing] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [loading, setLoading] = useState(true);
+  const [weekOffset, setWeekOffset] = useState(0); // 0 = tuần hiện tại, -1 = tuần trước, 1 = tuần sau
+  const [initialLoading, setInitialLoading] = useState(true); // Loading lần đầu
+  const [dateLoading, setDateLoading] = useState(false); // Loading khi đổi ngày
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [datesWithJobs, setDatesWithJobs] = useState<Set<string>>(new Set());
@@ -36,14 +39,19 @@ export const ScheduleScreen = () => {
   const employeeId =
     userInfo?.id || (user && 'employeeId' in user ? (user as any).employeeId : undefined);
 
-  const loadSchedule = useCallback(async () => {
+  const loadSchedule = useCallback(async (isInitial = false) => {
     if (!employeeId) {
-      setLoading(false);
+      setInitialLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
+      if (isInitial) {
+        setInitialLoading(true);
+      } else {
+        setDateLoading(true);
+      }
+      
       await ensureValidToken.ensureValidToken();
 
       const slots = await employeeScheduleService.getScheduleByDate(employeeId, selectedDate);
@@ -53,31 +61,45 @@ export const ScheduleScreen = () => {
       console.error('Error loading schedule:', error);
       setTimeSlots([]);
     } finally {
-      setLoading(false);
+      if (isInitial) {
+        setInitialLoading(false);
+      } else {
+        setDateLoading(false);
+      }
     }
-  }, [employeeId, selectedDate]);
+  }, [employeeId, selectedDate, ensureValidToken]);
 
   useEffect(() => {
-    loadSchedule();
+    const isInitial = initialLoading;
+    loadSchedule(isInitial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employeeId, selectedDate]);
+  }, [selectedDate]);
+
+  useEffect(() => {
+    if (employeeId) {
+      loadSchedule(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employeeId]);
 
   // Load week schedule to check which dates have jobs
   useEffect(() => {
     loadWeekSchedule();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employeeId]);
+  }, [employeeId, weekOffset]);
 
   const loadWeekSchedule = useCallback(async () => {
     if (!employeeId) return;
 
     try {
       const today = new Date();
+      // Tính tuần dựa trên weekOffset
       const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() + (weekOffset * 7));
       weekStart.setHours(0, 0, 0, 0);
       
-      const weekEnd = new Date(today);
-      weekEnd.setDate(today.getDate() + 6);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
       weekEnd.setHours(23, 59, 59, 999);
 
       await ensureValidToken.ensureValidToken();
@@ -103,7 +125,7 @@ export const ScheduleScreen = () => {
     } catch (error) {
       console.error('Error loading week schedule:', error);
     }
-  }, [employeeId, ensureValidToken]);
+  }, [employeeId, weekOffset, ensureValidToken]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -118,10 +140,13 @@ export const ScheduleScreen = () => {
   
   const generateWeekDates = () => {
     const today = new Date();
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() + (weekOffset * 7));
+    
     const dates = [];
     for (let i = 0; i < 7; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
+      const date = new Date(weekStart);
+      date.setDate(weekStart.getDate() + i);
       dates.push(date);
     }
     return dates;
@@ -312,7 +337,7 @@ export const ScheduleScreen = () => {
     );
   };
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -325,10 +350,7 @@ export const ScheduleScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <LinearGradient
-        colors={[COLORS.primary, COLORS.primaryLight]}
-        style={styles.headerGradient}
-      >
+      <View style={styles.headerContainer}>
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Lịch Làm Việc</Text>
@@ -336,6 +358,48 @@ export const ScheduleScreen = () => {
               Quản lý công việc hàng ngày
             </Text>
           </View>
+        </View>
+
+        <View style={styles.weekNavigation}>
+          <TouchableOpacity 
+            style={styles.weekNavButton}
+            onPress={() => {
+              setWeekOffset(weekOffset - 1);
+              // Tự động chọn ngày đầu tiên của tuần mới
+              const newDate = new Date();
+              newDate.setDate(newDate.getDate() + ((weekOffset - 1) * 7));
+              setSelectedDate(newDate);
+            }}
+          >
+            <Ionicons name="chevron-back" size={24} color={colors.neutral.textPrimary} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.weekLabelButton}
+            onPress={() => {
+              setWeekOffset(0);
+              setSelectedDate(new Date());
+            }}
+          >
+            <Text style={styles.weekLabel}>
+              {weekOffset === 0 ? 'Tuần này' : weekOffset > 0 ? `${weekOffset} tuần sau` : `${Math.abs(weekOffset)} tuần trước`}
+            </Text>
+            {weekOffset !== 0 && (
+              <Text style={styles.weekSubLabel}>Nhấn để về hôm nay</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.weekNavButton}
+            onPress={() => {
+              setWeekOffset(weekOffset + 1);
+              const newDate = new Date();
+              newDate.setDate(newDate.getDate() + ((weekOffset + 1) * 7));
+              setSelectedDate(newDate);
+            }}
+          >
+            <Ionicons name="chevron-forward" size={24} color={colors.neutral.textPrimary} />
+          </TouchableOpacity>
         </View>
 
         <ScrollView 
@@ -382,7 +446,7 @@ export const ScheduleScreen = () => {
             );
           })}
         </ScrollView>
-      </LinearGradient>
+      </View>
 
       <ScrollView
         style={styles.scrollView}
@@ -417,7 +481,12 @@ export const ScheduleScreen = () => {
           </View>
         </View>
 
-        {assignments.length > 0 ? (
+        {dateLoading ? (
+          <View style={styles.dateLoadingContainer}>
+            <ActivityIndicator size="small" color={COLORS.primary} />
+            <Text style={styles.dateLoadingText}>Đang tải...</Text>
+          </View>
+        ) : assignments.length > 0 ? (
           timeSlots.map((timeSlot, index) => renderTimeSlotCard(timeSlot, index))
         ) : (
           <View style={styles.emptyState}>
@@ -436,7 +505,7 @@ export const ScheduleScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.neutral.background,
   },
   loadingContainer: {
     flex: 1,
@@ -448,14 +517,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.text.secondary,
   },
-  headerGradient: {
-    paddingTop: 8,
+  headerContainer: {
+    backgroundColor: colors.warm.beige,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 20,
+    paddingTop: 8,
     paddingBottom: 16,
   },
   headerContent: {
@@ -464,65 +531,99 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.surface,
+    color: colors.neutral.textPrimary,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: COLORS.surface,
-    opacity: 0.9,
+    color: colors.neutral.textSecondary,
     marginTop: 4,
   },
+  weekNavigation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  weekNavButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.neutral.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekLabelButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  weekLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.neutral.textPrimary,
+  },
+  weekSubLabel: {
+    fontSize: 11,
+    color: colors.neutral.textSecondary,
+    marginTop: 2,
+  },
   weekContainer: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     marginBottom: 16,
   },
   weekContent: {
-    gap: 12,
+    gap: 6,
+    paddingHorizontal: 4,
   },
   dayCard: {
-    width: 60,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 48,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: colors.neutral.white,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
   },
   selectedDayCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.highlight.teal,
+    borderColor: colors.highlight.teal,
   },
   todayCard: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    borderWidth: 1,
-    borderColor: COLORS.surface,
+    backgroundColor: colors.neutral.white,
+    borderWidth: 2,
+    borderColor: colors.highlight.teal,
   },
   dayName: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: COLORS.surface,
-    marginBottom: 4,
+    color: colors.neutral.textSecondary,
+    marginBottom: 3,
   },
   selectedDayName: {
-    color: COLORS.primary,
+    color: colors.neutral.white,
   },
   todayText: {
     fontWeight: '700',
+    color: colors.highlight.teal,
   },
   dayNumber: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    color: COLORS.surface,
+    color: colors.neutral.textPrimary,
   },
   selectedDayNumber: {
-    color: COLORS.primary,
+    color: colors.neutral.white,
   },
   jobIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: COLORS.warning,
-    marginTop: 6,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: colors.feedback.warning,
+    marginTop: 4,
   },
   jobIndicatorSelected: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.neutral.white,
   },
   scrollView: {
     flex: 1,
@@ -531,7 +632,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   summaryCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.neutral.white,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -553,7 +654,7 @@ const styles = StyleSheet.create({
   summaryNumber: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: COLORS.primary,
+    color: colors.highlight.teal,
   },
   summaryLabel: {
     fontSize: 12,
@@ -561,7 +662,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   assignmentCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.neutral.white,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -646,10 +747,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.error + '15',
   },
   primaryButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.highlight.teal,
   },
   successButton: {
-    backgroundColor: COLORS.success,
+    backgroundColor: colors.feedback.success,
     flex: 1,
     justifyContent: 'center',
   },
@@ -672,5 +773,15 @@ const styles = StyleSheet.create({
     color: COLORS.text.secondary,
     marginTop: 8,
     textAlign: 'center',
+  },
+  dateLoadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: COLORS.text.secondary,
   },
 });

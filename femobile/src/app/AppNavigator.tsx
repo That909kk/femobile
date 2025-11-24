@@ -199,9 +199,18 @@ const MainStack = () => {
           ...ANIMATION_CONFIGS.slideFromRight,
         }}
       />
-      {/* Notifications Screen */}
+      {/* Customer Notifications Screen */}
       <MainStackNavigator.Screen 
         name="NotificationList" 
+        component={NotificationScreen}
+        options={{
+          headerShown: false,
+          ...ANIMATION_CONFIGS.slideFromRight,
+        }}
+      />
+      {/* Employee Notifications Screen */}
+      <MainStackNavigator.Screen 
+        name="EmployeeNotifications" 
         component={NotificationScreen}
         options={{
           headerShown: false,

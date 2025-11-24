@@ -73,7 +73,7 @@ export type {
   ServiceChoice as ServiceOptionChoice,
   ServicePriceRequest,
   ServicePriceResponse,
-  SuitableEmployee as Employee,
+  SuitableEmployee,
   Category,
   CategoryService
 } from './serviceService';
@@ -91,7 +91,18 @@ export type {
   CheckInResponse,
   CheckOutResponse,
   CancelAssignmentRequest,
+  AssignmentDetailResponse,
 } from './employeeAssignmentService';
+
+export type {
+  Employee,
+  EmployeeStatus,
+  EmployeeRating,
+  WorkingZone as EmployeeWorkingZone,
+  UpdateEmployeeRequest as EmployeeUpdateRequest,
+  BookingStatisticsResponse as EmployeeBookingStatisticsResponse,
+  AssignmentStatisticsResponse as EmployeeAssignmentStatisticsResponse,
+} from './employeeService';
 
 export type {
   ReviewCriterion,

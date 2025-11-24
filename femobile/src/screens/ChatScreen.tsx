@@ -507,7 +507,7 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
             onPress={() => navigation.goBack()}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={24} color={colors.neutral.white} />
+            <Ionicons name="arrow-back" size={24} color={colors.primary.navy} />
           </TouchableOpacity>
           
           <View style={styles.headerCenter}>
@@ -637,12 +637,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: responsiveSpacing.md,
     paddingVertical: responsiveSpacing.md,
-    backgroundColor: colors.highlight.teal,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: colors.warm.beige,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.border,
   },
   backButton: {
     marginRight: responsiveSpacing.sm,
@@ -653,7 +650,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: responsiveFontSize.heading3,
     fontWeight: '600',
-    color: colors.neutral.white,
+    color: colors.primary.navy,
     marginBottom: 2,
   },
   statusContainer: {
@@ -668,7 +665,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: responsiveFontSize.caption,
-    color: colors.neutral.white,
+    color: colors.neutral.textSecondary,
     opacity: 0.9,
   },
   loadingContainer: {

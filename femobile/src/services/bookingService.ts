@@ -414,6 +414,26 @@ class BookingService {
 
     return response.data || [];
   }
+
+  /**
+   * Get booking details for employee
+   * @param bookingId - ID của booking
+   */
+  async getEmployeeBookingDetails(bookingId: string): Promise<BookingResponse> {
+    const endpoint = `/employee/bookings/details/${bookingId}`;
+
+    const response = await httpClient.get<{
+      success: boolean;
+      message: string;
+      data: BookingResponse;
+    }>(endpoint);
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Khong the tai chi tiet booking');
+    }
+
+    return response.data.data;
+  }
 }
 
 export const bookingService = new BookingService();
