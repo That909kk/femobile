@@ -17,6 +17,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { useNotificationStore } from '../../../store/notificationStore';
 import { serviceService } from '../../../services/serviceService';
 import { employeeScheduleService } from '../../../services/employeeScheduleService';
+import { bookingService } from '../../../services';
 import { colors, responsive, screenDimensions, responsiveSpacing, responsiveFontSize, getGridItemWidth } from '../../../styles';
 import { Service, Employee } from '../../../types';
 
@@ -36,6 +37,15 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [bannersLoaded, setBannersLoaded] = useState<boolean[]>([false, false, false]);
+  const [bookingStats, setBookingStats] = useState<{
+    totalCompleted: number;
+    totalUpcoming: number;
+    totalInProgress: number;
+  }>({
+    totalCompleted: 0,
+    totalUpcoming: 0,
+    totalInProgress: 0,
+  });
 
   const mapServiceFromApi = (item: any): Service => {
     const rawId = item?.serviceId ?? item?.id;
@@ -102,6 +112,7 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
       setLoading(true);
       await Promise.all([
         loadServices(),
+        loadBookingStatistics(),
         // loadFeaturedEmployees() // Tạm thời tắt - chưa có dữ liệu
       ]);
     } catch (error) {
@@ -127,6 +138,90 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
       console.error('Error loading services:', error);
       setServices([]);
       setServicesError('Có lỗi xảy ra, vui lòng thử lại');
+    }
+  };
+
+  const loadBookingStatistics = async () => {
+    try {
+      // Lấy customerId từ user
+      const customerId = user && 'customerId' in user ? (user as any).customerId : undefined;
+      
+      if (!customerId) {
+        console.log('No customerId found, skipping booking statistics');
+        return;
+      }
+
+      // Lấy ngày hiện tại
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth(); // 0-11
+      
+      // Ngày đầu tháng: ngày 1 lúc 00:00:00
+      const startDate = new Date(year, month, 1, 0, 0, 0);
+      
+      // Ngày cuối tháng: lấy ngày đầu tháng sau, rồi trừ 1 millisecond
+      const endDate = new Date(year, month + 1, 0, 23, 59, 59);
+      
+      // Format theo ISO 8601 (YYYY-MM-DDTHH:mm:ss)
+      const formatDate = (date: Date): string => {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+      };
+      
+      const startDateStr = formatDate(startDate);
+      const endDateStr = formatDate(endDate);
+      
+      console.log('Loading booking statistics for current month:', {
+        startDate: startDateStr,
+        endDate: endDateStr,
+      });
+
+      // Gọi API statistics với timeUnit=MONTH, startDate và endDate
+      const response = await bookingService.getBookingStatistics(
+        customerId, 
+        'MONTH',
+        startDateStr,
+        endDateStr
+      );
+      
+      console.log('📊 Raw API response:', JSON.stringify(response, null, 2));
+      
+      // bookingService.getBookingStatistics() đã return response.data
+      // Vì vậy response ở đây chính là data: { timeUnit, startDate, endDate, totalBookings, countByStatus }
+      // Cast to any để tránh lỗi TypeScript do type definition không khớp
+      const data = response as any;
+      
+      if (data && data.countByStatus) {
+        const stats = data.countByStatus;
+        const totalBookings = data.totalBookings || 0;
+        
+        console.log('📊 Count by status:', stats);
+        console.log('📊 Total bookings:', totalBookings);
+        
+        // Tính tổng số đơn sắp diễn ra (PENDING + AWAITING_EMPLOYEE + CONFIRMED)
+        const totalUpcoming = (stats.PENDING || 0) + (stats.AWAITING_EMPLOYEE || 0) + (stats.CONFIRMED || 0);
+        
+        // Số đơn đang thực hiện
+        const totalInProgress = stats.IN_PROGRESS || 0;
+        
+        setBookingStats({
+          totalCompleted: totalBookings, // Tổng số đơn đặt
+          totalUpcoming,
+          totalInProgress,
+        });
+        
+        console.log('📊 ✅ Booking statistics set:', {
+          'Tổng số đơn': totalBookings,
+          'Sắp diễn ra': totalUpcoming,
+          'Đang thực hiện': totalInProgress,
+          'Raw stats': stats,
+        });
+      } else {
+        console.warn('📊 ⚠️ No valid stats data found in response:', response);
+      }
+    } catch (error) {
+      console.error('Error loading booking statistics:', error);
+      // Không hiển thị lỗi cho user, giữ giá trị mặc định 0
     }
   };
 
@@ -223,11 +318,33 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
       <View style={styles.walletCard}>
         <View style={styles.walletInfo}>
           <Text style={styles.walletLabel}>
-            Khám phá và trải nghiệm các dịch vụ gia đình ngay hôm nay.
+           Cảm ơn bạn đã tin tưởng sử dụng dịch vụ của chúng tôi trong {new Date().toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })}.
           </Text>
-          <View style={styles.pointsPlaceholder}>
-            <Ionicons name="construct-outline" size={16} color={colors.highlight.teal} />
-            <Text style={styles.placeholderTextSecondary}>Tính năng đang phát triển</Text>
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <View style={styles.statTextContainer}>
+                <Text style={styles.statValue}>{bookingStats.totalCompleted}</Text>
+                <Text style={styles.statLabel}>Tổng số đơn</Text>
+              </View>
+            </View>
+            
+            <View style={styles.statDivider} />
+            
+            <View style={styles.statItem}>
+              <View style={styles.statTextContainer}>
+                <Text style={styles.statValue}>{bookingStats.totalUpcoming}</Text>
+                <Text style={styles.statLabel}>Sắp diễn ra</Text>
+              </View>
+            </View>
+            
+            <View style={styles.statDivider} />
+            
+            <View style={styles.statItem}>
+              <View style={styles.statTextContainer}>
+                <Text style={styles.statValue}>{bookingStats.totalInProgress}</Text>
+                <Text style={styles.statLabel}>Đang thực hiện</Text>
+              </View>
+            </View>
           </View>
         </View>
       </View>
@@ -549,8 +666,47 @@ const styles = StyleSheet.create({
   walletLabel: {
     fontSize: responsiveFontSize.body,
     color: colors.neutral.textPrimary,
-    marginBottom: responsiveSpacing.sm,
+    marginBottom: responsiveSpacing.md,
     lineHeight: responsiveFontSize.body * 1.4,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: responsiveSpacing.xs,
+  },
+  statIconContainer: {
+    width: responsive.moderateScale(32),
+    height: responsive.moderateScale(32),
+    borderRadius: responsive.moderateScale(16),
+    backgroundColor: colors.warm.beige,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statTextContainer: {
+    flex: 1,
+  },
+  statValue: {
+    fontSize: responsiveFontSize.heading3,
+    fontWeight: '700',
+    color: colors.primary.navy,
+    marginBottom: responsiveSpacing.xs / 2,
+  },
+  statLabel: {
+    fontSize: responsiveFontSize.caption - 1,
+    color: colors.neutral.textSecondary,
+    fontWeight: '500',
+  },
+  statDivider: {
+    width: 1,
+    height: responsive.moderateScale(40),
+    backgroundColor: colors.neutral.border,
+    marginHorizontal: responsiveSpacing.xs,
   },
   pointsPlaceholder: {
     flexDirection: 'row',

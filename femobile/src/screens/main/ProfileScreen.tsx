@@ -30,25 +30,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [emailNotifications, setEmailNotifications] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  const handleRoleSwitch = (newRole: 'CUSTOMER' | 'EMPLOYEE') => {
-    if (newRole === role) return;
-    
-    Alert.alert(
-      'Chuyển đổi vai trò',
-      `Bạn có muốn chuyển sang vai trò ${newRole === 'CUSTOMER' ? 'Khách hàng' : 'Nhân viên'}? Ứng dụng sẽ được tải lại.`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        { 
-          text: 'Chuyển đổi', 
-          onPress: () => {
-            // TODO: Implement role switching logic
-            Alert.alert('Thông báo', 'Chức năng chuyển đổi vai trò đang được phát triển');
-          }
-        },
-      ]
-    );
-  };
-
   const handleChangeAvatar = async () => {
     try {
       // Request permission
@@ -305,26 +286,24 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       return (
         <View style={styles.statsCard}>
           {userData.vipLevel && (
-            <View style={styles.statItem}>
+            <View style={styles.statItem} key="vip-level">
               <Text style={[styles.statNumber, styles.membershipText]}>
                 VIP {userData.vipLevel}
               </Text>
               <Text style={styles.statLabel}>Hạng thành viên</Text>
             </View>
           )}
+          {ratingDisplay && userData.vipLevel && <View style={styles.statDivider} key="divider" />}
           {ratingDisplay && (
-            <>
-              {userData.vipLevel && <View style={styles.statDivider} />}
-              <View style={styles.statItem}>
-                <View style={styles.ratingContainer}>
-                  <Text style={[styles.statNumber, { color: ratingDisplay.color }]}>
-                    {ratingDisplay.text}
-                  </Text>
-                  <Ionicons name="star" size={16} color={ratingDisplay.color} />
-                </View>
-                <Text style={styles.statLabel}>Uy tín</Text>
+            <View style={styles.statItem} key="rating">
+              <View style={styles.ratingContainer}>
+                <Text style={[styles.statNumber, { color: ratingDisplay.color }]}>
+                  {ratingDisplay.text}
+                </Text>
+                <Ionicons name="star" size={16} color={ratingDisplay.color} />
               </View>
-            </>
+              <Text style={styles.statLabel}>Uy tín</Text>
+            </View>
           )}
         </View>
       );
@@ -575,33 +554,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                   <View style={[styles.statusBadge, { backgroundColor: COLORS.warning }]}>
                     <Text style={styles.statusText}>{userData.vipLevel}</Text>
                   </View>
-                </View>
-              </View>
-            )}
-
-            {/* Role Switcher - Show if user has multiple roles */}
-            {userInfo?.roles && Array.isArray(userInfo.roles) && userInfo.roles.length > 1 && (
-              <View style={styles.roleSwitchSection}>
-                <Text style={styles.accountInfoLabel}>Chuyển đổi vai trò:</Text>
-                <View style={styles.rolesContainer}>
-                  {userInfo.roles.map((userRole) => (
-                    <TouchableOpacity
-                      key={userRole.roleId}
-                      style={[
-                        styles.roleButton,
-                        role === userRole.roleName && styles.activeRoleButton
-                      ]}
-                      onPress={() => handleRoleSwitch(userRole.roleName as any)}
-                    >
-                      <Text style={[
-                        styles.roleButtonText,
-                        role === userRole.roleName && styles.activeRoleButtonText
-                      ]}>
-                        {userRole.roleName === 'CUSTOMER' ? 'Khách hàng' : 
-                         userRole.roleName === 'EMPLOYEE' ? 'Nhân viên' : userRole.roleName}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
                 </View>
               </View>
             )}
@@ -1005,36 +957,6 @@ const styles = StyleSheet.create({
   retryText: {
     color: COLORS.surface,
     fontSize: 16,
-    fontWeight: '600',
-  },
-  roleSwitchSection: {
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  rolesContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  roleButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: COLORS.primary + '30',
-    backgroundColor: COLORS.surface,
-  },
-  activeRoleButton: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + '15',
-  },
-  roleButtonText: {
-    fontSize: 14,
-    color: COLORS.text.secondary,
-    fontWeight: '500',
-  },
-  activeRoleButtonText: {
-    color: COLORS.primary,
     fontWeight: '600',
   },
 });

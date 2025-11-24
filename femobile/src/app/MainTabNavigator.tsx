@@ -89,9 +89,9 @@ export const MainTabNavigator = () => {
     {
       name: 'Requests',
       component: RequestsScreen,
-      title: 'Yêu cầu',
-      icon: 'notifications-outline',
-      focusedIcon: 'notifications',
+      title: 'Chat',
+      icon: 'chatbubbles-outline',
+      focusedIcon: 'chatbubbles',
     },
     {
       name: 'EmployeeProfile',
