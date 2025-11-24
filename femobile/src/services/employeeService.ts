@@ -46,6 +46,41 @@ export interface UpdateEmployeeRequest {
   employeeStatus?: EmployeeStatus;
 }
 
+export interface BookingStatisticsResponse {
+  success: boolean;
+  data: {
+    timeUnit: string;
+    startDate: string;
+    endDate: string;
+    totalBookings: number;
+    countByStatus: {
+      PENDING?: number;
+      AWAITING_EMPLOYEE?: number;
+      CONFIRMED?: number;
+      IN_PROGRESS?: number;
+      COMPLETED?: number;
+      CANCELLED?: number;
+    };
+  };
+}
+
+export interface AssignmentStatisticsResponse {
+  success: boolean;
+  data: {
+    timeUnit: string;
+    startDate: string;
+    endDate: string;
+    totalAssignments: number;
+    countByStatus: {
+      PENDING?: number;
+      ASSIGNED?: number;
+      IN_PROGRESS?: number;
+      COMPLETED?: number;
+      CANCELLED?: number;
+    };
+  };
+}
+
 class EmployeeService {
   private readonly BASE_PATH = '/employee';
 
@@ -118,6 +153,76 @@ class EmployeeService {
     }
 
     return response.data?.success ?? response.success;
+  }
+
+  /**
+   * Get booking statistics for employee
+   * @param employeeId - ID của employee
+   * @param timeUnit - Đơn vị thời gian (DAY, WEEK, MONTH, YEAR)
+   * @param startDate - Ngày bắt đầu (ISO format)
+   * @param endDate - Ngày kết thúc (ISO format)
+   */
+  async getBookingStatistics(
+    employeeId: string,
+    timeUnit: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR',
+    startDate?: string,
+    endDate?: string,
+  ): Promise<BookingStatisticsResponse> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('timeUnit', timeUnit);
+
+    if (startDate) {
+      queryParams.append('startDate', startDate);
+    }
+    if (endDate) {
+      queryParams.append('endDate', endDate);
+    }
+
+    const queryString = queryParams.toString();
+    const endpoint = `${this.BASE_PATH}/${employeeId}/bookings/statistics${queryString ? `?${queryString}` : ''}`;
+
+    const response = await httpClient.get<BookingStatisticsResponse>(endpoint);
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Khong the lay thong ke booking');
+    }
+
+    return response.data as BookingStatisticsResponse;
+  }
+
+  /**
+   * Get assignment statistics for employee
+   * @param employeeId - ID của employee
+   * @param timeUnit - Đơn vị thời gian (DAY, WEEK, MONTH, YEAR)
+   * @param startDate - Ngày bắt đầu (ISO format)
+   * @param endDate - Ngày kết thúc (ISO format)
+   */
+  async getAssignmentStatistics(
+    employeeId: string,
+    timeUnit: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR',
+    startDate?: string,
+    endDate?: string,
+  ): Promise<AssignmentStatisticsResponse> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('timeUnit', timeUnit);
+
+    if (startDate) {
+      queryParams.append('startDate', startDate);
+    }
+    if (endDate) {
+      queryParams.append('endDate', endDate);
+    }
+
+    const queryString = queryParams.toString();
+    const endpoint = `${this.BASE_PATH}/${employeeId}/assignments/statistics${queryString ? `?${queryString}` : ''}`;
+
+    const response = await httpClient.get<AssignmentStatisticsResponse>(endpoint);
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Khong the lay thong ke assignment');
+    }
+
+    return response.data as AssignmentStatisticsResponse;
   }
 }
 
