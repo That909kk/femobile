@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,14 @@ import {
   Image,
   RefreshControl,
   ActivityIndicator,
+  Animated,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../../hooks/useAuth';
 import { useNotificationStore } from '../../../store/notificationStore';
 import { serviceService } from '../../../services/serviceService';
@@ -46,6 +49,44 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
     totalUpcoming: 0,
     totalInProgress: 0,
   });
+
+  // Animation cho Voice Booking button
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Tạo animation pulse cho nút
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Tạo animation glow
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 0,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
 
   const mapServiceFromApi = (item: any): Service => {
     const rawId = item?.serviceId ?? item?.id;
@@ -275,6 +316,11 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
     navigation.navigate('EmployeeList');
   };
 
+  const handleVoiceBooking = () => {
+    // TODO: Navigate to Voice Booking screen
+    navigation.navigate('VoiceBooking');
+  };
+
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerTop}>
@@ -501,6 +547,79 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
     </View>
   );
 
+  const renderVoiceBookingButton = () => {
+    const glowOpacity = glowAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.3, 0.8],
+    });
+
+    return (
+      <View style={styles.voiceBookingContainer}>
+        {/* Glow effect */}
+        <Animated.View
+          style={[
+            styles.voiceBookingGlow,
+            {
+              opacity: glowOpacity,
+              transform: [{ scale: pulseAnim }],
+            },
+          ]}
+        />
+        
+        {/* Main button */}
+        <Animated.View
+          style={[
+            styles.voiceBookingButtonWrapper,
+            {
+              transform: [{ scale: pulseAnim }],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.voiceBookingButton}
+            onPress={handleVoiceBooking}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={['#1BB5A6', '#8B5CF6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.voiceBookingGradient}
+            >
+              <View style={styles.voiceBookingContent}>
+                <View style={styles.voiceIconContainer}>
+                  <Ionicons name="mic" size={responsive.moderateScale(32)} color={colors.neutral.white} />
+                  <View style={styles.voiceWave}>
+                    <Animated.View
+                      style={[
+                        styles.waveBar,
+                        {
+                          opacity: glowOpacity,
+                          transform: [
+                            {
+                              scaleY: glowAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0.5, 1.2],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+                <View style={styles.voiceTextContainer}>
+                  <Text style={styles.voiceBookingTitle}>Đặt lịch bằng giọng nói</Text>
+                  <Text style={styles.voiceBookingSubtitle}>Nhanh chóng với AI ✨</Text>
+                </View>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    );
+  };
+
   const renderRewardsSection = () => (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
@@ -542,6 +661,7 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
         showsVerticalScrollIndicator={false}
       >
         {renderHeader()}
+        {renderVoiceBookingButton()}
         {renderPromoBanner()}
         {renderServicesSection()}
         {renderFeaturedEmployees()}
@@ -908,6 +1028,91 @@ const styles = StyleSheet.create({
     color: colors.neutral.textSecondary,
     fontWeight: '500',
     marginLeft: responsiveSpacing.sm,
+  },
+
+  // Voice Booking Button
+  voiceBookingContainer: {
+    marginTop: responsiveSpacing.lg,
+    marginHorizontal: responsiveSpacing.md,
+    alignItems: 'center',
+    position: 'relative',
+    height: responsive.moderateScale(100),
+    justifyContent: 'center',
+  },
+  voiceBookingGlow: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: responsive.moderateScale(24),
+    backgroundColor: colors.highlight.teal,
+    shadowColor: colors.highlight.teal,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: responsive.moderateScale(20),
+    elevation: 10,
+  },
+  voiceBookingButtonWrapper: {
+    width: '100%',
+  },
+  voiceBookingButton: {
+    width: '100%',
+    borderRadius: responsive.moderateScale(24),
+    overflow: 'hidden',
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: responsive.moderateScale(8) },
+    shadowOpacity: 0.3,
+    shadowRadius: responsive.moderateScale(16),
+    elevation: 8,
+  },
+  voiceBookingGradient: {
+    paddingVertical: responsiveSpacing.lg,
+    paddingHorizontal: responsiveSpacing.md,
+  },
+  voiceBookingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  voiceIconContainer: {
+    position: 'relative',
+    width: responsive.moderateScale(64),
+    height: responsive.moderateScale(64),
+    borderRadius: responsive.moderateScale(32),
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: responsiveSpacing.md,
+  },
+  voiceWave: {
+    position: 'absolute',
+    bottom: responsive.moderateScale(-2),
+    left: 0,
+    right: 0,
+    height: responsive.moderateScale(4),
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+  },
+  waveBar: {
+    width: responsive.moderateScale(3),
+    height: responsive.moderateScale(12),
+    backgroundColor: colors.neutral.white,
+    borderRadius: responsive.moderateScale(2),
+    marginHorizontal: responsive.moderateScale(1),
+  },
+  voiceTextContainer: {
+    flex: 1,
+  },
+  voiceBookingTitle: {
+    fontSize: responsiveFontSize.heading3,
+    fontWeight: '700',
+    color: colors.neutral.white,
+    marginBottom: responsiveSpacing.xs / 2,
+  },
+  voiceBookingSubtitle: {
+    fontSize: responsiveFontSize.caption,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
   },
 });
 

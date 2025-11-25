@@ -20,6 +20,7 @@ import {
   NotificationsScreen as CustomerNotificationsScreen,
   RecurringBookingsScreen,
   RecurringBookingDetailScreen,
+  VoiceBookingScreen,
 } from '../screens/main/customer';
 import { NotificationsScreen as EmployeeNotificationsScreen } from '../screens/main/employee';
 import { ChatScreen } from '../screens/ChatScreen';
@@ -176,6 +177,15 @@ const MainStack = () => {
       <MainStackNavigator.Screen
         name="RecurringBookingDetail"
         component={RecurringBookingDetailScreen}
+        options={{
+          headerShown: false,
+          ...ANIMATION_CONFIGS.slideFromRight,
+        }}
+      />
+      {/* Voice Booking Screen */}
+      <MainStackNavigator.Screen
+        name="VoiceBooking"
+        component={VoiceBookingScreen}
         options={{
           headerShown: false,
           ...ANIMATION_CONFIGS.slideFromRight,

@@ -195,7 +195,9 @@ export type MainStackParamList = {
   OrderDetail: { bookingId: string };
   RecurringBookings: undefined;
   RecurringBookingDetail: { recurringBookingId: string };
+  VoiceBooking: undefined;
   NotificationList: undefined;
+  EmployeeNotifications: undefined;
   EditProfile: undefined;
   ChangePassword: undefined;
   ChatScreen: { conversationId: string; recipientName: string };
