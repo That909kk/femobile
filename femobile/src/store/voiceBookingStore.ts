@@ -62,6 +62,7 @@ interface VoiceBookingActions {
   
   // Recording
   startRecording: () => void;
+  cancelRecording: () => void;
   stopRecording: (audioBlob: Blob, hints?: Record<string, any>) => Promise<void>;
   
   // Continue conversation
@@ -115,9 +116,11 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
     try {
       await voiceBookingWebSocketService.connect();
       set({ isConnected: true });
+      console.log('[VoiceBookingStore] WebSocket connected successfully');
     } catch (error) {
-      console.error('[VoiceBookingStore] WebSocket connection failed:', error);
-      set({ error: 'Không thể kết nối đến server. Vui lòng thử lại.' });
+      console.warn('[VoiceBookingStore] WebSocket connection failed (non-critical):', error);
+      // Không set error vì WebSocket là optional, REST API vẫn hoạt động
+      set({ isConnected: false });
     }
   },
 
@@ -129,6 +132,11 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
   // ===== Recording =====
   startRecording: () => {
     set({ isRecording: true, error: null });
+  },
+
+  // Cancel recording without sending audio (e.g., user stopped before recording was ready)
+  cancelRecording: () => {
+    set({ isRecording: false });
   },
 
   stopRecording: async (audioBlob: Blob, hints?: Record<string, any>) => {
@@ -148,14 +156,22 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
         isProcessing: false,
       });
 
-      // Subscribe WebSocket để nhận real-time updates
-      if (response.requestId) {
-        voiceBookingWebSocketService.subscribeToRequest(
-          response.requestId,
-          (event: VoiceBookingEventPayload) => {
-            get().handleWebSocketEvent(event);
-          }
-        );
+      // Subscribe WebSocket để nhận real-time updates (nếu đã connected)
+      if (response.requestId && state.isConnected) {
+        try {
+          voiceBookingWebSocketService.subscribeToRequest(
+            response.requestId,
+            (event: VoiceBookingEventPayload) => {
+              get().handleWebSocketEvent(event);
+            }
+          );
+          console.log('[VoiceBookingStore] Subscribed to WebSocket for request:', response.requestId);
+        } catch (wsError) {
+          console.warn('[VoiceBookingStore] WebSocket subscription failed (non-critical):', wsError);
+          // Continue without WebSocket - REST API sẽ handle
+        }
+      } else if (response.requestId && !state.isConnected) {
+        console.log('[VoiceBookingStore] WebSocket not connected, using REST API only');
       }
 
       // Xử lý response
@@ -248,17 +264,24 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
 
   cancelBooking: async () => {
     const state = get();
-    if (!state.currentRequestId) return;
+    if (!state.currentRequestId) {
+      console.log('[VoiceBookingStore] No requestId to cancel');
+      return;
+    }
 
     try {
       set({ isProcessing: true });
+      
+      console.log('[VoiceBookingStore] Cancelling booking:', state.currentRequestId);
 
       await voiceBookingService.cancelVoiceBooking(state.currentRequestId);
+
+      console.log('[VoiceBookingStore] Booking cancelled successfully');
 
       // Unsubscribe WebSocket
       voiceBookingWebSocketService.unsubscribeFromRequest(state.currentRequestId);
 
-      set({ isProcessing: false });
+      set({ isProcessing: false, currentStatus: 'CANCELLED' });
       get().addAIMessage('Đã hủy yêu cầu đặt lịch.');
       
       // Reset sau 1 giây
@@ -267,10 +290,24 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
       }, 1000);
 
     } catch (error: any) {
+      // Check if error message indicates successful cancellation
+      const errorMsg = error.message || '';
+      if (errorMsg.includes('huỷ') || errorMsg.includes('hủy') || errorMsg.includes('cancel')) {
+        // This is actually a success - backend returned success message as error
+        console.log('[VoiceBookingStore] Booking cancelled (message in error):', errorMsg);
+        voiceBookingWebSocketService.unsubscribeFromRequest(state.currentRequestId);
+        set({ isProcessing: false, currentStatus: 'CANCELLED' });
+        get().addAIMessage('Đã hủy yêu cầu đặt lịch.');
+        setTimeout(() => {
+          get().resetConversation();
+        }, 1000);
+        return;
+      }
+      
       console.error('[VoiceBookingStore] Error cancelling booking:', error);
       set({
         isProcessing: false,
-        error: error.message || 'Có lỗi xảy ra khi hủy đặt lịch.',
+        error: errorMsg || 'Có lỗi xảy ra khi hủy đặt lịch.',
       });
     }
   },
@@ -288,6 +325,13 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
   },
 
   addAIMessage: (content: string, audioUrl?: string, status?: VoiceBookingStatus) => {
+    console.log('[VoiceBookingStore] Adding AI message:', {
+      content: content.substring(0, 50),
+      hasAudioUrl: !!audioUrl,
+      audioUrl,
+      status,
+    });
+    
     const message: ConversationMessage = {
       id: Date.now().toString(),
       type: 'ai',
@@ -325,6 +369,16 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
   handleVoiceBookingResponse: (response: VoiceBookingResponse) => {
     const state = get();
 
+    console.log('[VoiceBookingStore] Handling response:', {
+      status: response.status,
+      hasTranscript: !!response.transcript,
+      hasMessage: !!response.message,
+      hasClarification: !!response.clarificationMessage,
+      hasSpeech: !!response.speech,
+      speechMessageUrl: response.speech?.message?.audioUrl,
+      speechClarificationUrl: response.speech?.clarification?.audioUrl,
+    });
+
     // Cập nhật transcript
     if (response.transcript) {
       set({ transcript: response.transcript });
@@ -346,43 +400,72 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
           showMissingFieldsForm: true,
         });
 
-        // Hiển thị clarification message
-        if (response.clarificationMessage) {
-          get().addAIMessage(
-            response.clarificationMessage,
-            response.speech?.clarification?.audioUrl,
-            response.status
-          );
-        } else if (response.message) {
-          get().addAIMessage(response.message, response.speech?.message?.audioUrl, response.status);
+        // Ưu tiên message audio trước, không có thì mới dùng clarification audio
+        const partialAudioUrl = response.speech?.message?.audioUrl || response.speech?.clarification?.audioUrl;
+        
+        // Text tương ứng với audio đang chọn
+        // Ưu tiên speech.text (đầy đủ) hơn response.message (có thể bị cắt)
+        let partialText: string;
+        if (response.speech?.message?.audioUrl) {
+          // Đang dùng message audio -> ưu tiên speech.message.text
+          partialText = response.speech?.message?.text || response.message || 'Đang xử lý yêu cầu...';
+        } else {
+          // Đang dùng clarification audio -> ưu tiên speech.clarification.text
+          partialText = response.speech?.clarification?.text || response.clarificationMessage || response.message || 'Vui lòng cung cấp thêm thông tin.';
         }
 
-        // Auto play audio nếu có
-        if (response.speech?.message?.audioUrl) {
-          get().playAudio(response.speech.message.audioUrl);
-        } else if (response.speech?.clarification?.audioUrl) {
-          get().playAudio(response.speech.clarification.audioUrl);
+        console.log('[VoiceBookingStore] PARTIAL - speech data:', {
+          hasSpeech: !!response.speech,
+          hasMessage: !!response.speech?.message,
+          hasClarification: !!response.speech?.clarification,
+          messageAudioUrl: response.speech?.message?.audioUrl,
+          clarificationAudioUrl: response.speech?.clarification?.audioUrl,
+          selectedAudioUrl: partialAudioUrl,
+          audioUrlType: typeof partialAudioUrl,
+          audioUrlValid: partialAudioUrl ? (partialAudioUrl.startsWith('http://') || partialAudioUrl.startsWith('https://')) : false,
+          // Log full text để debug
+          messageText: response.speech?.message?.text,
+          clarificationText: response.speech?.clarification?.text,
+          responseMessage: response.message,
+          selectedText: partialText,
+        });
+
+        // Validate audio URL trước khi add message
+        if (partialAudioUrl && !partialAudioUrl.startsWith('http://') && !partialAudioUrl.startsWith('https://')) {
+          console.error('[VoiceBookingStore] Invalid audio URL from backend:', partialAudioUrl);
+          // Vẫn add message nhưng không có audio
+          get().addAIMessage(partialText, undefined, response.status);
+        } else {
+          // Thêm AI message với audio URL đã chọn
+          get().addAIMessage(partialText, partialAudioUrl, response.status);
         }
         break;
 
       case 'AWAITING_CONFIRMATION':
         // Đã có preview, chờ xác nhận
+        console.log('[VoiceBookingStore] AWAITING_CONFIRMATION - preview data:', {
+          hasPreview: !!response.preview,
+          preview: response.preview,
+          address: response.preview?.address,
+          bookingTime: response.preview?.bookingTime,
+          services: response.preview?.services,
+          totalAmount: response.preview?.totalAmount,
+          totalAmountFormatted: response.preview?.totalAmountFormatted,
+        });
+        
         set({
           preview: response.preview || null,
           showPreview: true,
           showMissingFieldsForm: false,
         });
 
-        get().addAIMessage(
-          response.message || 'Vui lòng xác nhận thông tin đặt lịch.',
-          response.speech?.message?.audioUrl,
-          response.status
-        );
+        // Ưu tiên message audio trước, không có thì mới dùng clarification audio
+        const confirmAudioUrl = response.speech?.message?.audioUrl || response.speech?.clarification?.audioUrl;
+        // Luôn dùng message tiếng Việt
+        const confirmText = '✅ Đã dựng đơn nháp, vui lòng kiểm tra và xác nhận thông tin đặt lịch.';
 
-        // Auto play audio
-        if (response.speech?.message?.audioUrl) {
-          get().playAudio(response.speech.message.audioUrl);
-        }
+        // Audio sẽ được phát bởi screen
+        get().addAIMessage(confirmText, confirmAudioUrl, response.status);
         break;
 
       case 'COMPLETED':
@@ -393,16 +476,15 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
           showMissingFieldsForm: false,
         });
 
-        get().addAIMessage(
-          `Đặt lịch thành công! Mã đơn: ${response.bookingId}`,
-          response.speech?.message?.audioUrl,
-          response.status
-        );
+        // Ưu tiên message audio trước, không có thì mới dùng clarification audio
+        const completedAudioUrl = response.speech?.message?.audioUrl || response.speech?.clarification?.audioUrl;
+        
+        // Luôn dùng message tiếng Việt cho COMPLETED, bỏ qua message tiếng Anh từ BE
+        const defaultCompletedText = `🎉 Đặt lịch thành công! Mã đơn: ${response.bookingId}`;
+        const completedText = defaultCompletedText;
 
-        // Auto play audio
-        if (response.speech?.message?.audioUrl) {
-          get().playAudio(response.speech.message.audioUrl);
-        }
+        // Audio sẽ được phát bởi screen
+        get().addAIMessage(completedText, completedAudioUrl, response.status);
 
         // Unsubscribe WebSocket
         if (state.currentRequestId) {

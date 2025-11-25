@@ -45,15 +45,17 @@ export interface VoiceBookingPreviewEmployee {
 // Preview booking data
 export interface VoiceBookingPreview {
   addressId?: number | null;
-  address: string | null;
-  ward: string | null;
-  city: string | null;
+  address?: string | null;
+  fullAddress?: string | null; // Địa chỉ đầy đủ từ BE
+  ward?: string | null;
+  city?: string | null;
   bookingTime: string | null; // ISO datetime
   note?: string | null;
   promoCode?: string | null;
   paymentMethodId?: number | null;
   totalAmount: number;
-  totalAmountFormatted: string;
+  totalAmountFormatted?: string;
+  formattedTotalAmount?: string; // BE có thể trả tên khác
   services: VoiceBookingPreviewService[];
   employees?: VoiceBookingPreviewEmployee[];
   autoAssignedEmployees?: boolean;

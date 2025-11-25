@@ -46,6 +46,12 @@ class VoiceBookingWebSocketService {
             resolve();
           }
         }, 100);
+        
+        // Timeout sau 5s
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          resolve(); // Resolve anyway, không reject
+        }, 5000);
       });
     }
 
@@ -75,15 +81,16 @@ class VoiceBookingWebSocketService {
           heartbeatOutgoing: 10000,
         });
 
-        // Timeout 10 giây
+        // Timeout 5 giây (giảm từ 10s)
         const timeoutId = setTimeout(() => {
-          console.error('[VoiceBookingWS] Connection timeout');
+          console.warn('[VoiceBookingWS] Connection timeout (non-critical)');
           this.isConnecting = false;
           if (this.client) {
             this.client.deactivate();
           }
-          reject(new Error('WebSocket connection timeout'));
-        }, 10000);
+          // Resolve thay vì reject - WebSocket là optional
+          resolve();
+        }, 5000);
 
         // Xử lý kết nối thành công
         this.client.onConnect = (frame) => {
@@ -150,11 +157,8 @@ class VoiceBookingWebSocketService {
    */
   subscribeToRequest(requestId: string, callback: VoiceBookingEventCallback): void {
     if (!this.isConnected || !this.client) {
-      console.warn('[VoiceBookingWS] Not connected, cannot subscribe');
-      // Tự động kết nối và subscribe
-      this.connect().then(() => {
-        this.subscribeToRequest(requestId, callback);
-      }).catch(console.error);
+      console.warn('[VoiceBookingWS] Not connected, skipping WebSocket subscription (using REST API only)');
+      // Không tự động kết nối - WebSocket là optional
       return;
     }
 

@@ -9,6 +9,8 @@ import {
   Alert,
   ScrollView,
   TextInput,
+  Modal,
+  Vibration,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,12 +18,16 @@ import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
 import { useVoiceBookingStore } from '../../../store/voiceBookingStore';
+import { VoiceBookingStatus } from '../../../types/voiceBooking';
 import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../styles';
 
 // Constants cho auto-stop
-const SILENCE_TIMEOUT = 3000; // 3 giây im lặng thì tự dừng
-const MAX_RECORDING_DURATION = 20000; // 20 giây tối đa
-const SILENCE_THRESHOLD = -50; // dB threshold để detect silence
+const SILENCE_THRESHOLD = -40; // dB - ngưỡng im lặng (âm thanh dưới mức này coi như im lặng)
+const SILENCE_DURATION = 2000; // 2 giây im lặng liên tục thì tự dừng
+const MIN_RECORDING_DURATION = 1500; // Tối thiểu 1.5 giây mới được tự dừng
+const MAX_RECORDING_DURATION = 60000; // 60 giây tối đa
+const METERING_INTERVAL = 200; // Kiểm tra mức âm thanh mỗi 200ms
+const AUTO_RESTART_DELAY = 300; // Delay ngắn hơn trước khi auto-restart (300ms)
 
 interface VoiceBookingScreenProps {}
 
@@ -33,6 +39,7 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
     isRecording,
     isProcessing,
     currentStatus,
+    currentRequestId,
     messages,
     transcript,
     missingFields,
@@ -40,7 +47,9 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
     bookingId,
     error,
     startRecording,
+    cancelRecording,
     stopRecording,
+    continueWithAudio,
     continueWithText,
     confirmBooking,
     cancelBooking,
@@ -52,28 +61,85 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [isAutoStopped, setIsAutoStopped] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [shouldAutoRestart, setShouldAutoRestart] = useState(false);
+  const [isPreparingRecording, setIsPreparingRecording] = useState(false);
+  const [lastErrorTime, setLastErrorTime] = useState<number>(0);
+  const [isRecordingLocal, setIsRecordingLocal] = useState(false); // Track recording state locally
+  const [isPlayingAudioLocal, setIsPlayingAudioLocal] = useState(false); // Track audio playback
 
   // Timers
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const maxDurationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const meteringIntervalRef = useRef<NodeJS.Timeout | null>(null); // Interval cho audio metering
+  const silenceStartRef = useRef<number | null>(null); // Thời điểm bắt đầu im lặng
+  const recordingStartTimeRef = useRef<number>(0); // Thời điểm bắt đầu ghi
   const scrollViewRef = useRef<ScrollView>(null);
+  const hasCancelledRef = useRef(false);
+  
+  // Refs để track state trong closures (tránh stale closure)
+  const isRecordingRef = useRef(false);
+  const isProcessingRef = useRef(false);
+  const currentStatusRef = useRef<string | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null); // Track recording instance để cleanup
 
   // Animation
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const waveAnim = useRef(new Animated.Value(0)).current;
+  const spinAnim = useRef(new Animated.Value(0)).current;
 
-  // Request audio permissions
+  // Spin animation khi đang processing (chờ response từ server)
   useEffect(() => {
+    if (isProcessing) {
+      // Start continuous spin animation
+      spinAnim.setValue(0);
+      Animated.loop(
+        Animated.timing(spinAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+          easing: (t) => t, // Linear easing
+        })
+      ).start();
+    } else {
+      // Stop spin
+      spinAnim.stopAnimation();
+      spinAnim.setValue(0);
+    }
+  }, [isProcessing]);
+
+  // Request audio permissions khi mount
+  // Sync refs với state để tránh stale closure trong callbacks
+  useEffect(() => {
+    isRecordingRef.current = isRecording || isRecordingLocal;
+  }, [isRecording, isRecordingLocal]);
+  
+  useEffect(() => {
+    isProcessingRef.current = isProcessing;
+  }, [isProcessing]);
+  
+  useEffect(() => {
+    currentStatusRef.current = currentStatus;
+  }, [currentStatus]);
+
+  useEffect(() => {
+    // Reset cancel flag on mount
+    hasCancelledRef.current = false;
+    
     (async () => {
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Lỗi', 'Cần cấp quyền microphone để sử dụng tính năng này');
       }
+      
+      // Set audio mode for iOS compatibility
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
       });
     })();
 
@@ -85,8 +151,16 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
         recording.stopAndUnloadAsync();
       }
       clearAllTimers();
+      
+      // Cancel booking only once on unmount using ref to prevent double cancel
+      if (!hasCancelledRef.current && currentRequestId && currentStatus && 
+          currentStatus !== 'COMPLETED' && currentStatus !== 'CANCELLED') {
+        console.log('[VoiceBooking] Component unmounting, cancelling booking once...');
+        hasCancelledRef.current = true;
+        cancelBooking();
+      }
     };
-  }, []);
+  }, []); // No dependencies - only runs on mount/unmount
 
   // Clear all timers
   const clearAllTimers = () => {
@@ -102,10 +176,18 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
       clearInterval(durationIntervalRef.current);
       durationIntervalRef.current = null;
     }
+    if (meteringIntervalRef.current) {
+      clearInterval(meteringIntervalRef.current);
+      meteringIntervalRef.current = null;
+    }
+    silenceStartRef.current = null;
   };
 
   useEffect(() => {
-    if (isRecording) {
+    // Use local state for immediate response
+    const shouldAnimate = isRecordingLocal || isRecording;
+    
+    if (shouldAnimate) {
       // Pulse animation khi đang ghi âm
       Animated.loop(
         Animated.sequence([
@@ -134,15 +216,54 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
       pulseAnim.setValue(1);
       waveAnim.setValue(0);
     }
-  }, [isRecording]);
+  }, [isRecordingLocal, isRecording]);
 
-  // Play AI speech when available
+  // Play AI speech when available and handle auto-restart for PARTIAL
   useEffect(() => {
     const latestMessage = messages[messages.length - 1];
-    if (latestMessage?.type === 'ai' && latestMessage.audioUrl && !isRecording) {
-      playAudio(latestMessage.audioUrl);
+    console.log('[VoiceBooking] Messages/Processing changed:', {
+      totalMessages: messages.length,
+      latestMessageType: latestMessage?.type,
+      hasAudioUrl: !!latestMessage?.audioUrl,
+      audioUrl: latestMessage?.audioUrl,
+      status: latestMessage?.status,
+      isRecording,
+      isProcessing,
+    });
+    
+    // Chỉ phát audio khi status là PARTIAL (cần bổ sung thông tin)
+    // KHÔNG phát audio khi AWAITING_CONFIRMATION vì sẽ hiện modal
+    if (latestMessage?.type === 'ai' && 
+        latestMessage.audioUrl && 
+        !isRecording && 
+        !isProcessing &&
+        latestMessage.status === 'PARTIAL') {
+      console.log('[VoiceBooking] Will play audio for PARTIAL status');
+      playAudioAndHandleStatus(latestMessage.audioUrl, latestMessage.status);
+    } else if (latestMessage?.status === 'AWAITING_CONFIRMATION') {
+      console.log('[VoiceBooking] Skipping audio for AWAITING_CONFIRMATION - modal will show');
     }
-  }, [messages]);
+  }, [messages, isProcessing, isRecording]);
+
+  // Show/hide confirmation modal based on status
+  useEffect(() => {
+    console.log('[VoiceBooking] Status/Preview changed:', { 
+      currentStatus, 
+      hasPreview: !!preview,
+      willShowModal: currentStatus === 'AWAITING_CONFIRMATION'
+    });
+    
+    // Hiển thị modal ngay khi status là AWAITING_CONFIRMATION
+    // Không cần chờ preview (có thể preview sẽ được set sau hoặc optional)
+    if (currentStatus === 'AWAITING_CONFIRMATION') {
+      console.log('[VoiceBooking] Showing confirmation modal');
+      setShowConfirmModal(true);
+      // Vibrate để thông báo user
+      Vibration.vibrate(50);
+    } else {
+      setShowConfirmModal(false);
+    }
+  }, [currentStatus, preview]);
 
   // Auto scroll to bottom when new messages
   useEffect(() => {
@@ -153,42 +274,296 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
     }
   }, [messages.length]);
 
-  const playAudio = async (url: string) => {
+  const playAudioAndHandleStatus = async (url: string, status?: VoiceBookingStatus) => {
     try {
+      console.log('[VoiceBooking] Playing audio:', { url, status });
+      
       // Stop current audio if playing
       if (sound) {
         await sound.unloadAsync();
+        setSound(null);
       }
 
+      // Validate URL
+      if (!url || typeof url !== 'string') {
+        console.warn('[VoiceBooking] Invalid audio URL:', url);
+        if (status === 'PARTIAL' && !isRecording && !isProcessing) {
+          setTimeout(() => {
+            handleStartRecording();
+          }, 1000);
+        }
+        return;
+      }
+
+      // Validate URL format
+      const urlLower = url.toLowerCase();
+      if (!urlLower.startsWith('http://') && !urlLower.startsWith('https://')) {
+        console.error('[VoiceBooking] Audio URL must start with http:// or https://:', url);
+        Alert.alert('Lỗi phát audio', 'URL âm thanh không hợp lệ');
+        if (status === 'PARTIAL' && !isRecording && !isProcessing) {
+          setTimeout(() => {
+            handleStartRecording();
+          }, 1000);
+        }
+        return;
+      }
+
+      console.log('[VoiceBooking] Audio URL is valid, loading...');
+
+      // Set audio mode to playback for iOS trước khi load audio
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
+      // Mark as playing BEFORE loading for immediate UI response
+      setIsPlayingAudioLocal(true);
+
+      // Load và play ngay lập tức (không chờ buffer hết)
       const { sound: newSound } = await Audio.Sound.createAsync(
         { uri: url },
-        { shouldPlay: true }
-      );
-      setSound(newSound);
-      
-      newSound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.didJustFinish) {
-          newSound.unloadAsync();
-          setSound(null);
+        { 
+          shouldPlay: true,
+          progressUpdateIntervalMillis: 100, // Update mượt hơn
+        },
+        (playbackStatus) => {
+          if (playbackStatus.isLoaded) {
+            if (playbackStatus.didJustFinish) {
+              console.log('[VoiceBooking] ✅ Audio finished playing, status:', currentStatusRef.current);
+              setIsPlayingAudioLocal(false);
+              newSound.unloadAsync();
+              setSound(null);
+              
+              // Auto-restart recording SAU KHI audio phát xong
+              // Chỉ khi PARTIAL - KHÔNG auto-start khi AWAITING_CONFIRMATION
+              const shouldAutoStart = currentStatusRef.current === 'PARTIAL' && 
+                                      !isRecordingRef.current && 
+                                      !isProcessingRef.current;
+              
+              console.log('[VoiceBooking] Should auto-start recording:', shouldAutoStart);
+              
+              if (shouldAutoStart) {
+                // Reset audio mode for recording
+                Audio.setAudioModeAsync({
+                  allowsRecordingIOS: true,
+                  playsInSilentModeIOS: true,
+                  staysActiveInBackground: false,
+                  shouldDuckAndroid: true,
+                  playThroughEarpieceAndroid: false,
+                }).then(() => {
+                  // Haptic feedback nhẹ để báo sẵn sàng ghi
+                  Vibration.vibrate(10);
+                  // Delay ngắn để mượt hơn
+                  setTimeout(() => {
+                    console.log('[VoiceBooking] 🎤 Auto-starting recording after audio finished');
+                    handleStartRecording();
+                  }, AUTO_RESTART_DELAY);
+                });
+              }
+            }
+          } else if (playbackStatus.error) {
+            console.error('[VoiceBooking] Audio playback error:', playbackStatus.error);
+            setIsPlayingAudioLocal(false);
+          }
         }
+      );
+      
+      setSound(newSound);
+      console.log('[VoiceBooking] Audio loaded and playing successfully');
+      
+    } catch (error: any) {
+      console.error('[VoiceBooking] Error playing audio:', error);
+      console.error('[VoiceBooking] Error details:', {
+        message: error?.message,
+        code: error?.code,
+        domain: error?.domain,
+        url: url,
       });
-    } catch (error) {
-      console.error('Error playing audio:', error);
+      
+      // Reset playing state
+      setIsPlayingAudioLocal(false);
+      
+      // Không hiện alert - chỉ log lỗi để UX mượt hơn
+      // Lỗi -1100 thường do URL TTS hết hạn hoặc backend issue
+      const errorMessage = error?.message || '';
+      const isUrlError = errorMessage.includes('-1100') || errorMessage.includes('NSURLErrorDomain');
+      
+      if (isUrlError) {
+        console.warn('[VoiceBooking] TTS audio URL expired or unavailable, continuing without audio');
+      }
+      
+      // Reset audio mode back to recording
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+      } catch (audioModeError) {
+        console.error('[VoiceBooking] Error resetting audio mode:', audioModeError);
+      }
+      
+      // Khi PARTIAL và audio fail, tự động bắt đầu ghi âm
+      // Dùng refs để check state chính xác
+      const shouldAutoStart = currentStatusRef.current === 'PARTIAL' && 
+                              !isRecordingRef.current && 
+                              !isProcessingRef.current;
+      
+      if (shouldAutoStart) {
+        console.log('[VoiceBooking] Audio failed for PARTIAL, auto-starting recording after delay');
+        // Haptic để báo sẵn sàng
+        Vibration.vibrate(10);
+        setTimeout(() => {
+          // Double check với refs
+          if (!isRecordingRef.current && !isProcessingRef.current && currentStatusRef.current === 'PARTIAL') {
+            handleStartRecording();
+          }
+        }, 1000); // 1s để user đọc text
+      }
     }
   };
 
-  const handleStartRecording = async () => {
+  // Tắt audio đang phát và bắt đầu ghi âm ngay
+  const stopAudioAndStartRecording = async () => {
+    console.log('[VoiceBooking] User interrupted audio to start recording');
+    
+    // Tắt audio ngay lập tức
+    if (sound) {
+      try {
+        await sound.stopAsync();
+        await sound.unloadAsync();
+      } catch (e) {
+        console.warn('[VoiceBooking] Error stopping audio:', e);
+      }
+      setSound(null);
+    }
+    setIsPlayingAudioLocal(false);
+    
+    // Haptic feedback
+    Vibration.vibrate(50);
+    
+    // Reset audio mode và bắt đầu ghi âm
     try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+    } catch (e) {
+      console.warn('[VoiceBooking] Error setting audio mode:', e);
+    }
+    
+    // Bắt đầu ghi âm ngay
+    setTimeout(() => {
+      handleStartRecording();
+    }, 100);
+  };
+
+  const handleStartRecording = async () => {
+    // Prevent concurrent recording preparation
+    if (isPreparingRecording) {
+      console.warn('[VoiceBooking] Already preparing recording, skipping...');
+      return;
+    }
+
+    // Nếu đang processing, không start recording
+    if (isProcessing) {
+      console.log('[VoiceBooking] Still processing, skip start recording');
+      return;
+    }
+
+    try {
+      setIsPreparingRecording(true);
       setIsAutoStopped(false);
       setRecordingDuration(0);
 
-      // Create recording
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
+      // CRITICAL: Force cleanup TẤT CẢ recording có thể tồn tại
+      // 1. Cleanup from state
+      if (recording) {
+        console.log('[VoiceBooking] Cleaning up recording from state...');
+        try {
+          const status = await recording.getStatusAsync();
+          if (status.isRecording) {
+            await recording.stopAndUnloadAsync();
+          } else if (status.canRecord) {
+            await recording.stopAndUnloadAsync();
+          }
+        } catch (e) {
+          // Ignore - may already be unloaded
+        }
+        setRecording(null);
+      }
       
+      // 2. Cleanup from ref (backup)
+      if (recordingRef.current) {
+        console.log('[VoiceBooking] Cleaning up recording from ref...');
+        try {
+          await recordingRef.current.stopAndUnloadAsync();
+        } catch (e) {
+          // Ignore
+        }
+        recordingRef.current = null;
+      }
+      
+      // 3. Đợi đủ lâu để iOS hoàn toàn release recording resource
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Stop any playing audio
+      if (sound) {
+        try {
+          await sound.unloadAsync();
+        } catch (e) {
+          // Ignore
+        }
+        setSound(null);
+        setIsPlayingAudioLocal(false);
+      }
+
+      // Clear all timers
+      clearAllTimers();
+
+      // Set audio mode for recording (especially important for iOS)
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
+      // Đợi thêm để audio mode được apply
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      console.log('[VoiceBooking] Creating new recording...');
+      
+      // Haptic feedback khi bắt đầu ghi
+      Vibration.vibrate(10);
+      
+      // Create recording với metering enabled để detect silence
+      const recordingOptions = {
+        ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        isMeteringEnabled: true, // Enable metering để kiểm tra mức âm thanh
+      };
+      
+      const result = await Audio.Recording.createAsync(recordingOptions);
+      const newRecording = result.recording;
+      
+      console.log('[VoiceBooking] New recording created successfully');
+      
+      // Save to both state and ref
       setRecording(newRecording);
-      await startRecording();
+      recordingRef.current = newRecording;
+      setIsRecordingLocal(true);
+      
+      // Call store action to update recording state
+      startRecording();
 
       // Start duration counter
       durationIntervalRef.current = setInterval(() => {
@@ -204,47 +579,140 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
       // Monitor audio levels for silence detection
       monitorAudioLevels(newRecording);
 
-    } catch (error) {
-      console.error('Error starting recording:', error);
-      Alert.alert('Lỗi', 'Không thể bắt đầu ghi âm');
+    } catch (error: any) {
+      console.error('[VoiceBooking] Error starting recording:', error);
+      
+      // Reset recording states (both local and store)
+      setIsRecordingLocal(false);
+      cancelRecording();
+      setRecording(null);
+      clearAllTimers();
+      
+      // Không hiện alert - chỉ log, để UX mượt
+      // User có thể thử lại bằng cách nhấn nút mic
+    } finally {
+      // Reset flag
+      setIsPreparingRecording(false);
     }
   };
 
   const monitorAudioLevels = async (rec: Audio.Recording) => {
-    // Note: Expo doesn't provide direct metering API
-    // This is a simplified approach - in production, you might need native modules
+    // Sử dụng audio metering thực sự để phát hiện im lặng
+    recordingStartTimeRef.current = Date.now();
+    silenceStartRef.current = null;
     
-    // Reset silence timer on each check
-    const resetSilenceTimer = () => {
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
+    // Interval kiểm tra mức âm thanh
+    meteringIntervalRef.current = setInterval(async () => {
+      try {
+        // Kiểm tra xem recording còn valid không
+        if (!rec || !recordingRef.current) {
+          console.log('[VoiceBooking] Recording no longer valid, stopping metering');
+          if (meteringIntervalRef.current) {
+            clearInterval(meteringIntervalRef.current);
+            meteringIntervalRef.current = null;
+          }
+          return;
+        }
+        
+        const status = await rec.getStatusAsync();
+        
+        if (!status.isRecording) {
+          console.log('[VoiceBooking] Recording stopped, clearing metering');
+          if (meteringIntervalRef.current) {
+            clearInterval(meteringIntervalRef.current);
+            meteringIntervalRef.current = null;
+          }
+          return;
+        }
+        
+        const elapsedTime = Date.now() - recordingStartTimeRef.current;
+        const metering = status.metering ?? -160; // -160 nếu không có metering
+        
+        // Log để debug
+        // console.log(`[VoiceBooking] Metering: ${metering}dB, elapsed: ${elapsedTime}ms`);
+        
+        // Chỉ kiểm tra silence sau MIN_RECORDING_DURATION
+        if (elapsedTime < MIN_RECORDING_DURATION) {
+          return;
+        }
+        
+        // Kiểm tra có im lặng không
+        if (metering < SILENCE_THRESHOLD) {
+          // Đang im lặng
+          if (!silenceStartRef.current) {
+            silenceStartRef.current = Date.now();
+            console.log('[VoiceBooking] Silence started...');
+          } else {
+            const silenceDuration = Date.now() - silenceStartRef.current;
+            
+            if (silenceDuration >= SILENCE_DURATION) {
+              console.log(`[VoiceBooking] Silence detected for ${silenceDuration}ms - auto stopping`);
+              if (meteringIntervalRef.current) {
+                clearInterval(meteringIntervalRef.current);
+                meteringIntervalRef.current = null;
+              }
+              setIsAutoStopped(true);
+              handleStopRecording(true);
+            }
+          }
+        } else {
+          // Có âm thanh - reset silence timer
+          if (silenceStartRef.current) {
+            console.log('[VoiceBooking] Sound detected, resetting silence timer');
+            silenceStartRef.current = null;
+          }
+        }
+      } catch (error) {
+        // Recording có thể đã bị unload
+        console.log('[VoiceBooking] Metering error (recording may be unloaded):', error);
+        if (meteringIntervalRef.current) {
+          clearInterval(meteringIntervalRef.current);
+          meteringIntervalRef.current = null;
+        }
       }
-      
-      silenceTimerRef.current = setTimeout(() => {
-        setIsAutoStopped(true);
-        handleStopRecording(true);
-      }, SILENCE_TIMEOUT);
-    };
-
-    // Start silence detection
-    resetSilenceTimer();
+    }, METERING_INTERVAL);
   };
 
   const handleStopRecording = async (autoStopped = false) => {
-    try {
-      clearAllTimers();
+    // Lưu reference và reset state ngay lập tức để tránh race condition
+    const currentRecording = recording || recordingRef.current;
+    
+    // Clear timers và reset states ngay
+    clearAllTimers();
+    setIsRecordingLocal(false);
+    setRecording(null);
+    recordingRef.current = null; // Clear ref
+    setRecordingDuration(0);
 
-      if (!recording) return;
+    if (!currentRecording) {
+      // Không có recording thực sự - reset store state
+      cancelRecording();
+      return;
+    }
+
+    try {
+      // Haptic feedback khi dừng
+      Vibration.vibrate(10);
 
       // Get the audio file URI before stopping
-      const uri = recording.getURI();
-      if (!uri) {
-        throw new Error('No recording URI');
+      const uri = currentRecording.getURI();
+      
+      // Stop and unload recording
+      try {
+        await currentRecording.stopAndUnloadAsync();
+      } catch (unloadError: any) {
+        // Ignore "already unloaded" error
+        if (!unloadError?.message?.includes('already been unloaded')) {
+          console.warn('[VoiceBooking] Error unloading recording:', unloadError);
+        }
       }
 
-      // Stop the recording
-      await recording.stopAndUnloadAsync();
-      
+      if (!uri) {
+        console.warn('[VoiceBooking] No recording URI');
+        cancelRecording();
+        return;
+      }
+
       // Create File object for React Native (not blob)
       const audioFile = {
         uri: uri,
@@ -252,12 +720,13 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
         name: `voice_${Date.now()}.m4a`,
       } as any;
 
-      // Clear recording state
-      setRecording(null);
-      setRecordingDuration(0);
-
       // Send to backend via store
-      await stopRecording(audioFile);
+      // If we have a requestId, continue with audio; otherwise create new
+      if (currentRequestId && (currentStatus === 'PARTIAL' || currentStatus === 'AWAITING_CONFIRMATION')) {
+        await continueWithAudio(audioFile);
+      } else {
+        await stopRecording(audioFile);
+      }
 
       if (autoStopped) {
         // Show auto-stop message
@@ -266,11 +735,10 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
         }, 3000);
       }
 
-    } catch (error) {
-      console.error('Error stopping recording:', error);
-      Alert.alert('Lỗi', 'Không thể dừng ghi âm');
-      clearAllTimers();
-      setRecording(null);
+    } catch (error: any) {
+      console.error('[VoiceBooking] Error processing recording:', error);
+      cancelRecording();
+      // Không hiện alert để UX mượt hơn - user có thể thử lại
     }
   };
 
@@ -284,36 +752,48 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
   };
 
   const handleConfirm = () => {
-    Alert.alert(
-      'Xác nhận đặt lịch',
-      'Bạn có chắc chắn muốn xác nhận đặt lịch này?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xác nhận',
-          onPress: () => confirmBooking(),
-        },
-      ]
-    );
+    setShowConfirmModal(false);
+    confirmBooking();
   };
 
-  const handleCancel = () => {
-    Alert.alert('Hủy đặt lịch', 'Bạn có chắc chắn muốn hủy?', [
-      { text: 'Không', style: 'cancel' },
-      {
-        text: 'Hủy đặt lịch',
-        style: 'destructive',
-        onPress: () => {
-          cancelBooking();
-          resetConversation();
-        },
-      },
-    ]);
+  const handleCancelBooking = () => {
+    setShowConfirmModal(false);
+    cancelBooking();
+    resetConversation();
   };
 
   const handleReset = () => {
     resetConversation();
     setAdditionalText('');
+  };
+
+  const handleGoBack = () => {
+    // Nếu có voice booking đang active (chưa COMPLETED), confirm trước khi thoát
+    if (currentRequestId && currentStatus && currentStatus !== 'COMPLETED' && currentStatus !== 'CANCELLED') {
+      Alert.alert(
+        'Xác nhận thoát',
+        'Bạn có yêu cầu đặt lịch đang xử lý. Thoát ra sẽ hủy yêu cầu này. Bạn có chắc chắn muốn thoát?',
+        [
+          { text: 'Ở lại', style: 'cancel' },
+          {
+            text: 'Thoát',
+            style: 'destructive',
+            onPress: async () => {
+              // Gọi /cancel trước
+              await cancelBooking();
+              // Reset toàn bộ state
+              resetConversation();
+              // Thoát khỏi màn hình
+              navigation.goBack();
+            },
+          },
+        ]
+      );
+    } else {
+      // Không có request đang xử lý, reset và thoát
+      resetConversation();
+      navigation.goBack();
+    }
   };
 
   const renderStatusMessage = () => {
@@ -322,15 +802,34 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
     if (currentStatus === 'COMPLETED' && bookingId) {
       return (
         <View style={styles.statusContainer}>
-          <Ionicons name="checkmark-circle" size={48} color={colors.feedback.success} />
-          <Text style={styles.statusText}>Đặt lịch thành công!</Text>
+          <Ionicons name="checkmark-circle" size={64} color={colors.feedback.success} />
+          <Text style={styles.successTitle}>🎉 Đặt lịch thành công!</Text>
           <Text style={styles.statusSubtext}>Mã đặt lịch: {bookingId}</Text>
-          <TouchableOpacity
-            style={styles.viewDetailButton}
-            onPress={() => (navigation as any).navigate('OrderDetail', { bookingId })}
-          >
-            <Text style={styles.viewDetailText}>Xem chi tiết</Text>
-          </TouchableOpacity>
+          
+          <View style={styles.successButtonsContainer}>
+            <TouchableOpacity
+              style={[styles.successButton, styles.primaryButton]}
+              onPress={() => (navigation as any).navigate('OrderDetail', { bookingId })}
+            >
+              <Ionicons name="document-text" size={20} color="#fff" />
+              <Text style={styles.primaryButtonText}>Xem chi tiết</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.successButton, styles.secondaryButton]}
+              onPress={() => {
+                resetConversation();
+                // Navigate về MainTabs (tab navigator) và focus vào tab CustomerHome
+                (navigation as any).reset({
+                  index: 0,
+                  routes: [{ name: 'MainTabs' }],
+                });
+              }}
+            >
+              <Ionicons name="home" size={20} color={colors.highlight.teal} />
+              <Text style={styles.secondaryButtonText}>Về trang chủ</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       );
     }
@@ -345,17 +844,41 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
       );
     }
 
-    if (isRecording) {
+    // Đang phát audio - cho phép người dùng nhấn để tắt và ghi âm
+    if (isPlayingAudioLocal) {
+      return (
+        <View style={styles.statusContainer}>
+          <View style={styles.statusHeader}>
+            <Ionicons name="volume-high" size={24} color={colors.highlight.purple} />
+            <Text style={styles.statusText}>🔊 Đang phát...</Text>
+          </View>
+          <Text style={styles.statusSubtext}>Nhấn nút mic để tắt và trả lời ngay</Text>
+        </View>
+      );
+    }
+
+    // Đang chuẩn bị recording
+    if (isPreparingRecording) {
+      return (
+        <View style={styles.statusContainer}>
+          <ActivityIndicator size="small" color={colors.highlight.teal} />
+          <Text style={styles.statusText}>🎤 Đang chuẩn bị...</Text>
+          <Text style={styles.statusSubtext}>Chuẩn bị ghi âm</Text>
+        </View>
+      );
+    }
+
+    if (isRecording || isRecordingLocal) {
       return (
         <View style={styles.statusContainer}>
           <View style={styles.statusHeader}>
             <View style={styles.recordingIndicator} />
-            <Text style={styles.statusText}>Đang nghe bạn...</Text>
+            <Text style={styles.statusText}>🎤 Đang lắng nghe...</Text>
           </View>
           <Text style={styles.statusSubtext}>
             {isAutoStopped 
-              ? 'Đã dừng nghe để xử lý yêu cầu của bạn'
-              : `Nói đi, mình đang nghe... (${recordingDuration}s)`
+              ? '✓ Đang xử lý...'
+              : `Hãy nói rõ ràng (${recordingDuration}s)`
             }
           </Text>
         </View>
@@ -366,8 +889,8 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
       return (
         <View style={styles.statusContainer}>
           <ActivityIndicator size="small" color={colors.highlight.teal} />
-          <Text style={styles.statusText}>Đang xử lý...</Text>
-          <Text style={styles.statusSubtext}>AI đang phân tích yêu cầu của bạn</Text>
+          <Text style={styles.statusText}>⚡ Đang xử lý...</Text>
+          <Text style={styles.statusSubtext}>Vui lòng chờ trong giây lát</Text>
         </View>
       );
     }
@@ -376,8 +899,8 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
       return (
         <View style={styles.statusContainer}>
           <Ionicons name="alert-circle-outline" size={24} color={colors.feedback.warning} />
-          <Text style={styles.statusText}>Cần thêm thông tin</Text>
-          <Text style={styles.statusSubtext}>Hãy nói thêm hoặc nhập bên dưới</Text>
+          <Text style={styles.statusText}>💬 Cần thêm thông tin</Text>
+          <Text style={styles.statusSubtext}>Hãy bổ sung thêm chi tiết</Text>
         </View>
       );
     }
@@ -411,10 +934,47 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
       outputRange: [0.6, 0],
     });
 
+    // Determine button state and action
+    const isCurrentlyRecording = isRecordingLocal || isRecording;
+    const isCurrentlyPlaying = isPlayingAudioLocal;
+    
+    // Determine what happens when button is pressed
+    const handleButtonPress = () => {
+      if (isCurrentlyRecording) {
+        // Đang ghi âm → dừng ghi âm
+        handleStopRecording(false);
+      } else if (isCurrentlyPlaying) {
+        // Đang phát audio → tắt audio và bắt đầu ghi âm
+        stopAudioAndStartRecording();
+      } else {
+        // Idle → bắt đầu ghi âm
+        handleStartRecording();
+      }
+    };
+
+    // Determine button appearance
+    const getButtonColors = (): [string, string] => {
+      if (isCurrentlyRecording) {
+        return ['#D64545', '#F6C343']; // Đỏ - đang ghi
+      } else if (isCurrentlyPlaying) {
+        return ['#8B5CF6', '#F59E0B']; // Tím/cam - đang phát audio (nhấn để tắt và ghi)
+      }
+      return ['#1BB5A6', '#8B5CF6']; // Xanh - sẵn sàng
+    };
+
+    const getButtonIcon = () => {
+      if (isCurrentlyRecording) {
+        return 'stop';
+      } else if (isCurrentlyPlaying) {
+        return 'mic'; // Show mic icon để user biết nhấn sẽ bắt đầu ghi âm
+      }
+      return 'mic';
+    };
+
     return (
       <View style={styles.recordButtonContainer}>
-        {/* Wave effect khi đang ghi âm */}
-        {isRecording && (
+        {/* Wave effect khi đang ghi âm - use local state for immediate response */}
+        {isCurrentlyRecording && (
           <>
             <Animated.View
               style={[
@@ -438,31 +998,70 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
           </>
         )}
 
+        {/* Pulse effect khi đang phát audio */}
+        {isCurrentlyPlaying && (
+          <Animated.View
+            style={[
+              styles.playingIndicator,
+              {
+                opacity: waveOpacity,
+              },
+            ]}
+          />
+        )}
+
+        {/* Spin ring khi đang processing */}
+        {isProcessing && (
+          <Animated.View
+            style={[
+              styles.processingRing,
+              {
+                transform: [{
+                  rotate: spinAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0deg', '360deg'],
+                  })
+                }],
+              },
+            ]}
+          />
+        )}
+
         <Animated.View
           style={[
             styles.recordButtonWrapper,
             {
-              transform: [{ scale: isRecording ? pulseAnim : 1 }],
+              transform: [{ scale: isCurrentlyRecording ? pulseAnim : 1 }],
             },
           ]}
         >
           <TouchableOpacity
-            style={styles.recordButton}
-            onPress={() => isRecording ? handleStopRecording(false) : handleStartRecording()}
+            style={[styles.recordButton, (isProcessing || isPreparingRecording) && styles.buttonDisabled]}
+            onPress={handleButtonPress}
             activeOpacity={0.8}
-            disabled={isProcessing}
+            disabled={isProcessing || isPreparingRecording}
           >
             <LinearGradient
-              colors={isRecording ? ['#D64545', '#F6C343'] : ['#1BB5A6', '#8B5CF6']}
+              colors={isProcessing ? ['#6366F1', '#8B5CF6'] : (isPreparingRecording ? ['#9CA3AF', '#6B7280'] : getButtonColors())}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.recordGradient}
             >
-              <Ionicons
-                name={isRecording ? 'stop' : 'mic'}
-                size={responsive.moderateScale(48)}
-                color={colors.neutral.white}
-              />
+              {isPreparingRecording ? (
+                <ActivityIndicator size="large" color={colors.neutral.white} />
+              ) : isProcessing ? (
+                <Ionicons
+                  name="ellipsis-horizontal"
+                  size={responsive.moderateScale(48)}
+                  color={colors.neutral.white}
+                />
+              ) : (
+                <Ionicons
+                  name={getButtonIcon()}
+                  size={responsive.moderateScale(48)}
+                  color={colors.neutral.white}
+                />
+              )}
             </LinearGradient>
           </TouchableOpacity>
         </Animated.View>
@@ -476,7 +1075,7 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={handleGoBack}
           activeOpacity={0.7}
         >
           <Ionicons name="arrow-back" size={24} color={colors.primary.navy} />
@@ -501,8 +1100,8 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
           >
             <Ionicons name="sparkles" size={responsive.moderateScale(40)} color={colors.neutral.white} />
           </LinearGradient>
-          <Text style={styles.assistantTitle}>AI Assistant</Text>
-          <Text style={styles.assistantSubtitle}>Trợ lý thông minh của bạn</Text>
+          <Text style={styles.assistantTitle}>AI HomeMate Assistant</Text>
+          <Text style={styles.assistantSubtitle}>Trợ lý thông minh từ HomeMate</Text>
         </View>
 
         {/* Status */}
@@ -547,74 +1146,7 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
           </View>
         )}
 
-        {/* Preview Card */}
-        {currentStatus === 'AWAITING_CONFIRMATION' && preview && (
-          <View style={styles.previewContainer}>
-            <Text style={styles.previewTitle}>Xem trước đặt lịch</Text>
-            <View style={styles.previewCard}>
-              <View style={styles.previewRow}>
-                <Ionicons name="location" size={20} color={colors.highlight.teal} />
-                <View style={styles.previewInfo}>
-                  <Text style={styles.previewLabel}>Địa chỉ:</Text>
-                  <Text style={styles.previewValue}>{preview.address}</Text>
-                  {preview.ward && preview.city && (
-                    <Text style={styles.previewSubValue}>{preview.ward}, {preview.city}</Text>
-                  )}
-                </View>
-              </View>
-              
-              {preview.bookingTime && (
-                <View style={styles.previewRow}>
-                  <Ionicons name="time" size={20} color={colors.highlight.teal} />
-                  <View style={styles.previewInfo}>
-                    <Text style={styles.previewLabel}>Thời gian:</Text>
-                    <Text style={styles.previewValue}>
-                      {new Date(preview.bookingTime).toLocaleString('vi-VN')}
-                    </Text>
-                  </View>
-                </View>
-              )}
 
-              {preview.services && preview.services.length > 0 && (
-                <View style={styles.previewRow}>
-                  <Ionicons name="briefcase" size={20} color={colors.highlight.teal} />
-                  <View style={styles.previewInfo}>
-                    <Text style={styles.previewLabel}>Dịch vụ:</Text>
-                    {preview.services.map((service, index) => (
-                      <View key={index} style={styles.serviceItem}>
-                        <Text style={styles.previewValue}>
-                          {service.serviceName} x{service.quantity}
-                        </Text>
-                        <Text style={styles.previewPrice}>{service.subtotalFormatted}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              <View style={styles.previewTotal}>
-                <Text style={styles.totalLabel}>Tổng cộng:</Text>
-                <Text style={styles.totalValue}>{preview.totalAmountFormatted}</Text>
-              </View>
-            </View>
-
-            <View style={styles.confirmButtons}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-                <Text style={styles.cancelBtnText}>Hủy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm}>
-                <LinearGradient
-                  colors={['#1BB5A6', '#8B5CF6']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.confirmGradient}
-                >
-                  <Text style={styles.confirmBtnText}>Xác nhận</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
 
         {/* Missing Fields Form */}
         {currentStatus === 'PARTIAL' && missingFields.length > 0 && (
@@ -685,10 +1217,164 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
         )}
       </ScrollView>
 
-      {/* Record Button */}
-      <View style={styles.bottomContainer}>
-        {renderRecordButton()}
-      </View>
+      {/* Record Button - ẩn khi đã hoàn thành */}
+      {currentStatus !== 'COMPLETED' && (
+        <View style={styles.bottomContainer}>
+          {renderRecordButton()}
+        </View>
+      )}
+
+      {/* Confirmation Modal */}
+      <Modal
+        visible={showConfirmModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowConfirmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {/* Close button - luôn hiển thị để user có thể đóng modal */}
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowConfirmModal(false)}
+            >
+              <Ionicons name="close-circle" size={32} color={colors.neutral.textSecondary} />
+            </TouchableOpacity>
+            
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.modalHeader}>
+                <Ionicons name="checkmark-circle" size={48} color={colors.highlight.teal} />
+                <Text style={styles.modalTitle}>Xác nhận đặt lịch</Text>
+                <Text style={styles.modalSubtitle}>Vui lòng kiểm tra thông tin trước khi xác nhận</Text>
+              </View>
+
+              {preview ? (
+                <View style={styles.modalContent}>
+                  {/* Địa chỉ */}
+                  <View style={styles.previewRow}>
+                    <Ionicons name="location" size={24} color={colors.highlight.teal} />
+                    <View style={styles.previewInfo}>
+                      <Text style={styles.previewLabel}>Địa chỉ:</Text>
+                      <Text style={styles.previewValue}>
+                        {preview.fullAddress || preview.address || 'Chưa có thông tin địa chỉ'}
+                      </Text>
+                      {preview.ward && preview.city && (
+                        <Text style={styles.previewSubValue}>{preview.ward}, {preview.city}</Text>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Thời gian */}
+                  <View style={styles.previewRow}>
+                    <Ionicons name="time" size={24} color={colors.highlight.teal} />
+                    <View style={styles.previewInfo}>
+                      <Text style={styles.previewLabel}>Thời gian:</Text>
+                      <Text style={styles.previewValue}>
+                        {preview.bookingTime 
+                          ? new Date(preview.bookingTime).toLocaleString('vi-VN', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                          : 'Chưa có thông tin thời gian'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Dịch vụ */}
+                  {preview.services && preview.services.length > 0 ? (
+                    <View style={styles.previewRow}>
+                      <Ionicons name="briefcase" size={24} color={colors.highlight.teal} />
+                      <View style={styles.previewInfo}>
+                        <Text style={styles.previewLabel}>Dịch vụ:</Text>
+                        {preview.services.map((service, index) => (
+                          <View key={index} style={styles.serviceItem}>
+                            <Text style={styles.previewValue}>
+                              • {service.serviceName || 'Dịch vụ'} x{service.quantity || 1}
+                            </Text>
+                            <Text style={styles.previewPrice}>
+                              {service.subtotalFormatted || 
+                               (service.subtotal ? `${service.subtotal.toLocaleString('vi-VN')}đ` : 
+                               (service.unitPrice ? `${(service.unitPrice * (service.quantity || 1)).toLocaleString('vi-VN')}đ` : ''))}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.previewRow}>
+                      <Ionicons name="briefcase" size={24} color={colors.highlight.teal} />
+                      <View style={styles.previewInfo}>
+                        <Text style={styles.previewLabel}>Dịch vụ:</Text>
+                        <Text style={styles.previewValue}>Chưa có thông tin dịch vụ</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Ghi chú */}
+                  {preview.note && (
+                    <View style={styles.previewRow}>
+                      <Ionicons name="document-text" size={24} color={colors.highlight.teal} />
+                      <View style={styles.previewInfo}>
+                        <Text style={styles.previewLabel}>Ghi chú:</Text>
+                        <Text style={styles.previewValue}>{preview.note}</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Tổng tiền */}
+                  <View style={styles.modalTotal}>
+                    <Text style={styles.totalLabel}>Tổng cộng:</Text>
+                    <Text style={styles.totalValue}>
+                      {preview.formattedTotalAmount || preview.totalAmountFormatted || 
+                       (preview.totalAmount ? `${preview.totalAmount.toLocaleString('vi-VN')}đ` : '0đ')}
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.modalContent}>
+                  <Text style={styles.previewValue}>Đang tải thông tin đặt lịch...</Text>
+                </View>
+              )}
+
+              {/* Buttons */}
+              <View style={styles.modalButtons}>
+                <TouchableOpacity 
+                  style={styles.modalCancelBtn} 
+                  onPress={handleCancelBooking}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalCancelBtnText}>Hủy</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[
+                    styles.modalConfirmBtn,
+                    !preview && styles.modalConfirmBtnDisabled
+                  ]} 
+                  onPress={handleConfirm}
+                  activeOpacity={0.7}
+                  disabled={!preview}
+                >
+                  <LinearGradient
+                    colors={preview ? ['#1BB5A6', '#8B5CF6'] : ['#999', '#666']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.modalConfirmGradient}
+                  >
+                    <Ionicons name="checkmark-circle" size={20} color={colors.neutral.white} />
+                    <Text style={styles.modalConfirmBtnText}>
+                      {preview ? 'Xác nhận đặt lịch' : 'Đang tải...'}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -864,6 +1550,24 @@ const styles = StyleSheet.create({
     height: responsive.moderateScale(180),
     borderRadius: responsive.moderateScale(90),
   },
+  playingIndicator: {
+    position: 'absolute',
+    width: responsive.moderateScale(160),
+    height: responsive.moderateScale(160),
+    borderRadius: responsive.moderateScale(80),
+    backgroundColor: colors.highlight.purple,
+    opacity: 0.2,
+  },
+  processingRing: {
+    position: 'absolute',
+    width: responsive.moderateScale(150),
+    height: responsive.moderateScale(150),
+    borderRadius: responsive.moderateScale(75),
+    borderWidth: 4,
+    borderColor: 'transparent',
+    borderTopColor: colors.highlight.purple,
+    borderRightColor: colors.highlight.teal,
+  },
   recordButtonWrapper: {
     shadowColor: colors.primary.navy,
     shadowOffset: { width: 0, height: 8 },
@@ -876,6 +1580,9 @@ const styles = StyleSheet.create({
     height: responsive.moderateScale(120),
     borderRadius: responsive.moderateScale(60),
     overflow: 'hidden',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   recordGradient: {
     width: '100%',
@@ -892,6 +1599,48 @@ const styles = StyleSheet.create({
   },
   viewDetailText: {
     color: colors.neutral.white,
+    fontSize: responsiveFontSize.body,
+    fontWeight: '600',
+  },
+  // Success screen styles
+  successTitle: {
+    fontSize: responsiveFontSize.heading2,
+    fontWeight: '700',
+    color: colors.feedback.success,
+    marginTop: responsiveSpacing.md,
+    marginBottom: responsiveSpacing.xs,
+  },
+  successButtonsContainer: {
+    flexDirection: 'column',
+    gap: responsiveSpacing.sm,
+    marginTop: responsiveSpacing.lg,
+    width: '100%',
+    paddingHorizontal: responsiveSpacing.lg,
+  },
+  successButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: responsiveSpacing.md,
+    paddingHorizontal: responsiveSpacing.lg,
+    borderRadius: responsive.moderateScale(12),
+    gap: responsiveSpacing.sm,
+  },
+  primaryButton: {
+    backgroundColor: colors.highlight.teal,
+  },
+  primaryButtonText: {
+    color: colors.neutral.white,
+    fontSize: responsiveFontSize.body,
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    backgroundColor: colors.neutral.white,
+    borderWidth: 2,
+    borderColor: colors.highlight.teal,
+  },
+  secondaryButtonText: {
+    color: colors.highlight.teal,
     fontSize: responsiveFontSize.body,
     fontWeight: '600',
   },
@@ -1122,6 +1871,92 @@ const styles = StyleSheet.create({
     fontSize: responsiveFontSize.body,
     fontWeight: '600',
     color: colors.highlight.teal,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: colors.neutral.white,
+    borderTopLeftRadius: responsive.moderateScale(24),
+    borderTopRightRadius: responsive.moderateScale(24),
+    maxHeight: '85%',
+    paddingTop: responsiveSpacing.lg,
+    paddingHorizontal: responsiveSpacing.lg,
+    paddingBottom: responsiveSpacing.xl,
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: responsiveSpacing.md,
+    right: responsiveSpacing.md,
+    zIndex: 10,
+    padding: responsiveSpacing.xs,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: responsiveSpacing.xl,
+  },
+  modalTitle: {
+    fontSize: responsiveFontSize.heading2,
+    fontWeight: '700',
+    color: colors.primary.navy,
+    marginTop: responsiveSpacing.md,
+    marginBottom: responsiveSpacing.xs,
+  },
+  modalSubtitle: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
+    textAlign: 'center',
+  },
+  modalContent: {
+    backgroundColor: colors.neutral.background,
+    borderRadius: responsive.moderateScale(16),
+    padding: responsiveSpacing.md,
+    marginBottom: responsiveSpacing.lg,
+  },
+  modalTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: responsiveSpacing.md,
+    marginTop: responsiveSpacing.md,
+    borderTopWidth: 2,
+    borderTopColor: colors.highlight.teal,
+  },
+  modalButtons: {
+    gap: responsiveSpacing.md,
+  },
+  modalCancelBtn: {
+    paddingVertical: responsiveSpacing.md,
+    borderRadius: responsive.moderateScale(12),
+    backgroundColor: colors.neutral.border,
+    alignItems: 'center',
+  },
+  modalCancelBtnText: {
+    fontSize: responsiveFontSize.body,
+    fontWeight: '600',
+    color: colors.primary.navy,
+  },
+  modalConfirmBtn: {
+    borderRadius: responsive.moderateScale(12),
+    overflow: 'hidden',
+  },
+  modalConfirmBtnDisabled: {
+    opacity: 0.6,
+  },
+  modalConfirmGradient: {
+    flexDirection: 'row',
+    paddingVertical: responsiveSpacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: responsiveSpacing.sm,
+  },
+  modalConfirmBtnText: {
+    fontSize: responsiveFontSize.body,
+    fontWeight: '600',
+    color: colors.neutral.white,
   },
 });
 

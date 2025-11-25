@@ -613,8 +613,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Ứng dụng</Text>
           <View style={styles.appInfo}>
-            <Text style={styles.appVersion}>Phiên bản 1.0.0</Text>
-            <Text style={styles.appBuild}>Build 2024.01.18</Text>
+            <Text style={styles.appVersion}>HomeMate 1.0.0 </Text>
+            <Text style={styles.appBuild}>Build 2025.11.18</Text>
           </View>
         </View>
 

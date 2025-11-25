@@ -38,11 +38,34 @@ class VoiceBookingService {
       { timeout: 60000 } // 60s for STT + AI processing
     );
 
-    if (!response.data) {
-      throw new Error('No data returned from server');
+    console.log('[VoiceBookingService] Create response:', {
+      hasData: !!response.data,
+      success: response.success,
+      message: response.message?.substring(0, 50),
+      hasRequestIdInResponse: !!(response as any).requestId,
+      hasRequestIdInData: !!response.data?.requestId,
+      // Log speech data để xem text đầy đủ
+      hasSpeech: !!(response as any).speech,
+      speechMessageText: (response as any).speech?.message?.text?.substring(0, 100),
+      speechClarificationText: (response as any).speech?.clarification?.text?.substring(0, 100),
+    });
+
+    // Backend trả về VoiceBookingResponse trực tiếp (có success, message, requestId, status cùng cấp)
+    // httpClient.normalizeSuccess sẽ giữ nguyên vì có 'success' field
+    // Vậy response chính là VoiceBookingResponse, không có wrapper .data
+    const voiceResponse = response as any;
+    if (voiceResponse.requestId && voiceResponse.status) {
+      // Response chính nó là VoiceBookingResponse
+      return voiceResponse as VoiceBookingResponse;
     }
 
-    return response.data;
+    // Hoặc có wrapper .data
+    if (response.data && response.data.requestId) {
+      return response.data;
+    }
+
+    // Nếu không có requestId thì throw error
+    throw new Error(response.message || 'Không thể tạo yêu cầu đặt lịch bằng giọng nói');
   }
 
   /**
@@ -81,11 +104,29 @@ class VoiceBookingService {
       { timeout: 60000 } // 60s for STT + AI processing
     );
 
-    if (!response.data) {
-      throw new Error('No data returned from server');
+    console.log('[VoiceBookingService] Continue response:', {
+      hasData: !!response.data,
+      success: response.success,
+      hasRequestIdInResponse: !!(response as any).requestId,
+      hasRequestIdInData: !!response.data?.requestId,
+      // Log speech data để xem text đầy đủ
+      hasSpeech: !!(response as any).speech,
+      speechMessageText: (response as any).speech?.message?.text?.substring(0, 100),
+      speechClarificationText: (response as any).speech?.clarification?.text?.substring(0, 100),
+    });
+
+    // Backend trả về VoiceBookingResponse trực tiếp
+    const voiceResponse = response as any;
+    if (voiceResponse.requestId && voiceResponse.status) {
+      return voiceResponse as VoiceBookingResponse;
     }
 
-    return response.data;
+    // Hoặc có wrapper .data
+    if (response.data && response.data.requestId) {
+      return response.data;
+    }
+
+    throw new Error(response.message || 'Không thể tiếp tục yêu cầu đặt lịch');
   }
 
   /**
@@ -102,11 +143,69 @@ class VoiceBookingService {
       payload
     );
 
-    if (!response.data) {
-      throw new Error('No data returned from server');
+    // Log toàn bộ response để debug
+    console.log('[VoiceBookingService] Confirm RAW response:', JSON.stringify(response, null, 2));
+    
+    const voiceResponse = response as any;
+    
+    console.log('[VoiceBookingService] Confirm response parsed:', {
+      success: response.success,
+      message: response.message,
+      status: voiceResponse.status,
+      bookingId: voiceResponse.bookingId,
+      hasRequestId: !!voiceResponse.requestId,
+      hasData: !!response.data,
+      dataBookingId: response.data?.bookingId,
+      dataStatus: response.data?.status,
+    });
+
+    // Extract bookingId từ nhiều nguồn có thể
+    const extractedBookingId = voiceResponse.bookingId 
+      || response.data?.bookingId 
+      || voiceResponse.booking?.id
+      || (response.data as any)?.booking?.id;
+
+    // Check nếu có status COMPLETED -> thành công
+    if (voiceResponse.status === 'COMPLETED') {
+      return {
+        ...voiceResponse,
+        bookingId: extractedBookingId,
+      } as VoiceBookingResponse;
+    }
+    
+    // Check nếu có bookingId -> thành công (đã tạo booking)
+    if (extractedBookingId) {
+      return {
+        ...voiceResponse,
+        status: 'COMPLETED',
+        bookingId: extractedBookingId,
+        isFinal: true,
+      } as VoiceBookingResponse;
+    }
+    
+    // Check trong response.data
+    if (response.data?.status === 'COMPLETED') {
+      return {
+        ...response.data,
+        bookingId: extractedBookingId || response.data.bookingId,
+      };
     }
 
-    return response.data;
+    // Nếu message chứa "success" hoặc "thành công" -> coi như thành công
+    if (response.message?.toLowerCase().includes('success') || 
+        response.message?.toLowerCase().includes('thành công') ||
+        response.message?.toLowerCase().includes('created')) {
+      return {
+        success: true,
+        message: response.message,
+        requestId: requestId,
+        status: 'COMPLETED',
+        bookingId: extractedBookingId,
+        isFinal: true,
+      } as VoiceBookingResponse;
+    }
+
+    throw new Error(response.message || 'Không thể xác nhận đặt lịch');
   }
 
   /**
@@ -123,11 +222,41 @@ class VoiceBookingService {
       payload
     );
 
-    if (!response.data) {
-      throw new Error('No data returned from server');
+    console.log('[VoiceBookingService] Cancel response:', {
+      success: response.success,
+      message: response.message,
+      status: (response as any).status,
+      hasRequestId: !!(response as any).requestId,
+    });
+
+    // Backend có thể trả về success:false nhưng status:CANCELLED là thành công
+    // Hoặc trả về trực tiếp VoiceBookingResponse với status CANCELLED
+    const voiceResponse = response as any;
+    
+    // Check nếu response có status CANCELLED -> đã cancel thành công
+    if (voiceResponse.status === 'CANCELLED' || voiceResponse.requestId) {
+      return voiceResponse as VoiceBookingResponse;
+    }
+    
+    // Check trong response.data
+    if (response.data?.status === 'CANCELLED' || response.data?.requestId) {
+      return response.data;
     }
 
-    return response.data;
+    // Nếu message chứa "huỷ" hoặc "cancel" -> coi như thành công
+    if (response.message?.toLowerCase().includes('huỷ') || 
+        response.message?.toLowerCase().includes('hủy') ||
+        response.message?.toLowerCase().includes('cancel')) {
+      return {
+        success: true,
+        message: response.message,
+        requestId: requestId,
+        status: 'CANCELLED',
+        isFinal: true,
+      } as VoiceBookingResponse;
+    }
+
+    throw new Error(response.message || 'Không thể hủy yêu cầu đặt lịch');
   }
 
   /**
@@ -141,8 +270,8 @@ class VoiceBookingService {
       `${this.baseURL}/${requestId}`
     );
 
-    if (!response.data) {
-      throw new Error('No data returned from server');
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Không thể lấy thông tin yêu cầu đặt lịch');
     }
 
     return response.data;
@@ -156,8 +285,8 @@ class VoiceBookingService {
       `${this.baseURL}/status`
     );
 
-    if (!response.data) {
-      throw new Error('No data returned from server');
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Không thể kiểm tra trạng thái dịch vụ');
     }
 
     return response.data;
