@@ -11,6 +11,14 @@ import {
   PaymentMethod,
   BookingEmployee,
 } from '../types/booking';
+import {
+  BookingPreviewRequest,
+  BookingPreviewResponse,
+  MultipleBookingPreviewRequest,
+  MultipleBookingPreviewResponse,
+  RecurringBookingPreviewRequest,
+  RecurringBookingPreviewResponse,
+} from '../types/bookingPreview';
 import { paymentService } from './paymentService';
 
 export interface Address extends BookingAddress {}
@@ -433,6 +441,99 @@ class BookingService {
     }
 
     return response.data.data;
+  }
+
+  // ============ BOOKING PREVIEW APIs ============
+
+  /**
+   * Preview single booking - xem trước phí chi tiết
+   * POST /api/v1/customer/bookings/preview
+   */
+  async getBookingPreview(request: BookingPreviewRequest): Promise<BookingPreviewResponse> {
+    console.log('[BookingService] Getting booking preview:', request);
+    
+    const response = await httpClient.post<BookingPreviewResponse>(
+      `${this.BASE_PATH}/preview`,
+      request
+    );
+
+    if (!response.success && !response.data) {
+      // Return error response structure
+      return {
+        valid: false,
+        errors: [response.message || 'Không thể lấy thông tin preview'],
+        customerId: null,
+        customerName: null,
+        customerPhone: null,
+        customerEmail: null,
+        addressInfo: null,
+        usingNewAddress: false,
+        bookingTime: null,
+        serviceItems: null,
+        totalServices: 0,
+        totalQuantity: 0,
+        subtotal: null,
+        formattedSubtotal: null,
+        promotionInfo: null,
+        discountAmount: null,
+        formattedDiscountAmount: null,
+        totalAfterDiscount: null,
+        formattedTotalAfterDiscount: null,
+        feeBreakdowns: null,
+        totalFees: null,
+        formattedTotalFees: null,
+        grandTotal: null,
+        formattedGrandTotal: null,
+        estimatedDuration: null,
+        recommendedStaff: 0,
+        note: null,
+        paymentMethodId: null,
+        paymentMethodName: null
+      };
+    }
+
+    console.log('[BookingService] Preview response:', response.data);
+    return response.data as BookingPreviewResponse;
+  }
+
+  /**
+   * Preview multiple bookings - xem trước phí cho nhiều booking
+   * POST /api/v1/customer/bookings/preview/multiple
+   */
+  async getMultipleBookingPreview(request: MultipleBookingPreviewRequest): Promise<MultipleBookingPreviewResponse> {
+    console.log('[BookingService] Getting multiple booking preview:', request);
+    
+    const response = await httpClient.post<MultipleBookingPreviewResponse>(
+      `${this.BASE_PATH}/preview/multiple`,
+      request
+    );
+
+    if (!response.success && !response.data) {
+      throw new Error(response.message || 'Không thể lấy thông tin preview');
+    }
+
+    console.log('[BookingService] Multiple preview response:', response.data);
+    return response.data as MultipleBookingPreviewResponse;
+  }
+
+  /**
+   * Preview recurring booking - xem trước phí cho đặt lịch định kỳ
+   * POST /api/v1/customer/bookings/preview/recurring
+   */
+  async getRecurringBookingPreview(request: RecurringBookingPreviewRequest): Promise<RecurringBookingPreviewResponse> {
+    console.log('[BookingService] Getting recurring booking preview:', request);
+    
+    const response = await httpClient.post<RecurringBookingPreviewResponse>(
+      `${this.BASE_PATH}/preview/recurring`,
+      request
+    );
+
+    if (!response.success && !response.data) {
+      throw new Error(response.message || 'Không thể lấy thông tin preview');
+    }
+
+    console.log('[BookingService] Recurring preview response:', response.data);
+    return response.data as RecurringBookingPreviewResponse;
   }
 }
 

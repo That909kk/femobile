@@ -5,3 +5,5 @@ export { AvailableBookingsScreen } from './AvailableBookingsScreen';
 export { NotificationsScreen } from './NotificationsScreen';
 export { MyAssignmentsScreen } from './MyAssignmentsScreen';
 export { WorkScreen } from './WorkScreen';
+export { WorkingHoursScreen } from './WorkingHoursScreen';
+export { AssignmentDetailScreen } from './AssignmentDetailScreen';

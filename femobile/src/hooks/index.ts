@@ -10,3 +10,4 @@ export { useEmployee } from './useEmployee';
 export { useEmployeeAssignments } from './useEmployeeAssignments';
 export { useEmployeeStatistics } from './useEmployeeStatistics';
 export { useEmployeeSchedule } from './useEmployeeSchedule';
+export { useEmailOtp } from './useEmailOtp';

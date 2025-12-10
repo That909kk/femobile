@@ -17,6 +17,14 @@ import type {
   EmployeeData
 } from '../types/auth';
 
+// Login result với thông tin verification (tương tự web)
+export interface LoginResult {
+  success: boolean;
+  requireEmailVerification?: boolean;
+  email?: string;
+  error?: string;
+}
+
 // Custom storage for Zustand persistence with SecureStore
 const secureStorage = {
   getItem: async (name: string): Promise<string | null> => {
@@ -44,7 +52,7 @@ const secureStorage = {
 
 interface AuthActions {
   // Auth actions
-  login: (credentials: LoginRequest) => Promise<void>;
+  login: (credentials: LoginRequest) => Promise<LoginResult>;
   register: (userData: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
   
@@ -90,7 +98,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         error: null,
 
         // Login action
-        login: async (credentials: LoginRequest) => {
+        login: async (credentials: LoginRequest): Promise<LoginResult> => {
         try {
           set({ loading: true, error: null });
           
@@ -101,6 +109,25 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
           if (response.success && response.data) {
             const { accessToken, refreshToken, role, data } = response.data;
+            
+            // Kiểm tra isEmailVerified cho CUSTOMER role (tương tự web)
+            if (role === 'CUSTOMER') {
+              const customerData = data as CustomerData;
+              if (customerData.isEmailVerified === false) {
+                console.log(`⚠️ [AuthStore] Email not verified for customer: ${customerData.email}`);
+                // Lưu tạm thời token để có thể verify email
+                await SecureStore.setItemAsync(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
+                await SecureStore.setItemAsync(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+                
+                set({ loading: false });
+                
+                return {
+                  success: false,
+                  requireEmailVerification: true,
+                  email: customerData.email
+                };
+              }
+            }
             
             // Store tokens securely
             await SecureStore.setItemAsync(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
@@ -116,6 +143,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               refreshToken,
               loading: false,
             });
+            
+            return { success: true };
           } else {
             throw new Error(response.message || 'Đăng nhập thất bại');
           }
@@ -124,7 +153,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             error: error.message || 'Đăng nhập thất bại',
             loading: false 
           });
-          throw error;
+          return { success: false, error: error.message || 'Đăng nhập thất bại' };
         }
       },
 

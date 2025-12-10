@@ -7,3 +7,5 @@ export { TermsModal } from './TermsModal';
 export { AddressPicker } from './AddressPicker';
 export { SkeletonPlaceholder } from './SkeletonPlaceholder';
 export { ConversationUnreadBadge } from './ConversationUnreadBadge';
+export { ReviewModal } from './review';
+export { RebookModal } from './booking/RebookModal';

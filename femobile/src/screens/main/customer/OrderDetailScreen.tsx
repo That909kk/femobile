@@ -13,7 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../styles';
-import { bookingService } from '../../../services';
+import { bookingService, reviewService } from '../../../services';
+import { ReviewModal, RebookModal } from '../../../components';
 import type { BookingStatus } from '../../../types/booking';
 
 interface RouteParams {
@@ -49,6 +50,7 @@ interface OrderDetail {
   promotionDescription?: string;
   discountAmount?: number;
   createdAt?: string;
+  employeeId?: string;
 }
 
 export const OrderDetailScreen = () => {
@@ -58,6 +60,12 @@ export const OrderDetailScreen = () => {
 
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<OrderDetail | null>(null);
+  
+  // Review modal state
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  
+  // Rebook modal state
+  const [showRebookModal, setShowRebookModal] = useState(false);
 
   useEffect(() => {
     loadOrderDetail();
@@ -123,6 +131,7 @@ export const OrderDetailScreen = () => {
         promotionDescription: promotionInfo?.description,
         discountAmount: promotionInfo?.discountValue,
         createdAt: response.createdAt,
+        employeeId: primaryEmployee?.employeeId,
       };
       
       setOrder(orderDetail);
@@ -241,8 +250,79 @@ export const OrderDetailScreen = () => {
   };
 
   const handleRateOrder = () => {
-    // TODO: Navigate to rating screen
-    Alert.alert('Thông báo', 'Chức năng đánh giá đang được phát triển');
+    if (!order?.employeeId) {
+      Alert.alert('Thông báo', 'Đơn hàng này chưa có nhân viên được phân công để đánh giá');
+      return;
+    }
+    setShowReviewModal(true);
+  };
+
+  // Handle submitting review
+  const handleSubmitReview = async (
+    ratings: Array<{ criterionId: number; score: number }>,
+    comment: string
+  ) => {
+    if (!order?.bookingId || !order?.employeeId) {
+      throw new Error('Thông tin đánh giá không hợp lệ');
+    }
+
+    await reviewService.createReview({
+      bookingId: order.bookingId,
+      employeeId: order.employeeId,
+      ratings,
+      comment,
+    });
+
+    Alert.alert('Thành công', 'Cảm ơn bạn đã đánh giá dịch vụ!');
+    setShowReviewModal(false);
+    loadOrderDetail(); // Refresh order detail
+  };
+
+  const handleRebookOrder = () => {
+    setShowRebookModal(true);
+  };
+
+  // Handle rebook - create new booking based on completed order
+  const handleRebook = async (dateTime: string) => {
+    if (!order) {
+      throw new Error('Không tìm thấy thông tin đơn hàng');
+    }
+
+    // Get full booking details for rebooking
+    const bookingDetails = await bookingService.getBookingById(order.bookingId);
+    
+    if (!bookingDetails) {
+      throw new Error('Không thể lấy chi tiết đơn hàng');
+    }
+
+    // Prepare new booking data based on original booking
+    const newBookingData = {
+      addressId: (bookingDetails as any).address?.addressId,
+      bookingTime: dateTime,
+      note: (bookingDetails as any).note || '',
+      paymentMethodId: (bookingDetails as any).payment?.paymentMethodId || 1,
+      bookingDetails: ((bookingDetails as any).bookingDetails || []).map((detail: any) => ({
+        serviceId: detail.service?.serviceId || detail.serviceId,
+        quantity: detail.quantity || 1,
+        selectedChoices: (detail.selectedChoices || []).map((c: any) => c.choiceId || c),
+      })),
+    };
+
+    await bookingService.createBooking(newBookingData as any);
+    
+    Alert.alert(
+      'Đặt lại thành công!',
+      'Đơn hàng mới đã được tạo. Bạn có thể xem trong danh sách đơn hàng.',
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            setShowRebookModal(false);
+            navigation.goBack();
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -494,17 +574,47 @@ export const OrderDetailScreen = () => {
           )}
 
           {order.status === 'COMPLETED' && (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.primaryButton]}
-              onPress={handleRateOrder}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="star" size={responsive.moderateScale(20)} color={colors.neutral.white} />
-              <Text style={styles.primaryButtonText}>Đánh giá dịch vụ</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.primaryButton]}
+                onPress={handleRateOrder}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="star" size={responsive.moderateScale(20)} color={colors.neutral.white} />
+                <Text style={styles.primaryButtonText}>Đánh giá dịch vụ</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.rebookButton]}
+                onPress={handleRebookOrder}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="refresh" size={responsive.moderateScale(20)} color={colors.highlight.teal} />
+                <Text style={styles.rebookButtonText}>Đặt lại dịch vụ</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </ScrollView>
+
+      {/* Review Modal */}
+      <ReviewModal
+        visible={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        onSubmit={handleSubmitReview}
+        employeeName={order?.employeeName}
+        bookingCode={order?.bookingCode}
+      />
+
+      {/* Rebook Modal */}
+      <RebookModal
+        visible={showRebookModal}
+        onClose={() => setShowRebookModal(false)}
+        onConfirm={handleRebook}
+        originalDate={order?.date}
+        originalTime={order?.time}
+        serviceName={order?.serviceName}
+        bookingCode={order?.bookingCode}
+      />
     </SafeAreaView>
   );
 };
@@ -861,5 +971,15 @@ const styles = StyleSheet.create({
     fontSize: responsiveFontSize.bodyLarge,
     fontWeight: '700',
     color: colors.feedback.error,
+  },
+  rebookButton: {
+    backgroundColor: colors.highlight.teal + '15',
+    borderWidth: 1.5,
+    borderColor: colors.highlight.teal,
+  },
+  rebookButtonText: {
+    fontSize: responsiveFontSize.bodyLarge,
+    fontWeight: '700',
+    color: colors.highlight.teal,
   },
 });

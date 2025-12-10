@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo, memo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, memo, useRef } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,60 @@ import {
 } from '../../../services';
 
 const TEAL_COLOR = '#1bb5a6';
+
+// Component đồng hồ bấm giờ khi đang làm việc
+const WorkingTimer: React.FC<{ checkInTime: string }> = ({ checkInTime }) => {
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const checkInDate = new Date(checkInTime);
+    
+    intervalRef.current = setInterval(() => {
+      const now = new Date();
+      const diff = now.getTime() - checkInDate.getTime();
+      setElapsedTime(Math.floor(diff / 1000));
+    }, 1000);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [checkInTime]);
+
+  const formatTime = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <View style={workingTimerStyles.container}>
+      <Ionicons name="timer-outline" size={16} color="#fff" />
+      <Text style={workingTimerStyles.text}>{formatTime(elapsedTime)}</Text>
+    </View>
+  );
+};
+
+const workingTimerStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2196f3',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  text: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'monospace',
+  },
+});
 
 const FILTER_OPTIONS: { label: string; value: AssignmentStatus | 'ALL' }[] = [
   { label: 'Tất cả', value: 'ALL' },
@@ -514,19 +568,50 @@ export const MyAssignmentsScreen: React.FC = () => {
 
   const renderAssignmentCard = ({ item }: { item: EmployeeAssignment }) => {
     const isPending = item.status === 'PENDING';
-    const canCheckIn = item.status === 'ASSIGNED';
-    const canCheckOut = item.status === 'IN_PROGRESS';
+    const isAssigned = item.status === 'ASSIGNED';
+    const isInProgress = item.status === 'IN_PROGRESS';
+
+    // Kiểm tra thời gian check-in (sớm 10 phút, trễ 5 phút)
+    const checkCanCheckIn = () => {
+      if (!item.bookingTime || item.status !== 'ASSIGNED') return false;
+      
+      const now = new Date();
+      const bookingTime = new Date(item.bookingTime);
+      const earliestCheckIn = new Date(bookingTime.getTime() - 10 * 60000);
+      const latestCheckIn = new Date(bookingTime.getTime() + 5 * 60000);
+      
+      return now >= earliestCheckIn && now <= latestCheckIn;
+    };
+
+    const canCheckInNow = checkCanCheckIn();
+
+    const handleCardPress = () => {
+      navigation.navigate('AssignmentDetail', {
+        assignmentId: item.assignmentId,
+        assignment: item,
+      });
+    };
 
     return (
-      <View style={styles.assignmentCard}>
+      <TouchableOpacity 
+        style={styles.assignmentCard}
+        onPress={handleCardPress}
+        activeOpacity={0.8}
+      >
         {/* Header với Service Name và Status Badge */}
         <View style={styles.cardHeader}>
           <View style={styles.headerLeft}>
             <Text style={styles.serviceName}>{item.serviceName || 'Dịch vụ'}</Text>
             <Text style={styles.bookingCode}>#{item.bookingCode || 'N/A'}</Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-            <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
+          <View style={styles.headerRight}>
+            {/* Working Timer cho IN_PROGRESS */}
+            {isInProgress && item.checkInTime && (
+              <WorkingTimer checkInTime={item.checkInTime} />
+            )}
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+              <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
+            </View>
           </View>
         </View>
 
@@ -619,17 +704,32 @@ export const MyAssignmentsScreen: React.FC = () => {
           </View>
         )}
 
-        {canCheckIn && (
+        {isAssigned && (
           <TouchableOpacity
-            style={styles.checkInButton}
-            onPress={() => handleCheckIn(item)}
+            style={[
+              styles.checkInButton,
+              !canCheckInNow && styles.disabledCheckInButton
+            ]}
+            onPress={() => {
+              if (!canCheckInNow) {
+                Alert.alert(
+                  'Chưa đến thời gian',
+                  'Bạn chỉ có thể check-in trong khoảng từ 10 phút trước đến 5 phút sau giờ hẹn.',
+                  [{ text: 'OK' }]
+                );
+                return;
+              }
+              handleCheckIn(item);
+            }}
           >
             <Ionicons name="location" size={20} color="#FFF" />
-            <Text style={styles.checkInButtonText}>Check-in</Text>
+            <Text style={styles.checkInButtonText}>
+              {canCheckInNow ? 'Check-in' : 'Chưa đến giờ check-in'}
+            </Text>
           </TouchableOpacity>
         )}
 
-        {canCheckOut && (
+        {isInProgress && (
           <TouchableOpacity
             style={styles.checkOutButton}
             onPress={() => handleCheckOut(item)}
@@ -638,7 +738,7 @@ export const MyAssignmentsScreen: React.FC = () => {
             <Text style={styles.checkOutButtonText}>Check-out</Text>
           </TouchableOpacity>
         )}
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -990,6 +1090,11 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: UI.SPACING.sm,
   },
+  headerRight: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
   serviceName: {
     fontSize: 18,
     fontWeight: '700',
@@ -1150,6 +1255,10 @@ const styles = StyleSheet.create({
     backgroundColor: TEAL_COLOR,
     borderRadius: 8,
     gap: 6,
+  },
+  disabledCheckInButton: {
+    backgroundColor: '#9e9e9e',
+    opacity: 0.7,
   },
   checkInButtonText: {
     color: '#FFF',

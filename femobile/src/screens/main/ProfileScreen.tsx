@@ -193,7 +193,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       id: 'addresses',
       title: 'Địa chỉ của tôi',
       icon: 'location-outline',
-      onPress: () => console.log('Addresses'),
+      onPress: () => navigation.navigate('AddressManagement'),
       visible: role === 'CUSTOMER',
     },
     {
@@ -205,16 +205,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     },
     {
       id: 'work-schedule',
-      title: 'Lịch làm việc',
-      icon: 'calendar-outline',
-      onPress: () => console.log('Work schedule'),
+      title: 'Khung giờ làm việc',
+      icon: 'time-outline',
+      onPress: () => navigation.navigate('WorkingHours'),
       visible: role === 'EMPLOYEE',
     },
     {
       id: 'order-history',
       title: 'Lịch sử đơn hàng',
       icon: 'time-outline',
-      onPress: () => console.log('Order history'),
+      onPress: () => navigation.navigate('Orders'),
       visible: role === 'CUSTOMER',
     },
     {

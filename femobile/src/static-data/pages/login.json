@@ -41,6 +41,7 @@
       "account_inactive": "Tài khoản chưa kích hoạt hoặc đã bị khóa",
       "account_locked": "Tài khoản bị khóa do đăng nhập sai quá nhiều lần",
       "admin_not_supported": "Ứng dụng không hỗ trợ cho vai trò ADMIN. Vui lòng đăng nhập tại homemate.io.vn",
+      "email_not_verified": "Email của bạn chưa được xác thực. Vui lòng xác thực để tiếp tục.",
       "loading": "Đang tải...",
       "alert_success": "Thành công",
       "alert_error": "Lỗi",

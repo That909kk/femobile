@@ -1,31 +1,37 @@
 {
   "vi": {
-    "title": "Xác thực OTP",
+    "title": "Xác thực Email",
     "subtitle": "Nhập mã OTP được gửi đến email của bạn",
     "form": {
       "otp": {
-        "label": "Mã xác thực",
+        "label": "Nhập mã xác thực",
         "placeholder": "Nhập 6 chữ số"
       }
     },
     "actions": {
       "verify": "Xác thực",
-      "verifying": "Đang xử lý...",
+      "verifying": "Đang xác thực...",
       "resend": "Gửi lại mã",
-      "resending": "Đang gửi lại...",
-      "back": "Quay lại"
+      "resending": "Đang gửi..."
     },
     "messages": {
       "validation": {
         "otp_required": "Vui lòng nhập mã OTP",
         "otp_invalid": "Mã OTP phải gồm 6 chữ số"
       },
-      "verify_success": "Xác thực thành công",
+      "otp_incomplete": "Vui lòng nhập đầy đủ mã OTP",
+      "verify_success": "Xác thực thành công!",
       "verify_error": "Mã OTP không đúng hoặc đã hết hạn",
-      "resend_success": "Đã gửi lại mã OTP mới",
-      "resend_error": "Không thể gửi lại OTP",
+      "resend_success": "Mã OTP mới đã được gửi đến email của bạn",
+      "resend_error": "Gửi lại mã OTP thất bại",
       "expires_in": "Mã sẽ hết hạn sau",
-      "seconds": "giây",
+      "no_code": "Không nhận được mã?",
+      "verified": "Xác thực thành công!",
+      "redirecting": "Đang chuyển hướng...",
+      "help": "Mã xác thực đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư đến và thư rác.",
+      "verification_complete": "Xác thực email thành công! Vui lòng đăng nhập lại.",
+      "success_title": "Thành công",
+      "error_title": "Lỗi",
       "alert_success": "Thành công",
       "alert_error": "Lỗi",
       "alert_ok": "Đồng ý"

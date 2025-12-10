@@ -18,7 +18,10 @@ export { bookingMediaService } from './bookingMediaService';
 export { customerService } from './customerService';
 export { employeeService } from './employeeService';
 export { websocketService } from './websocketService';
+export type { ConversationSummaryDTO } from './websocketService';
 export { recurringBookingService } from './recurringBookingService';
+export { otpService } from './otpService';
+export type { SendOtpRequest, SendOtpResponse, VerifyOtpRequest, VerifyOtpResponse, ResendCooldownResponse } from './otpService';
 
 export type { UserInfo, CustomerData, EmployeeData, UpdateCustomerRequest, UpdateEmployeeRequest } from './userInfoService';
 
@@ -128,3 +131,13 @@ export type {
   RecurringBookingRequest,
   CancelRecurringBookingRequest,
 } from '../types/recurringBooking';
+
+// Working Hours Service
+export { workingHoursService } from './workingHoursService';
+export type {
+  WorkingHours,
+  DayOfWeek,
+  SetWorkingHoursRequest,
+  SetWeeklyWorkingHoursRequest,
+} from './workingHoursService';
+export { DAY_OF_WEEK_LABELS, DAY_ORDER } from './workingHoursService';

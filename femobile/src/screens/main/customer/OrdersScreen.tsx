@@ -13,9 +13,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { Button } from '../../../components';
+import { Button, ReviewModal, RebookModal } from '../../../components';
 import { useAuth, useEnsureValidToken, useUserInfo } from '../../../hooks';
-import { bookingService, chatService } from '../../../services';
+import { bookingService, chatService, reviewService } from '../../../services';
 import { colors, responsive, responsiveSpacing, responsiveFontSize } from '../../../styles';
 import type { BookingStatus } from '../../../types/booking';
 
@@ -77,6 +77,14 @@ export const OrdersScreen = () => {
   // Statistics states
   const [statistics, setStatistics] = useState<BookingStatistics>({});
   const [loadingStats, setLoadingStats] = useState(false);
+  
+  // Review modal state
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [selectedOrderForReview, setSelectedOrderForReview] = useState<Order | null>(null);
+  
+  // Rebook modal state
+  const [showRebookModal, setShowRebookModal] = useState(false);
+  const [selectedOrderForRebook, setSelectedOrderForRebook] = useState<Order | null>(null);
   
   // Ensure token is valid when component mounts
   useEnsureValidToken();
@@ -481,7 +489,14 @@ export const OrdersScreen = () => {
         Alert.alert('Thông báo', 'Tính năng đang được phát triển');
         break;
       case 'rate':
-        Alert.alert('Thông báo', 'Tính năng đang được phát triển');
+        if (order) {
+          handleOpenReviewModal(order);
+        }
+        break;
+      case 'rebook':
+        if (order) {
+          handleOpenRebookModal(order);
+        }
         break;
       case 'details':
         navigation.navigate('OrderDetail', { bookingId: orderId });
@@ -489,6 +504,88 @@ export const OrdersScreen = () => {
       default:
         console.log(`${action} order:`, orderId);
     }
+  };
+
+  // Handle opening review modal
+  const handleOpenReviewModal = (order: Order) => {
+    if (!order.employeeId) {
+      Alert.alert('Thông báo', 'Đơn hàng này chưa có nhân viên được phân công để đánh giá');
+      return;
+    }
+    setSelectedOrderForReview(order);
+    setShowReviewModal(true);
+  };
+
+  // Handle submitting review
+  const handleSubmitReview = async (
+    ratings: Array<{ criterionId: number; score: number }>,
+    comment: string
+  ) => {
+    if (!selectedOrderForReview?.bookingId || !selectedOrderForReview?.employeeId) {
+      throw new Error('Thông tin đánh giá không hợp lệ');
+    }
+
+    await reviewService.createReview({
+      bookingId: selectedOrderForReview.bookingId,
+      employeeId: selectedOrderForReview.employeeId,
+      ratings,
+      comment,
+    });
+
+    Alert.alert('Thành công', 'Cảm ơn bạn đã đánh giá dịch vụ!');
+    setShowReviewModal(false);
+    setSelectedOrderForReview(null);
+    loadOrders(true); // Refresh orders
+  };
+
+  // Handle opening rebook modal
+  const handleOpenRebookModal = (order: Order) => {
+    setSelectedOrderForRebook(order);
+    setShowRebookModal(true);
+  };
+
+  // Handle rebook - create new booking based on completed order
+  const handleRebook = async (dateTime: string) => {
+    if (!selectedOrderForRebook) {
+      throw new Error('Không tìm thấy thông tin đơn hàng');
+    }
+
+    // Get full booking details for rebooking
+    const bookingDetails = await bookingService.getBookingById(selectedOrderForRebook.bookingId);
+    
+    if (!bookingDetails) {
+      throw new Error('Không thể lấy chi tiết đơn hàng');
+    }
+
+    // Prepare new booking data based on original booking
+    const newBookingData = {
+      addressId: (bookingDetails as any).address?.addressId,
+      bookingTime: dateTime,
+      note: (bookingDetails as any).note || '',
+      paymentMethodId: (bookingDetails as any).payment?.paymentMethodId || 1,
+      bookingDetails: ((bookingDetails as any).bookingDetails || []).map((detail: any) => ({
+        serviceId: detail.service?.serviceId || detail.serviceId,
+        quantity: detail.quantity || 1,
+        selectedChoices: (detail.selectedChoices || []).map((c: any) => c.choiceId || c),
+      })),
+    };
+
+    await bookingService.createBooking(newBookingData as any);
+    
+    Alert.alert(
+      'Đặt lại thành công!',
+      'Đơn hàng mới đã được tạo. Bạn có thể xem trong danh sách đơn hàng.',
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            setShowRebookModal(false);
+            setSelectedOrderForRebook(null);
+            loadOrders(true);
+          },
+        },
+      ]
+    );
   };
 
   const handleCancelBooking = (bookingId: string, status?: BookingStatus) => {
@@ -757,14 +854,24 @@ export const OrdersScreen = () => {
         )}
         
         {order.status === 'COMPLETED' && (
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.primaryButton]}
-            onPress={() => handleOrderAction(order.id, 'rate')}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="star" size={responsive.moderateScale(16)} color={colors.neutral.white} />
-            <Text style={styles.primaryButtonText}>Đánh giá</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.primaryButton]}
+              onPress={() => handleOrderAction(order.id, 'rate')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="star" size={responsive.moderateScale(16)} color={colors.neutral.white} />
+              <Text style={styles.primaryButtonText}>Đánh giá</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.rebookButton]}
+              onPress={() => handleOrderAction(order.id, 'rebook')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh" size={responsive.moderateScale(16)} color={colors.highlight.teal} />
+              <Text style={styles.rebookButtonText}>Đặt lại</Text>
+            </TouchableOpacity>
+          </>
         )}
         
         <TouchableOpacity 
@@ -916,6 +1023,32 @@ export const OrdersScreen = () => {
         )}
         </ScrollView>
       )}
+
+      {/* Review Modal */}
+      <ReviewModal
+        visible={showReviewModal}
+        onClose={() => {
+          setShowReviewModal(false);
+          setSelectedOrderForReview(null);
+        }}
+        onSubmit={handleSubmitReview}
+        employeeName={selectedOrderForReview?.employeeName}
+        bookingCode={selectedOrderForReview?.bookingCode}
+      />
+
+      {/* Rebook Modal */}
+      <RebookModal
+        visible={showRebookModal}
+        onClose={() => {
+          setShowRebookModal(false);
+          setSelectedOrderForRebook(null);
+        }}
+        onConfirm={handleRebook}
+        originalDate={selectedOrderForRebook?.date}
+        originalTime={selectedOrderForRebook?.time}
+        serviceName={selectedOrderForRebook?.serviceName}
+        bookingCode={selectedOrderForRebook?.bookingCode}
+      />
     </SafeAreaView>
   );
 };
@@ -1348,6 +1481,16 @@ const styles = StyleSheet.create({
     borderColor: colors.highlight.teal,
   },
   outlineButtonText: {
+    fontSize: responsiveFontSize.body,
+    color: colors.highlight.teal,
+    fontWeight: '600',
+  },
+  rebookButton: {
+    backgroundColor: colors.highlight.teal + '15',
+    borderWidth: 1.5,
+    borderColor: colors.highlight.teal,
+  },
+  rebookButtonText: {
     fontSize: responsiveFontSize.body,
     color: colors.highlight.teal,
     fontWeight: '600',

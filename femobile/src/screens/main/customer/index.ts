@@ -6,3 +6,4 @@ export { NotificationsScreen } from './NotificationsScreen';
 export { default as RecurringBookingsScreen } from './recurring/RecurringBookingsScreen';
 export { default as RecurringBookingDetailScreen } from './recurring/RecurringBookingDetailScreen';
 export { default as VoiceBookingScreen } from './VoiceBookingScreen';
+export { AddressManagementScreen } from './AddressManagementScreen';

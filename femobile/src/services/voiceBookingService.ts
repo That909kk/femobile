@@ -4,6 +4,7 @@
  * API Contract: /api-templates/21_11_2025/voice-booking.md
  */
 
+import { Platform } from 'react-native';
 import { httpClient } from './httpClient';
 import {
   VoiceBookingResponse,
@@ -13,29 +14,54 @@ import {
   CancelVoiceBookingRequest,
 } from '../types/voiceBooking';
 
+// React Native file format (từ expo-av recording)
+export interface ReactNativeFile {
+  uri: string;
+  type: string;
+  name: string;
+}
+
+// Alias for backwards compatibility
+interface RNFileObject extends ReactNativeFile {}
+
 class VoiceBookingService {
   private readonly baseURL = '/customer/bookings/voice';
 
   /**
    * POST / - Tạo yêu cầu mới từ audio
-   * @param audio - File audio cần nhận diện
+   * @param audio - File audio (RN format: { uri, type, name }) hoặc Blob
    * @param hints - Gợi ý thêm cho parser (optional)
    */
   async createVoiceBooking(
-    audio: Blob | File,
+    audio: RNFileObject | Blob | File,
     hints?: Record<string, any>
   ): Promise<VoiceBookingResponse> {
     const formData = new FormData();
-    formData.append('audio', audio as any);
+    
+    // React Native FormData cần format khác với web
+    // Nếu là object { uri, type, name } thì append trực tiếp
+    if (typeof (audio as RNFileObject).uri === 'string') {
+      console.log('[VoiceBookingService] Appending RN file:', {
+        uri: (audio as RNFileObject).uri,
+        type: (audio as RNFileObject).type,
+        name: (audio as RNFileObject).name,
+      });
+      formData.append('audio', audio as any);
+    } else {
+      // Web Blob/File
+      formData.append('audio', audio as any);
+    }
     
     if (hints) {
       formData.append('hints', JSON.stringify(hints));
     }
 
+    console.log('[VoiceBookingService] Sending createVoiceBooking request...');
+
     const response = await httpClient.postFormData<VoiceBookingResponse>(
       this.baseURL,
       formData,
-      { timeout: 60000 } // 60s for STT + AI processing
+      { timeout: 90000 } // 90s for STT + AI processing (increased for slow networks)
     );
 
     console.log('[VoiceBookingService] Create response:', {
@@ -71,14 +97,14 @@ class VoiceBookingService {
   /**
    * POST /continue - Bổ sung thông tin cho request PARTIAL / AWAITING_CONFIRMATION
    * @param requestId - ID của voice booking request
-   * @param audio - File audio bổ sung (optional)
+   * @param audio - File audio bổ sung (RN format: { uri, type, name }) hoặc Blob (optional)
    * @param additionalText - Text bổ sung (optional)
    * @param explicitFields - Map các field cụ thể đã điền (optional)
    */
   async continueVoiceBooking(
     requestId: string,
     options?: {
-      audio?: Blob | File;
+      audio?: RNFileObject | Blob | File;
       additionalText?: string;
       explicitFields?: Record<string, any>;
     }
@@ -87,6 +113,14 @@ class VoiceBookingService {
     formData.append('requestId', requestId);
 
     if (options?.audio) {
+      // React Native FormData cần format khác với web
+      if (typeof (options.audio as RNFileObject).uri === 'string') {
+        console.log('[VoiceBookingService] Continue - Appending RN file:', {
+          uri: (options.audio as RNFileObject).uri,
+          type: (options.audio as RNFileObject).type,
+          name: (options.audio as RNFileObject).name,
+        });
+      }
       formData.append('audio', options.audio as any);
     }
 
@@ -98,10 +132,12 @@ class VoiceBookingService {
       formData.append('explicitFields', JSON.stringify(options.explicitFields));
     }
 
+    console.log('[VoiceBookingService] Sending continueVoiceBooking request...');
+
     const response = await httpClient.postFormData<VoiceBookingResponse>(
       `${this.baseURL}/continue`,
       formData,
-      { timeout: 60000 } // 60s for STT + AI processing
+      { timeout: 90000 } // 90s for STT + AI processing (increased for slow networks)
     );
 
     console.log('[VoiceBookingService] Continue response:', {

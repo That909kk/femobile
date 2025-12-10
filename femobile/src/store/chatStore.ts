@@ -20,6 +20,7 @@ interface ChatState {
 interface ChatActions {
   fetchConversations: (accountId: string, page?: number) => Promise<void>;
   fetchMessages: (conversationId: string, page?: number) => Promise<void>;
+  fetchTotalUnread: (receiverId: string) => Promise<void>;
   sendTextMessage: (conversationId: string, senderId: string, content: string) => Promise<void>;
   sendImageMessage: (conversationId: string, senderId: string, imageFile: File | Blob, caption?: string) => Promise<void>;
   createConversation: (customerId: string, employeeId: string, bookingId?: string) => Promise<Conversation>;
@@ -27,6 +28,8 @@ interface ChatActions {
   setCurrentConversation: (conversation: Conversation | null) => void;
   markConversationAsRead: (conversationId: string, receiverId: string) => Promise<void>;
   addMessage: (message: ChatMessage) => void;
+  updateTotalUnread: (count: number) => void;
+  decrementUnread: (amount?: number) => void;
   clearMessages: () => void;
   clearError: () => void;
 }
@@ -42,6 +45,27 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   error: null,
   hasMore: true,
   currentPage: 0,
+
+  // Fetch total unread count
+  fetchTotalUnread: async (receiverId: string) => {
+    try {
+      const count = await chatService.getTotalUnreadCount(receiverId);
+      console.log('📬 ChatStore: Total unread count:', count);
+      set({ totalUnread: count });
+    } catch (error: any) {
+      console.error('❌ ChatStore: Error fetching unread count:', error);
+    }
+  },
+
+  // Update total unread count directly
+  updateTotalUnread: (count: number) => {
+    set({ totalUnread: count });
+  },
+
+  // Decrement unread count
+  decrementUnread: (amount: number = 1) => {
+    set(state => ({ totalUnread: Math.max(0, state.totalUnread - amount) }));
+  },
 
   // Fetch conversations by senderId (customerId hoặc employeeId)
   // API này linh hoạt hơn và trả về field canChat để xử lý UI

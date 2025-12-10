@@ -1,20 +1,20 @@
 {
   "expo": {
-    "name": "mobile_housekeepingservice",
-    "slug": "mobile_housekeepingservice",
+    "name": "homemate_app",
+    "slug": "homemate_app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logo-house-service.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "housekeeping",
+    "scheme": "homemate",
     "locales": {
       "vi": {
         "CFBundleDisplayName": "Dịch vụ Giúp việc",
         "NSCameraUsageDescription": "Ứng dụng cần quyền truy cập camera để chụp ảnh đại diện."
       },
       "en": {
-        "CFBundleDisplayName": "Home Service",
+        "CFBundleDisplayName": "Home Mate",
         "NSCameraUsageDescription": "This app needs access to camera to take profile photos."
       }
     },

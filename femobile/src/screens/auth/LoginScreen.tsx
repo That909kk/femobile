@@ -21,7 +21,7 @@ import { authService } from '../../services/authService';
 import { COLORS, UI, VALIDATION, RESPONSIVE } from '../../constants';
 import { vietnameseTextStyles } from '../../styles/vietnamese-text';
 import { colors, typography, spacing, borderRadius, shadows, responsive, responsiveSpacing, responsiveFontSize } from '../../styles';
-import type { RootStackParamList, UserRole } from '../../types/auth';
+import type { RootStackParamList, UserRole, CustomerData } from '../../types/auth';
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
 
@@ -128,12 +128,34 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
       if (activeRoles.length === 1) {
         // Only one role, login directly
         const singleRole = activeRoles[0] as UserRole;
-        await login({
+        const loginResult = await login({
           username: formData.username.trim(),
           password: formData.password,
           role: singleRole,
           deviceType: 'MOBILE',
         });
+        
+        // Kiểm tra nếu cần xác thực email (tương tự web)
+        if (loginResult && typeof loginResult === 'object' && 'requireEmailVerification' in loginResult) {
+          const result = loginResult as { requireEmailVerification?: boolean; email?: string };
+          if (result.requireEmailVerification && result.email) {
+            Alert.alert(
+              staticData?.messages?.alert_info || 'Thông báo',
+              staticData?.messages?.email_not_verified || 'Email của bạn chưa được xác thực. Vui lòng xác thực để tiếp tục.',
+              [
+                {
+                  text: staticData?.messages?.alert_ok || 'Xác thực ngay',
+                  onPress: () => navigation.navigate('VerifyOTP', {
+                    email: result.email!,
+                    type: 'register',
+                    fromLogin: true,
+                  }),
+                },
+              ]
+            );
+            return;
+          }
+        }
         
         // No alert needed, navigation will happen automatically
       } else {

@@ -46,6 +46,7 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
     preview,
     bookingId,
     error,
+    isConnected,
     startRecording,
     cancelRecording,
     stopRecording,
@@ -54,6 +55,8 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
     confirmBooking,
     cancelBooking,
     resetConversation,
+    connectWebSocket,
+    disconnectWebSocket,
   } = useVoiceBookingStore();
 
   const [additionalText, setAdditionalText] = useState('');
@@ -141,6 +144,9 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
         shouldDuckAndroid: true,
         playThroughEarpieceAndroid: false,
       });
+      
+      // Connect WebSocket for realtime updates (optional - REST API fallback)
+      connectWebSocket();
     })();
 
     return () => {
@@ -151,6 +157,9 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
         recording.stopAndUnloadAsync();
       }
       clearAllTimers();
+      
+      // Disconnect WebSocket on unmount
+      disconnectWebSocket();
       
       // Cancel booking only once on unmount using ref to prevent double cancel
       if (!hasCancelledRef.current && currentRequestId && currentStatus && 
@@ -747,7 +756,8 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
       Alert.alert('Thông báo', 'Vui lòng nhập thông tin bổ sung');
       return;
     }
-    continueWithText(additionalText);
+    
+    continueWithText(additionalText.trim());
     setAdditionalText('');
   };
 

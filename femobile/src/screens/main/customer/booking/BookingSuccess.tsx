@@ -316,6 +316,60 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
           </Text>
         </Animated.View>
 
+        {/* Quick Info Cards - Similar to Web MetricCards */}
+        <Animated.View style={[styles.quickInfoContainer, { opacity: fadeAnim }]}>
+          {/* Status Card */}
+          <View style={styles.quickInfoCard}>
+            <View style={[styles.quickInfoIconBg, { backgroundColor: colors.highlight.purple + '20' }]}>
+              <Ionicons name="hourglass-outline" size={20} color={colors.highlight.purple} />
+            </View>
+            <Text style={styles.quickInfoLabel}>Trạng thái</Text>
+            <Text style={[styles.quickInfoValue, { color: colors.highlight.purple }]}>
+              {(bookingData as any).statusDisplay || 
+               (bookingData.status === 'AWAITING_EMPLOYEE' ? 'Chờ phân công' : 
+               bookingData.status === 'PENDING' ? 'Chờ xác nhận' : 
+               bookingData.status === 'CONFIRMED' ? 'Đã xác nhận' :
+               bookingData.status === 'ACTIVE' ? 'Đang hoạt động' :
+               bookingData.status || 'Đang xử lý')}
+            </Text>
+          </View>
+
+          {/* Time Card */}
+          <View style={styles.quickInfoCard}>
+            <View style={[styles.quickInfoIconBg, { backgroundColor: colors.highlight.teal + '20' }]}>
+              <Ionicons name="calendar-outline" size={20} color={colors.highlight.teal} />
+            </View>
+            <Text style={styles.quickInfoLabel}>
+              {(bookingData as any).isRecurring ? 'Bắt đầu' : 'Thời gian'}
+            </Text>
+            <Text style={styles.quickInfoValue}>
+              {(bookingData as any).isRecurring && (bookingData as any).recurringInfo
+                ? (bookingData as any).recurringInfo.startDate
+                : bookingData.bookingTime 
+                  ? new Date(bookingData.bookingTime).toLocaleDateString('vi-VN', { 
+                      day: '2-digit', 
+                      month: '2-digit'
+                    })
+                  : 'N/A'}
+            </Text>
+          </View>
+
+          {/* Payment Card */}
+          <View style={styles.quickInfoCard}>
+            <View style={[styles.quickInfoIconBg, { backgroundColor: colors.feedback.success + '20' }]}>
+              <Ionicons name="card-outline" size={20} color={colors.feedback.success} />
+            </View>
+            <Text style={styles.quickInfoLabel}>Thanh toán</Text>
+            <Text style={[styles.quickInfoValue, { color: colors.feedback.success, fontSize: 12 }]}>
+              {bookingData.paymentInfo?.paymentStatus === 'PAID' ? 'Đã thanh toán' : 
+               typeof bookingData.paymentInfo?.paymentMethod === 'string' && 
+               (bookingData.paymentInfo.paymentMethod.toUpperCase().includes('CASH') || 
+                bookingData.paymentInfo.paymentMethod.toUpperCase().includes('TIỀN MẶT'))
+                ? 'Trả khi xong' : 'Chờ thanh toán'}
+            </Text>
+          </View>
+        </Animated.View>
+
         {/* Recurring Info Card */}
         {(bookingData as any).isRecurring && (bookingData as any).recurringInfo && (
           <Animated.View style={[styles.detailsCard, { opacity: fadeAnim, backgroundColor: colors.highlight.teal + '10', borderWidth: 2, borderColor: colors.highlight.teal }]}>
@@ -484,6 +538,109 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
             ))}
           </Animated.View>
         )}
+
+        {/* Payment Summary Card - Fee Breakdown */}
+        <Animated.View style={[styles.detailsCard, { opacity: fadeAnim }]}>
+          <Text style={styles.sectionTitle}>Tóm tắt thanh toán</Text>
+          
+          {/* Service Breakdown */}
+          <View style={styles.paymentSummarySection}>
+            <Text style={styles.paymentSummaryLabel}>Chi tiết dịch vụ</Text>
+            {(bookingData.serviceDetails || bookingData.bookingDetails || []).map((detail: any, index: number) => (
+              <View key={detail.bookingDetailId || index}>
+                <View style={styles.paymentRow}>
+                  <Text style={styles.paymentItemName}>
+                    {detail.service?.name || 'Dịch vụ'} × {detail.quantity || 1}
+                  </Text>
+                  <Text style={styles.paymentItemAmount}>
+                    {detail.formattedSubTotal || `${(detail.subTotal || 0).toLocaleString('vi-VN')} ₫`}
+                  </Text>
+                </View>
+                {/* Service Options/Choices */}
+                {detail.selectedChoices && detail.selectedChoices.length > 0 && (
+                  detail.selectedChoices.map((choice: any, choiceIndex: number) => (
+                    <View key={choiceIndex} style={styles.paymentSubRow}>
+                      <Text style={styles.paymentSubItemName}>+ {choice.choiceName}</Text>
+                      <Text style={styles.paymentSubItemAmount}>{choice.formattedPriceAdjustment}</Text>
+                    </View>
+                  ))
+                )}
+              </View>
+            ))}
+          </View>
+          
+          {/* Base Amount / Subtotal */}
+          {(bookingData as any).baseAmount !== undefined && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.paymentRow}>
+                <Text style={styles.paymentItemName}>Tạm tính</Text>
+                <Text style={styles.paymentItemAmount}>
+                  {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format((bookingData as any).baseAmount)}
+                </Text>
+              </View>
+            </>
+          )}
+          
+          {/* Fee Breakdown */}
+          {(bookingData as any).fees && (bookingData as any).fees.length > 0 && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.paymentSummarySection}>
+                <Text style={styles.paymentSummaryLabel}>Phụ phí</Text>
+                {(bookingData as any).fees.map((fee: any, index: number) => (
+                  <View key={index} style={styles.paymentRow}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                      <Text style={styles.paymentSubItemName}>{fee.name}</Text>
+                      {fee.type === 'PERCENT' && (
+                        <Text style={styles.percentBadge}>({(fee.value * 100).toFixed(0)}%)</Text>
+                      )}
+                      {fee.systemSurcharge && (
+                        <View style={styles.systemBadge}>
+                          <Text style={styles.systemBadgeText}>Hệ thống</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.paymentItemAmount, { color: colors.feedback.warning }]}>
+                      +{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(fee.amount)}
+                    </Text>
+                  </View>
+                ))}
+                
+                {/* Total Fees */}
+                {(bookingData as any).totalFees !== undefined && (
+                  <View style={[styles.paymentRow, { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.neutral.border, borderStyle: 'dashed' }]}>
+                    <Text style={[styles.paymentItemName, { fontWeight: '600' }]}>Tổng phụ phí</Text>
+                    <Text style={[styles.paymentItemAmount, { color: colors.feedback.warning, fontWeight: '700' }]}>
+                      +{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format((bookingData as any).totalFees)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </>
+          )}
+          
+          {/* Grand Total */}
+          <View style={[styles.divider, { marginVertical: 12 }]} />
+          <View style={styles.grandTotalRow}>
+            <Text style={styles.grandTotalLabel}>Tổng cộng</Text>
+            <Text style={styles.grandTotalAmount}>
+              {bookingData.formattedTotalAmount || `${(bookingData.totalAmount || 0).toLocaleString('vi-VN')} ₫`}
+            </Text>
+          </View>
+          
+          {/* Cash Payment Note */}
+          {bookingData.paymentInfo && typeof bookingData.paymentInfo.paymentMethod === 'string' && 
+           (bookingData.paymentInfo.paymentMethod.toUpperCase().includes('CASH') || 
+            bookingData.paymentInfo.paymentMethod.toUpperCase().includes('TIỀN MẶT')) && (
+            <View style={styles.cashPaymentNote}>
+              <Ionicons name="wallet-outline" size={16} color={colors.feedback.warning} />
+              <Text style={styles.cashPaymentNoteText}>
+                Thanh toán trực tiếp cho nhân viên sau khi hoàn thành
+              </Text>
+            </View>
+          )}
+        </Animated.View>
 
         {/* Payment Info Card */}
         {bookingData.paymentInfo && (
@@ -680,6 +837,45 @@ const styles = StyleSheet.create({
     fontSize: responsiveFontSize.body,
     color: colors.neutral.textSecondary,
     marginBottom: responsiveSpacing.xl,
+    textAlign: 'center',
+  },
+  quickInfoContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: responsiveSpacing.lg,
+    gap: 8,
+  },
+  quickInfoCard: {
+    flex: 1,
+    backgroundColor: colors.neutral.white,
+    borderRadius: 12,
+    padding: responsiveSpacing.sm,
+    alignItems: 'center',
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  quickInfoIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  quickInfoLabel: {
+    fontSize: 11,
+    color: colors.neutral.textSecondary,
+    marginBottom: 2,
+    textAlign: 'center',
+  },
+  quickInfoValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary.navy,
     textAlign: 'center',
   },
   detailsCard: {
@@ -922,5 +1118,97 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 3,
+  },
+  // Payment Summary Styles
+  paymentSummarySection: {
+    marginBottom: 8,
+  },
+  paymentSummaryLabel: {
+    fontSize: responsiveFontSize.caption,
+    fontWeight: '600',
+    color: colors.neutral.textSecondary,
+    marginBottom: 8,
+  },
+  paymentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  paymentSubRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 2,
+    paddingLeft: 16,
+  },
+  paymentItemName: {
+    fontSize: responsiveFontSize.body,
+    color: colors.primary.navy,
+    flex: 1,
+  },
+  paymentItemAmount: {
+    fontSize: responsiveFontSize.body,
+    fontWeight: '600',
+    color: colors.primary.navy,
+  },
+  paymentSubItemName: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
+    flex: 1,
+  },
+  paymentSubItemAmount: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
+  },
+  percentBadge: {
+    fontSize: 10,
+    color: colors.neutral.textSecondary,
+    marginLeft: 4,
+  },
+  systemBadge: {
+    backgroundColor: colors.highlight.teal + '20',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 6,
+  },
+  systemBadgeText: {
+    fontSize: 10,
+    color: colors.highlight.teal,
+    fontWeight: '500',
+  },
+  grandTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.highlight.teal + '10',
+    borderRadius: 12,
+    padding: 12,
+  },
+  grandTotalLabel: {
+    fontSize: responsiveFontSize.heading3,
+    fontWeight: '700',
+    color: colors.primary.navy,
+  },
+  grandTotalAmount: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.feedback.success,
+  },
+  cashPaymentNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.feedback.warning + '15',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 12,
+  },
+  cashPaymentNoteText: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.feedback.warning,
+    fontWeight: '500',
+    marginLeft: 8,
+    flex: 1,
   },
 });

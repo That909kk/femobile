@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { chatService } from '../services';
 import { useAuthStore } from '../store/authStore';
+import { useChatStore } from '../store/chatStore';
 
 interface UseUnreadCountResult {
   unreadCount: number;
@@ -173,6 +174,7 @@ export const useTotalUnreadCount = (
  */
 export const useMarkAsRead = () => {
   const { user, role } = useAuthStore();
+  const { decrementUnread, fetchTotalUnread } = useChatStore();
   const receiverId = role === 'CUSTOMER' 
     ? (user as any)?.customerId 
     : role === 'EMPLOYEE' 
@@ -191,13 +193,20 @@ export const useMarkAsRead = () => {
       try {
         const markedCount = await chatService.markConversationAsRead(conversationId, receiverId);
         console.log(`[useMarkAsRead] Marked ${markedCount} messages as read in ${conversationId}`);
+        
+        // Update chatStore to sync with bottom tab badge
+        if (markedCount > 0) {
+          // Refresh total unread from server to get accurate count
+          fetchTotalUnread(receiverId);
+        }
+        
         return markedCount;
       } catch (error) {
         console.error('[useMarkAsRead] Error:', error);
         return 0;
       }
     },
-    [receiverId],
+    [receiverId, fetchTotalUnread],
   );
 
   const markAllAsRead = useCallback(async (): Promise<number> => {
@@ -209,6 +218,12 @@ export const useMarkAsRead = () => {
     try {
       const markedCount = await chatService.markAllAsRead(receiverId);
       console.log(`[useMarkAsRead] Marked ${markedCount} messages as read across all conversations`);
+      
+      // Update chatStore - set to 0 since all are read
+      if (markedCount > 0) {
+        useChatStore.getState().updateTotalUnread(0);
+      }
+      
       return markedCount;
     } catch (error) {
       console.error('[useMarkAsRead] Error:', error);

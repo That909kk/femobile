@@ -73,6 +73,7 @@ export interface CustomerData {
   rating?: 'HIGH' | 'MEDIUM' | 'LOW';
   vipLevel?: number;
   birthdate?: string;
+  isEmailVerified?: boolean; // Trạng thái xác thực email
 }
 
 export interface EmployeeData {
@@ -172,7 +173,11 @@ export type RootStackParamList = {
   Register: undefined;
   ForgotPassword: undefined;
   ResetPassword: { email: string };
-  VerifyOTP: { email: string; type: 'register' | 'forgot-password' };
+  VerifyOTP: { 
+    email: string; 
+    type: 'register' | 'forgot-password';
+    fromLogin?: boolean; // Đánh dấu nếu redirect từ login do email chưa verify
+  };
   RoleSelection: {
     username: string;
     password: string;
@@ -201,4 +206,9 @@ export type MainStackParamList = {
   EditProfile: undefined;
   ChangePassword: undefined;
   ChatScreen: { conversationId: string; recipientName: string };
+  AddressManagement: undefined;
+  // Employee screens
+  WorkingHours: undefined;
+  AssignmentDetail: { assignmentId: string; assignment?: any };
+  EmployeeBookingPosts: undefined;
 };

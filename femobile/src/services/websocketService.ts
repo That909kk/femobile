@@ -14,10 +14,23 @@ type MessageCallback = (message: ChatMessage) => void;
 type ConnectionCallback = () => void;
 type ErrorCallback = (error: any) => void;
 
+// DTO for conversation summary from WebSocket (giống web)
+export interface ConversationSummaryDTO {
+  conversationId: string;
+  senderId: string;
+  lastMessage: string;
+  lastMessageTime: string;
+  unreadCount: number;
+}
+
+type SummaryHandler = (summary: ConversationSummaryDTO) => void;
+
 class WebSocketService {
   private client: Client | null = null;
   private subscriptions: Map<string, StompSubscription> = new Map();
+  private summarySubscriptions: Map<string, StompSubscription> = new Map();
   private messageHandlers: Map<string, MessageCallback[]> = new Map();
+  private summaryHandlers: Map<string, SummaryHandler[]> = new Map();
   private isConnecting: boolean = false;
   private isConnected: boolean = false;
   private reconnectAttempts: number = 0;
@@ -157,8 +170,31 @@ class WebSocketService {
   disconnect(): void {
     if (this.client) {
       console.log('[WebSocket] Disconnecting...');
+      
+      // Hủy tất cả message subscriptions
+      this.subscriptions.forEach((subscription, conversationId) => {
+        console.log(`[WebSocket] Unsubscribing from conversation ${conversationId}`);
+        try {
+          subscription.unsubscribe();
+        } catch (e) {
+          console.error('[WebSocket] Error unsubscribing:', e);
+        }
+      });
       this.subscriptions.clear();
       this.messageHandlers.clear();
+      
+      // Hủy tất cả summary subscriptions
+      this.summarySubscriptions.forEach((subscription, participantId) => {
+        console.log(`[WebSocket] Unsubscribing from summary ${participantId}`);
+        try {
+          subscription.unsubscribe();
+        } catch (e) {
+          console.error('[WebSocket] Error unsubscribing summary:', e);
+        }
+      });
+      this.summarySubscriptions.clear();
+      this.summaryHandlers.clear();
+      
       this.client.deactivate();
       this.client = null;
       this.isConnected = false;
@@ -291,6 +327,108 @@ class WebSocketService {
       destination,
       body: JSON.stringify(message),
     });
+  }
+
+  /**
+   * Subscribe to conversation summary (realtime unread count + last message)
+   * Topic: /topic/conversation/summary/{participantId}
+   * @param participantId customerId hoặc employeeId của participant
+   * @param handler Callback xử lý summary
+   */
+  subscribeToConversationSummary(participantId: string, handler: SummaryHandler): () => void {
+    console.log('[WebSocket] ===== SUBSCRIBE TO SUMMARY =====');
+    console.log('[WebSocket] Participant ID:', participantId);
+    console.log('[WebSocket] isConnected:', this.isConnected);
+    
+    if (!this.isConnected || !this.client) {
+      console.warn('[WebSocket] Not connected. Call connect() first.');
+      return () => {};
+    }
+
+    // Lưu handler
+    if (!this.summaryHandlers.has(participantId)) {
+      this.summaryHandlers.set(participantId, []);
+    }
+    this.summaryHandlers.get(participantId)!.push(handler);
+
+    // Nếu đã subscribe rồi thì không subscribe lại
+    if (this.summarySubscriptions.has(participantId)) {
+      console.log('[WebSocket] Already subscribed to summary for:', participantId);
+      return () => this.unsubscribeFromConversationSummary(participantId, handler);
+    }
+
+    const destination = `/topic/conversation/summary/${participantId}`;
+    console.log('[WebSocket] Subscribing to:', destination);
+
+    try {
+      const subscription = this.client.subscribe(destination, (message: IMessage) => {
+        try {
+          const data: ConversationSummaryDTO = JSON.parse(message.body);
+          console.log('[WebSocket] Conversation summary received:', data);
+
+          // Gọi tất cả handlers cho participant này
+          const handlers = this.summaryHandlers.get(participantId) || [];
+          handlers.forEach(h => {
+            try {
+              h(data);
+            } catch (handlerError) {
+              console.error('[WebSocket] Summary handler error:', handlerError);
+            }
+          });
+        } catch (error) {
+          console.error('[WebSocket] Error parsing summary:', error);
+        }
+      });
+
+      this.summarySubscriptions.set(participantId, subscription);
+      console.log('[WebSocket] Summary subscription created');
+    } catch (error) {
+      console.error('[WebSocket] Error creating summary subscription:', error);
+    }
+
+    return () => this.unsubscribeFromConversationSummary(participantId, handler);
+  }
+
+  /**
+   * Unsubscribe from conversation summary
+   */
+  unsubscribeFromConversationSummary(participantId: string, handler?: SummaryHandler): void {
+    const handlers = this.summaryHandlers.get(participantId);
+    
+    if (handlers && handler) {
+      const index = handlers.indexOf(handler);
+      if (index > -1) {
+        handlers.splice(index, 1);
+      }
+      
+      // Nếu không còn handler nào, unsubscribe hoàn toàn
+      if (handlers.length === 0) {
+        const subscription = this.summarySubscriptions.get(participantId);
+        if (subscription) {
+          console.log('[WebSocket] Unsubscribing from summary:', participantId);
+          try {
+            subscription.unsubscribe();
+          } catch (error) {
+            console.error('[WebSocket] Error unsubscribing summary:', error);
+          }
+          this.summarySubscriptions.delete(participantId);
+          this.summaryHandlers.delete(participantId);
+        }
+      }
+    } else if (!handler) {
+      // Unsubscribe tất cả
+      const subscription = this.summarySubscriptions.get(participantId);
+      if (subscription) {
+        console.log('[WebSocket] Unsubscribing all from summary:', participantId);
+        try {
+          subscription.unsubscribe();
+        } catch (error) {
+          console.error('[WebSocket] Error unsubscribing summary:', error);
+        }
+        this.summarySubscriptions.delete(participantId);
+        this.summaryHandlers.delete(participantId);
+      }
+    }
   }
 
   /**

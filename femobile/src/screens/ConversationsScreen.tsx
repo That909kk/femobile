@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   FlatList,
@@ -9,10 +9,11 @@ import {
 } from 'react-native';
 import { Text, Avatar, Badge, Searchbar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { chatService } from '../services';
+import { chatService, websocketService } from '../services';
 import type { Conversation } from '../services/chatService';
+import type { ConversationSummaryDTO } from '../services/websocketService';
 import { useAuthStore } from '../store/authStore';
 import { colors } from '../styles';
 
@@ -23,8 +24,8 @@ type RootStackParamList = {
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-// Helper function để lấy account ID
-const getAccountId = (user: any, role: string | null): string | null => {
+// Helper function để lấy senderId (customerId hoặc employeeId) - dùng cho lấy danh sách conversations
+const getSenderId = (user: any, role: string | null): string | null => {
   if (!user || !role) return null;
   if (role === 'CUSTOMER') return user.customerId;
   if (role === 'EMPLOYEE') return user.employeeId;
@@ -36,23 +37,116 @@ export const ConversationsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { user, role } = useAuthStore();
   
+  // senderId dùng để lấy danh sách conversations (customerId/employeeId)
+  const senderId = getSenderId(user, role);
+  // accountId dùng cho send message & mark-read
+  const accountId = user?.accountId;
+  
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [wsConnected, setWsConnected] = useState(false);
+  
+  // State để lưu unread counts và last message từ WebSocket
+  const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
+  const [conversationSummaries, setConversationSummaries] = useState<Map<string, { lastMessage: string; lastMessageTime: string }>>(new Map());
+  
+  // Ref để track subscription status
+  const summarySubscribedRef = useRef(false);
+
+  // Handler cho conversation summary từ WebSocket (giống web)
+  const handleConversationSummary = useCallback((summary: ConversationSummaryDTO) => {
+    console.log('[ConversationsScreen] Received conversation summary:', summary);
+    
+    // Nếu tin nhắn được gửi bởi chính mình (summary.senderId === accountId), bỏ qua unread count
+    const isMyMessage = summary.senderId === accountId;
+    
+    // Cập nhật unread count
+    setUnreadCounts(prev => {
+      const newMap = new Map(prev);
+      const currentCount = prev.get(summary.conversationId) || 0;
+      
+      if (isMyMessage) {
+        // Tin nhắn của mình gửi đi -> không thay đổi unread count
+      } else {
+        // Tin nhắn từ người khác
+        newMap.set(summary.conversationId, currentCount + 1);
+      }
+      
+      return newMap;
+    });
+    
+    // Cập nhật lastMessage và lastMessageTime
+    setConversationSummaries(prev => {
+      const newMap = new Map(prev);
+      newMap.set(summary.conversationId, {
+        lastMessage: summary.lastMessage,
+        lastMessageTime: summary.lastMessageTime
+      });
+      return newMap;
+    });
+  }, [accountId]);
+
+  // Connect WebSocket và subscribe to summary
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    
+    const connectAndSubscribe = async () => {
+      if (!senderId) return;
+      
+      try {
+        // Kết nối WebSocket nếu chưa kết nối
+        if (!websocketService.isActive()) {
+          console.log('[ConversationsScreen] Connecting WebSocket...');
+          await websocketService.connect();
+        }
+        
+        setWsConnected(websocketService.isActive());
+        
+        // Subscribe to conversation summary
+        if (websocketService.isActive() && !summarySubscribedRef.current) {
+          console.log('[ConversationsScreen] Subscribing to summary for:', senderId);
+          unsubscribe = websocketService.subscribeToConversationSummary(senderId, handleConversationSummary);
+          summarySubscribedRef.current = true;
+        }
+      } catch (error) {
+        console.warn('[ConversationsScreen] WebSocket connection failed:', error);
+        setWsConnected(false);
+      }
+    };
+    
+    connectAndSubscribe();
+    
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+      summarySubscribedRef.current = false;
+    };
+  }, [senderId, handleConversationSummary]);
+
+  // Reload conversations khi focus lại màn hình
+  useFocusEffect(
+    useCallback(() => {
+      if (senderId) {
+        loadConversations();
+      }
+    }, [senderId])
+  );
 
   useEffect(() => {
     loadConversations();
-  }, [user]);
+  }, [senderId]);
 
   const loadConversations = async () => {
-    const accountId = getAccountId(user, role);
-    if (!accountId) return;
+    if (!senderId) return;
 
     try {
       setLoading(true);
-      const response = await chatService.getUserConversations({ accountId, page: 0, size: 50 });
-      setConversations(response.data || []);
+      // Sử dụng getConversationsBySender với senderId (customerId/employeeId) như web
+      const data = await chatService.getConversationsBySender({ senderId, page: 0, size: 50 });
+      setConversations(data || []);
     } catch (error) {
       console.error('Error loading conversations:', error);
     } finally {
@@ -71,6 +165,13 @@ export const ConversationsScreen: React.FC = () => {
     const recipientName = role === 'EMPLOYEE'
       ? conversation.customerName
       : conversation.employeeName;
+
+    // Clear unread count khi vào conversation
+    setUnreadCounts(prev => {
+      const newMap = new Map(prev);
+      newMap.set(conversation.conversationId, 0);
+      return newMap;
+    });
 
     navigation.navigate('ChatScreen', {
       conversationId: conversation.conversationId,
@@ -95,7 +196,14 @@ export const ConversationsScreen: React.FC = () => {
       ? item.customerAvatar
       : item.employeeAvatar;
 
-    const hasUnread = false; // TODO: Implement unread count
+    // Lấy unread count từ state
+    const unreadCount = unreadCounts.get(item.conversationId) || 0;
+    const hasUnread = unreadCount > 0;
+    
+    // Lấy last message từ WebSocket summary hoặc từ item
+    const summary = conversationSummaries.get(item.conversationId);
+    const lastMessage = summary?.lastMessage || item.lastMessage;
+    const lastMessageTime = summary?.lastMessageTime || item.lastMessageTime;
 
     return (
       <TouchableOpacity
@@ -109,19 +217,19 @@ export const ConversationsScreen: React.FC = () => {
           />
           {hasUnread && (
             <Badge style={styles.badge} size={20}>
-              5
+              {unreadCount > 99 ? '99+' : unreadCount}
             </Badge>
           )}
         </View>
 
         <View style={styles.conversationContent}>
           <View style={styles.conversationHeader}>
-            <Text style={styles.recipientName} numberOfLines={1}>
+            <Text style={[styles.recipientName, hasUnread && styles.unreadName]} numberOfLines={1}>
               {recipientName}
             </Text>
             <Text style={styles.timestamp}>
-              {item.lastMessageTime
-                ? new Date(item.lastMessageTime).toLocaleDateString('vi-VN', {
+              {lastMessageTime
+                ? new Date(lastMessageTime).toLocaleDateString('vi-VN', {
                     day: '2-digit',
                     month: '2-digit',
                   })
@@ -133,7 +241,7 @@ export const ConversationsScreen: React.FC = () => {
             style={[styles.lastMessage, hasUnread && styles.unreadMessage]}
             numberOfLines={1}
           >
-            {item.lastMessage || 'Chưa có tin nhắn'}
+            {lastMessage || 'Chưa có tin nhắn'}
           </Text>
         </View>
       </TouchableOpacity>
@@ -247,6 +355,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.neutral.textPrimary,
     flex: 1,
+  },
+  unreadName: {
+    fontWeight: '700',
+    color: colors.primary.navy,
   },
   timestamp: {
     fontSize: 12,

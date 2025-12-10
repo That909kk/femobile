@@ -40,6 +40,8 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [bannersLoaded, setBannersLoaded] = useState<boolean[]>([false, false, false]);
+  const [upcomingBookings, setUpcomingBookings] = useState<any[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
   const [bookingStats, setBookingStats] = useState<{
     totalCompleted: number;
     totalUpcoming: number;
@@ -154,12 +156,47 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
       await Promise.all([
         loadServices(),
         loadBookingStatistics(),
+        loadUpcomingBookings(),
         // loadFeaturedEmployees() // Tạm thời tắt - chưa có dữ liệu
       ]);
     } catch (error) {
       console.error('Error loading initial data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadUpcomingBookings = async () => {
+    try {
+      const customerId = user && 'customerId' in user ? (user as any).customerId : undefined;
+      if (!customerId) {
+        console.log('No customerId found, skipping upcoming bookings');
+        return;
+      }
+
+      setLoadingBookings(true);
+      const response = await bookingService.getCustomerBookings(customerId, {
+        page: 0,
+        size: 5,
+        sort: 'bookingTime,asc'
+      });
+
+      if (response && response.content) {
+        // Filter for upcoming bookings (PENDING, AWAITING_EMPLOYEE, CONFIRMED)
+        const now = new Date();
+        const upcoming = response.content.filter((booking: any) => {
+          const bookingTime = booking.bookingTime ? new Date(booking.bookingTime) : null;
+          const isUpcomingStatus = ['PENDING', 'AWAITING_EMPLOYEE', 'CONFIRMED'].includes(booking.status);
+          return isUpcomingStatus && bookingTime && bookingTime >= now;
+        }).slice(0, 3);
+        
+        setUpcomingBookings(upcoming);
+        console.log('📅 Loaded upcoming bookings:', upcoming.length);
+      }
+    } catch (error) {
+      console.error('Error loading upcoming bookings:', error);
+    } finally {
+      setLoadingBookings(false);
     }
   };
 
@@ -494,6 +531,149 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
     </View>
   );
 
+  const formatBookingDate = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('vi-VN', { 
+      weekday: 'short', 
+      day: '2-digit', 
+      month: '2-digit' 
+    });
+  };
+
+  const formatBookingTime = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('vi-VN', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
+
+  const getStatusBadgeStyle = (status: string) => {
+    switch (status) {
+      case 'CONFIRMED':
+        return { backgroundColor: colors.highlight.teal + '20', color: colors.highlight.teal };
+      case 'AWAITING_EMPLOYEE':
+        return { backgroundColor: colors.highlight.teal + '20', color: colors.highlight.teal };
+      case 'PENDING':
+        return { backgroundColor: colors.neutral.border, color: colors.neutral.textSecondary };
+      case 'IN_PROGRESS':
+        return { backgroundColor: colors.feedback.warning + '20', color: colors.feedback.warning };
+      case 'COMPLETED':
+        return { backgroundColor: colors.feedback.success + '20', color: colors.feedback.success };
+      case 'CANCELLED':
+        return { backgroundColor: colors.feedback.error + '20', color: colors.feedback.error };
+      default:
+        return { backgroundColor: colors.neutral.border, color: colors.neutral.textSecondary };
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      'CONFIRMED': 'Đã xác nhận',
+      'AWAITING_EMPLOYEE': 'Chờ phân công',
+      'PENDING': 'Đang chờ',
+      'IN_PROGRESS': 'Đang thực hiện',
+      'COMPLETED': 'Hoàn thành',
+      'CANCELLED': 'Đã hủy',
+    };
+    return labels[status] || status;
+  };
+
+  const renderUpcomingBookingsSection = () => (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Đơn sắp diễn ra</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Orders')}>
+          <Text style={styles.seeAllText}>Xem tất cả</Text>
+        </TouchableOpacity>
+      </View>
+
+      {loadingBookings ? (
+        <View style={styles.loadingBookingsContainer}>
+          <ActivityIndicator size="small" color={colors.highlight.teal} />
+          <Text style={styles.loadingBookingsText}>Đang tải lịch hẹn...</Text>
+        </View>
+      ) : upcomingBookings.length === 0 ? (
+        <View style={styles.emptyBookingsContainer}>
+          <Ionicons name="calendar-outline" size={40} color={colors.neutral.border} />
+          <Text style={styles.emptyBookingsText}>
+            Bạn chưa có lịch hẹn nào sắp tới
+          </Text>
+          <TouchableOpacity 
+            style={styles.bookNowButton}
+            onPress={() => navigation.navigate('Booking')}
+          >
+            <Text style={styles.bookNowButtonText}>Đặt dịch vụ ngay</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.upcomingBookingsList}>
+          {upcomingBookings.map((booking, index) => {
+            const serviceName = booking.services && booking.services.length > 0
+              ? booking.services.map((s: any) => s.name).join(', ')
+              : 'Dịch vụ gia đình';
+            const statusStyle = getStatusBadgeStyle(booking.status);
+            
+            return (
+              <TouchableOpacity
+                key={booking.bookingId || `booking-${index}`}
+                style={styles.upcomingBookingCard}
+                onPress={() => navigation.navigate('OrderDetail', { bookingId: booking.bookingId })}
+                activeOpacity={0.7}
+              >
+                <View style={styles.bookingCardHeader}>
+                  <Text style={styles.bookingServiceName} numberOfLines={1}>
+                    {serviceName}
+                  </Text>
+                  <View style={[styles.statusBadge, { backgroundColor: statusStyle.backgroundColor }]}>
+                    <Text style={[styles.statusBadgeText, { color: statusStyle.color }]}>
+                      {getStatusLabel(booking.status)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.bookingCardDetails}>
+                  {booking.bookingTime && (
+                    <>
+                      <View style={styles.bookingDetailItem}>
+                        <Ionicons name="calendar-outline" size={14} color={colors.highlight.teal} />
+                        <Text style={styles.bookingDetailText}>
+                          {formatBookingDate(booking.bookingTime)}
+                        </Text>
+                      </View>
+                      <View style={styles.bookingDetailItem}>
+                        <Ionicons name="time-outline" size={14} color={colors.highlight.teal} />
+                        <Text style={styles.bookingDetailText}>
+                          {formatBookingTime(booking.bookingTime)}
+                        </Text>
+                      </View>
+                    </>
+                  )}
+                  {booking.address?.fullAddress && (
+                    <View style={styles.bookingDetailItem}>
+                      <Ionicons name="location-outline" size={14} color={colors.highlight.teal} />
+                      <Text style={styles.bookingDetailText} numberOfLines={1}>
+                        {booking.address.fullAddress}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {booking.formattedTotalAmount && (
+                  <View style={styles.bookingCardFooter}>
+                    <Text style={styles.bookingPrice}>{booking.formattedTotalAmount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+
   const renderEmployeeCard = (employee: Employee, index: number) => (
     <TouchableOpacity
       key={employee.employeeId || `employee-${index}`}
@@ -664,8 +844,7 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
         {renderVoiceBookingButton()}
         {renderPromoBanner()}
         {renderServicesSection()}
-        {renderFeaturedEmployees()}
-        {renderRewardsSection()}
+        {renderUpcomingBookingsSection()}
       </ScrollView>
     </SafeAreaView>
   );
@@ -1113,6 +1292,106 @@ const styles = StyleSheet.create({
     fontSize: responsiveFontSize.caption,
     color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '500',
+  },
+  
+  // Upcoming Bookings Styles
+  loadingBookingsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: responsiveSpacing.lg,
+    gap: responsiveSpacing.sm,
+  },
+  loadingBookingsText: {
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textSecondary,
+  },
+  emptyBookingsContainer: {
+    alignItems: 'center',
+    paddingVertical: responsiveSpacing.xl,
+    backgroundColor: colors.neutral.white,
+    borderRadius: 16,
+  },
+  emptyBookingsText: {
+    fontSize: responsiveFontSize.body,
+    color: colors.neutral.textSecondary,
+    marginTop: responsiveSpacing.sm,
+    marginBottom: responsiveSpacing.md,
+    textAlign: 'center',
+  },
+  bookNowButton: {
+    backgroundColor: colors.highlight.teal,
+    paddingHorizontal: responsiveSpacing.lg,
+    paddingVertical: responsiveSpacing.sm,
+    borderRadius: 20,
+  },
+  bookNowButtonText: {
+    fontSize: responsiveFontSize.body,
+    fontWeight: '600',
+    color: colors.neutral.white,
+  },
+  upcomingBookingsList: {
+    gap: responsiveSpacing.sm,
+  },
+  upcomingBookingCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 16,
+    padding: responsiveSpacing.md,
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
+    shadowColor: colors.primary.navy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  bookingCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: responsiveSpacing.sm,
+  },
+  bookingServiceName: {
+    flex: 1,
+    fontSize: responsiveFontSize.body,
+    fontWeight: '600',
+    color: colors.primary.navy,
+    marginRight: responsiveSpacing.sm,
+  },
+  statusBadge: {
+    paddingHorizontal: responsiveSpacing.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusBadgeText: {
+    fontSize: responsiveFontSize.caption,
+    fontWeight: '600',
+  },
+  bookingCardDetails: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: responsiveSpacing.sm,
+  },
+  bookingDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  bookingDetailText: {
+    fontSize: responsiveFontSize.caption,
+    color: colors.neutral.textSecondary,
+  },
+  bookingCardFooter: {
+    marginTop: responsiveSpacing.sm,
+    paddingTop: responsiveSpacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.neutral.border,
+    alignItems: 'flex-end',
+  },
+  bookingPrice: {
+    fontSize: responsiveFontSize.body,
+    fontWeight: '700',
+    color: colors.primary.navy,
   },
 });
 

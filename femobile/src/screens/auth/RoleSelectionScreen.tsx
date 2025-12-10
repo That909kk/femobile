@@ -12,9 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { UserRole, RoleStatus, RootStackParamList } from '../../types/auth';
+import type { UserRole, RootStackParamList } from '../../types/auth';
 import { authService } from '../../services/authService';
-import { useLanguage } from '../../hooks/useLanguage';
 import { useStaticData } from '../../hooks/useStaticData';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components';
@@ -26,11 +25,11 @@ const RoleSelectionScreen: React.FC<Props> = ({ route, navigation }) => {
   const { username, password, availableRoles } = route.params;
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { language: currentLanguage } = useLanguage();
   const { data: staticData } = useStaticData('role-selection');
   const { login } = useAuth();
 
-  const data = staticData?.['role-selection']?.[currentLanguage] || {};
+  // staticData đã được trả về theo ngôn ngữ hiện tại từ useStaticData
+  const data = staticData || {};
 
   const activeRoles = Object.entries(availableRoles)
     .filter(([_, status]) => status === 'ACTIVE')

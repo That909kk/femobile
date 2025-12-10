@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,37 +14,56 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useChatStore } from '../../../store/chatStore';
-import { useUserInfo, useTotalUnreadCount } from '../../../hooks';
+import { useUserInfo } from '../../../hooks';
 import { colors, responsiveSpacing, responsiveFontSize } from '../../../styles';
 import type { Conversation } from '../../../services/chatService';
+import { websocketService, type ConversationSummaryDTO } from '../../../services/websocketService';
 import { ConversationUnreadBadge } from '../../../components';
+import { useAuthStore } from '../../../store/authStore';
+
+// Helper function để lấy senderId (customerId hoặc employeeId)
+const getSenderId = (user: any, role: string | null): string | null => {
+  if (!user || !role) return null;
+  if (role === 'CUSTOMER') return user.customerId;
+  if (role === 'EMPLOYEE') return user.employeeId;
+  if (role === 'ADMIN') return user.adminId;
+  return null;
+};
 
 export const ConversationListScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { userInfo } = useUserInfo();
-  const { conversations, loading, fetchConversations } = useChatStore();
+  const { user, role } = useAuthStore();
+  const { conversations, loading, totalUnread, fetchConversations, fetchTotalUnread } = useChatStore();
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [wsConnected, setWsConnected] = useState(false);
+  
+  // State để lưu lastMessage và lastMessageTime từ WebSocket
+  const [conversationSummaries, setConversationSummaries] = useState<Map<string, { lastMessage: string; lastMessageTime: string }>>(new Map());
+  
+  // Ref để track subscribed status
+  const summarySubscribedRef = useRef(false);
 
-  // Get senderId (customerId hoặc employeeId) từ userInfo
-  // API /api/v1/conversations/sender/{senderId} sẽ tự động tìm conversations
-  // mà user là customer HOẶC employee
-  const senderId = userInfo?.id;
+  // Get senderId (customerId hoặc employeeId) từ user dựa vào role
+  const senderId = getSenderId(user, role) || userInfo?.id;
+  const accountId = user?.accountId;
 
-  // Hook to get total unread count (auto-refreshes every 30s)
-  const { unreadCount: totalUnreadCount, refreshUnreadCount } = useTotalUnreadCount(
-    !!senderId, // Only fetch if senderId exists
-    30000, // Refresh every 30 seconds
-  );
+  // Refresh unread count using store (syncs with bottom tab badge)
+  const refreshUnreadCount = useCallback(() => {
+    if (senderId) {
+      fetchTotalUnread(senderId);
+    }
+  }, [senderId, fetchTotalUnread]);
 
   // Debug logging
   useEffect(() => {
     console.log('📊 ConversationList: Unread count status:', {
       senderId,
-      totalUnreadCount,
+      totalUnread,
       hasSenderId: !!senderId,
     });
-  }, [senderId, totalUnreadCount]);
+  }, [senderId, totalUnread]);
 
   // Debug userInfo
   useEffect(() => {
@@ -54,6 +73,70 @@ export const ConversationListScreen: React.FC = () => {
       fullName: userInfo?.fullName,
     });
   }, [userInfo, senderId]);
+
+  // Handler cho conversation summary từ WebSocket (giống web)
+  const handleConversationSummary = useCallback((summary: ConversationSummaryDTO) => {
+    console.log('[ConversationList] Received conversation summary:', summary);
+    console.log('[ConversationList] Current accountId:', accountId);
+    console.log('[ConversationList] Summary senderId:', summary.senderId);
+    
+    // Cập nhật lastMessage và lastMessageTime
+    setConversationSummaries(prev => {
+      const newMap = new Map(prev);
+      newMap.set(summary.conversationId, {
+        lastMessage: summary.lastMessage,
+        lastMessageTime: summary.lastMessageTime
+      });
+      return newMap;
+    });
+    
+    // Refresh unread count
+    refreshUnreadCount();
+  }, [accountId, refreshUnreadCount]);
+
+  // Kết nối WebSocket và subscribe to conversation summary
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const setupWebSocket = async () => {
+      if (!senderId) {
+        console.log('[ConversationList] No senderId, skipping WebSocket setup');
+        return;
+      }
+
+      try {
+        console.log('[ConversationList] Setting up WebSocket...');
+        
+        // Kết nối WebSocket nếu chưa kết nối
+        if (!websocketService.isActive()) {
+          console.log('[ConversationList] WebSocket not active, connecting...');
+          await websocketService.connect();
+        }
+        
+        setWsConnected(true);
+        console.log('[ConversationList] ✅ WebSocket connected');
+        
+        // Subscribe to conversation summary
+        if (!summarySubscribedRef.current) {
+          console.log('[ConversationList] Subscribing to conversation summary for:', senderId);
+          unsubscribe = websocketService.subscribeToConversationSummary(senderId, handleConversationSummary);
+          summarySubscribedRef.current = true;
+        }
+      } catch (error) {
+        console.warn('[ConversationList] ⚠️ WebSocket unavailable:', error);
+        setWsConnected(false);
+      }
+    };
+
+    setupWebSocket();
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+        summarySubscribedRef.current = false;
+      }
+    };
+  }, [senderId, handleConversationSummary]);
 
   // Load conversations khi vào màn hình
   useFocusEffect(
@@ -84,18 +167,34 @@ export const ConversationListScreen: React.FC = () => {
     }
   };
 
-  // Lọc chỉ hiển thị các conversations có thể chat
-  const activeConversations = conversations.filter(conv => conv.canChat !== false);
+  // Merge conversations với realtime summaries
+  const mergedConversations = conversations.map(conv => {
+    const realtimeSummary = conversationSummaries.get(conv.conversationId);
+    if (realtimeSummary) {
+      return {
+        ...conv,
+        lastMessage: realtimeSummary.lastMessage,
+        lastMessageTime: realtimeSummary.lastMessageTime,
+      };
+    }
+    return conv;
+  });
 
-  // Lọc theo tìm kiếm
+  // Lọc chỉ hiển thị các conversations có thể chat
+  const activeConversations = mergedConversations.filter(conv => conv.canChat !== false);
+
+  // Lọc theo tìm kiếm - dựa vào role để lọc đúng tên người đối thoại
   const filteredConversations = activeConversations.filter(conv => {
     if (!searchQuery.trim()) return true;
     
     const query = searchQuery.toLowerCase();
-    const employeeName = (conv.employeeName || '').toLowerCase();
-    const customerName = (conv.customerName || '').toLowerCase();
+    // Nếu mình là Employee → tìm theo customerName
+    // Nếu mình là Customer → tìm theo employeeName
+    const otherPersonName = role === 'EMPLOYEE'
+      ? (conv.customerName || '').toLowerCase()
+      : (conv.employeeName || '').toLowerCase();
     
-    return employeeName.includes(query) || customerName.includes(query);
+    return otherPersonName.includes(query);
   });
 
   const handleRefresh = async () => {
@@ -108,8 +207,12 @@ export const ConversationListScreen: React.FC = () => {
   };
 
   const handleConversationPress = (conversation: Conversation) => {
-    // Xác định tên người chat (không phải mình)
-    const recipientName = conversation.employeeName || conversation.customerName;
+    // Xác định tên người chat (không phải mình) dựa vào role
+    // Nếu mình là Customer → hiển thị Employee
+    // Nếu mình là Employee → hiển thị Customer
+    const recipientName = role === 'EMPLOYEE'
+      ? conversation.customerName
+      : conversation.employeeName;
     
     // Navigate từ Tab Navigator lên Parent Stack Navigator
     const parentNavigation = navigation.getParent();
@@ -147,9 +250,15 @@ export const ConversationListScreen: React.FC = () => {
   };
 
   const renderConversationItem = ({ item }: { item: Conversation }) => {
-    // Xác định thông tin người chat (không phải mình)
-    const otherPersonName = item.employeeName || item.customerName;
-    const otherPersonAvatar = item.employeeAvatar || item.customerAvatar;
+    // Xác định thông tin người chat (không phải mình) dựa vào role
+    // Nếu mình là Customer → hiển thị Employee
+    // Nếu mình là Employee → hiển thị Customer
+    const otherPersonName = role === 'EMPLOYEE'
+      ? item.customerName
+      : item.employeeName;
+    const otherPersonAvatar = role === 'EMPLOYEE'
+      ? item.customerAvatar
+      : item.employeeAvatar;
 
     return (
       <TouchableOpacity
@@ -243,11 +352,18 @@ export const ConversationListScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Tin nhắn</Text>
-          {totalUnreadCount > 0 && (
+          <View style={styles.headerLeft}>
+            <Text style={styles.headerTitle}>Tin nhắn</Text>
+            {wsConnected && (
+              <View style={styles.wsIndicator}>
+                <View style={styles.wsIndicatorDot} />
+              </View>
+            )}
+          </View>
+          {totalUnread > 0 && (
             <View style={styles.headerBadge}>
               <Text style={styles.headerBadgeText}>
-                {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+                {totalUnread > 99 ? '99+' : totalUnread}
               </Text>
             </View>
           )}
@@ -320,12 +436,26 @@ const styles = StyleSheet.create({
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: responsiveSpacing.sm,
   },
   headerTitle: {
     fontSize: responsiveFontSize.heading2,
     fontWeight: '700',
     color: colors.primary.navy,
+  },
+  wsIndicator: {
+    marginLeft: responsiveSpacing.xs,
+  },
+  wsIndicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.feedback.success,
   },
   headerBadge: {
     backgroundColor: colors.feedback.error,

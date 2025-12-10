@@ -10,8 +10,11 @@ import {
   VoiceBookingStatus,
   VoiceBookingPreview,
 } from '../types/voiceBooking';
-import voiceBookingService from '../services/voiceBookingService';
+import voiceBookingService, { ReactNativeFile } from '../services/voiceBookingService';
 import voiceBookingWebSocketService from '../services/voiceBookingWebSocketService';
+
+// Type cho audio file trong React Native
+type AudioFile = Blob | File | ReactNativeFile;
 
 interface ConversationMessage {
   id: string;
@@ -63,10 +66,10 @@ interface VoiceBookingActions {
   // Recording
   startRecording: () => void;
   cancelRecording: () => void;
-  stopRecording: (audioBlob: Blob, hints?: Record<string, any>) => Promise<void>;
+  stopRecording: (audioFile: AudioFile, hints?: Record<string, any>) => Promise<void>;
   
   // Continue conversation
-  continueWithAudio: (audioBlob: Blob) => Promise<void>;
+  continueWithAudio: (audioFile: AudioFile) => Promise<void>;
   continueWithText: (text: string, explicitFields?: Record<string, any>) => Promise<void>;
   
   // Actions
@@ -139,14 +142,14 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
     set({ isRecording: false });
   },
 
-  stopRecording: async (audioBlob: Blob, hints?: Record<string, any>) => {
+  stopRecording: async (audioFile: AudioFile, hints?: Record<string, any>) => {
     const state = get();
     
     try {
       set({ isRecording: false, isProcessing: true });
 
-      // Gửi audio lên server (audioBlob here is actually the blob-like object from fetch)
-      const response = await voiceBookingService.createVoiceBooking(audioBlob, hints);
+      // Gửi audio lên server
+      const response = await voiceBookingService.createVoiceBooking(audioFile, hints);
 
       // Cập nhật state
       set({
@@ -189,7 +192,7 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
   },
 
   // ===== Continue =====
-  continueWithAudio: async (audioBlob: Blob) => {
+  continueWithAudio: async (audioFile: AudioFile) => {
     const state = get();
     if (!state.currentRequestId) return;
 
@@ -198,7 +201,7 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
 
       const response = await voiceBookingService.continueVoiceBooking(
         state.currentRequestId,
-        { audio: audioBlob }
+        { audio: audioFile }
       );
 
       set({ isProcessing: false });

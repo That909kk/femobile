@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../hooks';
+import { useChatStore } from '../store/chatStore';
+import { useAuthStore } from '../store/authStore';
 import { COLORS } from '../constants';
 
 // Import screens
@@ -21,8 +23,37 @@ const Tab = createBottomTabNavigator();
 
 export const MainTabNavigator = () => {
   const { user, role, loading } = useAuth();
+  const { totalUnread, fetchTotalUnread } = useChatStore();
+  const authUser = useAuthStore(state => state.user);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
   console.log('MainTabNavigator rendered with role:', role, 'loading:', loading);
+
+  // Get receiverId based on role
+  const receiverId = role === 'CUSTOMER' 
+    ? (authUser as any)?.customerId 
+    : role === 'EMPLOYEE' 
+    ? (authUser as any)?.employeeId 
+    : null;
+
+  // Fetch unread count on mount and periodically
+  useEffect(() => {
+    if (receiverId) {
+      // Initial fetch
+      fetchTotalUnread(receiverId);
+      
+      // Auto-refresh every 30 seconds
+      intervalRef.current = setInterval(() => {
+        fetchTotalUnread(receiverId);
+      }, 30000);
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [receiverId, fetchTotalUnread]);
 
   // Show loading while determining role
   if (loading || !role) {
@@ -170,6 +201,18 @@ export const MainTabNavigator = () => {
           options={{
             title: tab.title,
             tabBarLabel: tab.title,
+            // Show badge for Messages tab if there are unread messages
+            tabBarBadge: (tab.name === 'Messages' || tab.name === 'EmployeeMessages') && totalUnread > 0 
+              ? (totalUnread > 99 ? '99+' : totalUnread) 
+              : undefined,
+            tabBarBadgeStyle: {
+              backgroundColor: COLORS.error || '#EF4444',
+              fontSize: 10,
+              fontWeight: '600',
+              minWidth: 18,
+              height: 18,
+              borderRadius: 9,
+            },
           }}
         />
       ))}

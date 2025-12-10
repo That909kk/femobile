@@ -14,6 +14,10 @@ export { ScheduleScreen } from './employee/ScheduleScreen';
 export { RequestsScreen } from './employee/RequestsScreen';
 export { AvailableBookingsScreen } from './employee/AvailableBookingsScreen';
 export { NotificationsScreen as EmployeeNotificationsScreen } from './employee/NotificationsScreen';
+export { WorkingHoursScreen } from './employee/WorkingHoursScreen';
+export { AssignmentDetailScreen } from './employee/AssignmentDetailScreen';
+export { MyAssignmentsScreen } from './employee/MyAssignmentsScreen';
+export { WorkScreen } from './employee/WorkScreen';
 
 // Shared screens
 export { ProfileScreen } from './ProfileScreen';

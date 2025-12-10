@@ -21,8 +21,13 @@ import {
   RecurringBookingsScreen,
   RecurringBookingDetailScreen,
   VoiceBookingScreen,
+  AddressManagementScreen,
 } from '../screens/main/customer';
-import { NotificationsScreen as EmployeeNotificationsScreen } from '../screens/main/employee';
+import { 
+  NotificationsScreen as EmployeeNotificationsScreen,
+  WorkingHoursScreen,
+  AssignmentDetailScreen,
+} from '../screens/main/employee';
 import { ChatScreen } from '../screens/ChatScreen';
 import { MainTabNavigator } from './MainTabNavigator';
 import type { RootStackParamList, MainStackParamList } from '../types/auth';
@@ -231,6 +236,33 @@ const MainStack = () => {
       <MainStackNavigator.Screen 
         name="ChatScreen" 
         component={ChatScreen}
+        options={{
+          headerShown: false,
+          ...ANIMATION_CONFIGS.slideFromRight,
+        }}
+      />
+      {/* Address Management Screen */}
+      <MainStackNavigator.Screen 
+        name="AddressManagement" 
+        component={AddressManagementScreen}
+        options={{
+          headerShown: false,
+          ...ANIMATION_CONFIGS.slideFromRight,
+        }}
+      />
+      {/* Working Hours Screen */}
+      <MainStackNavigator.Screen 
+        name="WorkingHours" 
+        component={WorkingHoursScreen}
+        options={{
+          headerShown: false,
+          ...ANIMATION_CONFIGS.slideFromRight,
+        }}
+      />
+      {/* Assignment Detail Screen */}
+      <MainStackNavigator.Screen 
+        name="AssignmentDetail" 
+        component={AssignmentDetailScreen}
         options={{
           headerShown: false,
           ...ANIMATION_CONFIGS.slideFromRight,
