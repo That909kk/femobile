@@ -39,6 +39,14 @@ export interface LoginResponse {
 }
 
 // Register related interfaces
+export interface AddressData {
+  fullAddress: string;
+  ward: string;
+  city: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
 export interface RegisterRequest {
   username: string;
   password: string;
@@ -46,6 +54,8 @@ export interface RegisterRequest {
   email: string;
   phoneNumber: string;
   role: UserRole;
+  // Address data - giống web
+  address?: AddressData;
 }
 
 export interface RegisterResponse {

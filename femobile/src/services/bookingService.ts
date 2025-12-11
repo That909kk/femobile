@@ -508,8 +508,15 @@ class BookingService {
       request
     );
 
-    if (!response.success && !response.data) {
-      throw new Error(response.message || 'Không thể lấy thông tin preview');
+    // Check for API success
+    if (!response.success) {
+      const errorMessage = response.message || 'Không thể lấy thông tin preview';
+      console.error('[BookingService] Multiple preview error:', errorMessage);
+      throw new Error(errorMessage);
+    }
+    
+    if (!response.data) {
+      throw new Error('Không có dữ liệu preview');
     }
 
     console.log('[BookingService] Multiple preview response:', response.data);
@@ -528,8 +535,15 @@ class BookingService {
       request
     );
 
-    if (!response.success && !response.data) {
-      throw new Error(response.message || 'Không thể lấy thông tin preview');
+    // Check for API success
+    if (!response.success) {
+      const errorMessage = response.message || 'Không thể lấy thông tin preview';
+      console.error('[BookingService] Recurring preview error:', errorMessage);
+      throw new Error(errorMessage);
+    }
+    
+    if (!response.data) {
+      throw new Error('Không có dữ liệu preview');
     }
 
     console.log('[BookingService] Recurring preview response:', response.data);

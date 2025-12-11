@@ -356,53 +356,75 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
 
           {/* Payment Card */}
           <View style={styles.quickInfoCard}>
-            <View style={[styles.quickInfoIconBg, { backgroundColor: colors.feedback.success + '20' }]}>
-              <Ionicons name="card-outline" size={20} color={colors.feedback.success} />
+            <View style={[styles.quickInfoIconBg, { backgroundColor: (bookingData as any).isRecurring ? colors.feedback.warning + '20' : colors.feedback.success + '20' }]}>
+              <Ionicons name="card-outline" size={20} color={(bookingData as any).isRecurring ? colors.feedback.warning : colors.feedback.success} />
             </View>
             <Text style={styles.quickInfoLabel}>Thanh toán</Text>
-            <Text style={[styles.quickInfoValue, { color: colors.feedback.success, fontSize: 12 }]}>
-              {bookingData.paymentInfo?.paymentStatus === 'PAID' ? 'Đã thanh toán' : 
-               typeof bookingData.paymentInfo?.paymentMethod === 'string' && 
-               (bookingData.paymentInfo.paymentMethod.toUpperCase().includes('CASH') || 
-                bookingData.paymentInfo.paymentMethod.toUpperCase().includes('TIỀN MẶT'))
-                ? 'Trả khi xong' : 'Chờ thanh toán'}
+            <Text style={[styles.quickInfoValue, { color: (bookingData as any).isRecurring ? colors.feedback.warning : colors.feedback.success, fontSize: 11 }]}>
+              {(bookingData as any).isRecurring 
+                ? 'Trả theo lần'
+                : bookingData.paymentInfo?.paymentStatus === 'PAID' ? 'Đã thanh toán' : 
+                  typeof bookingData.paymentInfo?.paymentMethod === 'string' && 
+                  (bookingData.paymentInfo.paymentMethod.toUpperCase().includes('CASH') || 
+                   bookingData.paymentInfo.paymentMethod.toUpperCase().includes('TIỀN MẶT'))
+                  ? 'Trả khi xong' : 'Chờ thanh toán'}
             </Text>
           </View>
         </Animated.View>
 
         {/* Recurring Info Card */}
         {(bookingData as any).isRecurring && (bookingData as any).recurringInfo && (
-          <Animated.View style={[styles.detailsCard, { opacity: fadeAnim, backgroundColor: colors.highlight.teal + '10', borderWidth: 2, borderColor: colors.highlight.teal }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-              <Ionicons name="repeat" size={24} color={colors.highlight.teal} style={{ marginRight: 8 }} />
-              <Text style={[styles.sectionTitle, { marginBottom: 0, color: colors.highlight.teal }]}>
-                Lịch định kỳ
-              </Text>
+          <Animated.View style={[styles.detailsCard, { opacity: fadeAnim, backgroundColor: colors.highlight.purple + '08', borderWidth: 2, borderColor: colors.highlight.purple }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+              <View style={[styles.quickInfoIconBg, { backgroundColor: colors.highlight.purple + '20' }]}>
+                <Ionicons name="repeat" size={22} color={colors.highlight.purple} />
+              </View>
+              <View style={{ marginLeft: 12 }}>
+                <Text style={[styles.sectionTitle, { marginBottom: 0, color: colors.highlight.purple }]}>
+                  Lịch định kỳ
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.neutral.textSecondary }}>
+                  {(bookingData as any).recurringInfo.recurrenceTypeDisplay || 
+                   ((bookingData as any).recurringInfo.recurrenceType === 'WEEKLY' ? 'Hàng tuần' : 'Hàng tháng')}
+                </Text>
+              </View>
             </View>
+            
             <InfoRow
               icon="calendar-outline"
-              label="Loại lặp lại"
-              value={(bookingData as any).recurringInfo.recurrenceTypeDisplay}
+              label="Lặp lại vào"
+              value={(bookingData as any).recurringInfo.recurrenceDaysDisplay || 'Chưa xác định'}
             />
             <View style={styles.divider} />
             <InfoRow
-              icon="list-outline"
-              label="Chu kỳ"
-              value={(bookingData as any).recurringInfo.recurrenceDaysDisplay}
+              icon="time-outline"
+              label="Giờ thực hiện"
+              value={(bookingData as any).recurringInfo.bookingTime?.substring(0, 5) || 
+                     bookingData.bookingTime?.substring(11, 16) || 'Chưa xác định'}
             />
             <View style={styles.divider} />
             <InfoRow
               icon="calendar-number-outline"
-              label="Thời gian"
-              value={`${(bookingData as any).recurringInfo.startDate} ${(bookingData as any).recurringInfo.endDate ? `đến ${(bookingData as any).recurringInfo.endDate}` : '(không giới hạn)'}`}
+              label="Khoảng thời gian"
+              value={`${(bookingData as any).recurringInfo.startDate || ''} ${(bookingData as any).recurringInfo.endDate ? `→ ${(bookingData as any).recurringInfo.endDate}` : '(không giới hạn)'}`}
             />
             <View style={styles.divider} />
             <InfoRow
-              icon="checkbox-outline"
-              label="Tổng số lịch đã tạo"
+              icon="layers-outline"
+              label="Lịch đã tạo"
               value={`${(bookingData as any).recurringInfo.totalGeneratedBookings || 0} lịch hẹn`}
               valueStyle={{ color: colors.feedback.success, fontWeight: '700' }}
             />
+            
+            {/* Ghi chú thanh toán */}
+            <View style={{ marginTop: 16, padding: 12, backgroundColor: colors.feedback.warning + '15', borderRadius: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                <Ionicons name="information-circle" size={18} color={colors.feedback.warning} style={{ marginRight: 8, marginTop: 1 }} />
+                <Text style={{ flex: 1, fontSize: 13, color: colors.feedback.warning, lineHeight: 18 }}>
+                  Bạn sẽ thanh toán sau mỗi lần thực hiện dịch vụ. Hệ thống sẽ tự động tạo lịch hẹn theo chu kỳ đã chọn.
+                </Text>
+              </View>
+            </View>
           </Animated.View>
         )}
 
@@ -434,6 +456,106 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
               value={`${(bookingData as any).multipleInfo.failedBookings || 0} lịch`}
               valueStyle={{ color: colors.feedback.error, fontWeight: '700' }}
             />
+            
+            {/* Tổng thanh toán cho multiple booking */}
+            {(bookingData as any).multipleInfo.formattedTotalAmount && (
+              <>
+                <View style={styles.divider} />
+                <InfoRow
+                  icon="cash-outline"
+                  label="Tổng thanh toán"
+                  value={(bookingData as any).multipleInfo.formattedTotalAmount}
+                  valueStyle={{ color: colors.highlight.teal, fontWeight: '700', fontSize: 16 }}
+                />
+              </>
+            )}
+          </Animated.View>
+        )}
+
+        {/* Multiple Bookings List - Danh sách các booking đã tạo */}
+        {(bookingData as any).isMultiple && (bookingData as any).multipleInfo?.bookings?.length > 0 && (
+          <Animated.View style={[styles.detailsCard, { opacity: fadeAnim }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+              <View style={[styles.quickInfoIconBg, { backgroundColor: colors.primary.navy + '15' }]}>
+                <Ionicons name="list-outline" size={20} color={colors.primary.navy} />
+              </View>
+              <View style={{ marginLeft: 12 }}>
+                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
+                  Danh sách {(bookingData as any).multipleInfo.totalBookingsCreated || 0} đơn hàng
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.neutral.textSecondary }}>
+                  Tất cả các đơn hàng đã được tạo thành công
+                </Text>
+              </View>
+            </View>
+            
+            {(bookingData as any).multipleInfo.bookings.map((booking: any, index: number) => (
+              <View 
+                key={booking.bookingId || index} 
+                style={{
+                  backgroundColor: colors.warm.beige,
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: index < (bookingData as any).multipleInfo.bookings.length - 1 ? 12 : 0,
+                  borderLeftWidth: 4,
+                  borderLeftColor: colors.highlight.teal,
+                }}
+              >
+                {/* Header: Mã đơn và thành tiền */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: colors.primary.navy }}>
+                      Đơn #{index + 1}: {booking.bookingCode || 'N/A'}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: colors.neutral.textSecondary, marginTop: 4 }}>
+                      {booking.bookingTime 
+                        ? new Date(booking.bookingTime).toLocaleDateString('vi-VN', {
+                            weekday: 'long',
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric'
+                          }) + ' - ' + new Date(booking.bookingTime).toLocaleTimeString('vi-VN', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                        : 'N/A'}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 12, color: colors.neutral.textSecondary }}>Thành tiền</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: colors.feedback.success }}>
+                      {booking.formattedTotalAmount || `${(booking.totalAmount || 0).toLocaleString('vi-VN')}₫`}
+                    </Text>
+                  </View>
+                </View>
+                
+                {/* Status badge */}
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{
+                    backgroundColor: booking.status === 'CONFIRMED' ? colors.feedback.success + '20' : 
+                                    booking.status === 'AWAITING_EMPLOYEE' ? colors.highlight.purple + '20' :
+                                    colors.feedback.warning + '20',
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 8,
+                  }}>
+                    <Text style={{
+                      fontSize: 11,
+                      fontWeight: '600',
+                      color: booking.status === 'CONFIRMED' ? colors.feedback.success : 
+                             booking.status === 'AWAITING_EMPLOYEE' ? colors.highlight.purple :
+                             colors.feedback.warning,
+                    }}>
+                      {booking.statusDisplay || 
+                       (booking.status === 'AWAITING_EMPLOYEE' ? 'Chờ phân công' : 
+                        booking.status === 'PENDING' ? 'Chờ xác nhận' :
+                        booking.status === 'CONFIRMED' ? 'Đã xác nhận' :
+                        booking.status || 'Đang xử lý')}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))}
           </Animated.View>
         )}
 
@@ -502,8 +624,15 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
             </>
           )}
           
-          {/* Show total price if available */}
-          {(bookingData.formattedTotalAmount || (bookingData as any).totalPrice) && (
+          {/* Show total price if available - special handling for recurring */}
+          {(bookingData as any).isRecurring ? (
+            <InfoRow
+              icon="cash-outline"
+              label="Thanh toán"
+              value="Thanh toán sau mỗi lần thực hiện"
+              valueStyle={{ color: colors.feedback.warning }}
+            />
+          ) : (bookingData.formattedTotalAmount || (bookingData as any).totalPrice) && (
             <InfoRow
               icon="cash-outline"
               label="Tổng tiền"

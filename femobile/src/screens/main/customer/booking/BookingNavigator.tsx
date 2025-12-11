@@ -99,7 +99,7 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
 
       if (response && response.addressId) {
         const addressData: LocationData = {
-          addressId: Number(response.addressId) || undefined,
+          addressId: response.addressId, // Keep as string - don't convert to number
           fullAddress: response.fullAddress,
           ward: response.ward,
           district: '', // DefaultAddressResponse doesn't have district
@@ -309,18 +309,34 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
         // Transform recurring response to match single booking format for success screen
         // Recurring API returns: { recurringBooking, generatedBookingIds, totalBookingsToBeCreated }
         const recurringBooking = recurringResponse.recurringBooking || recurringResponse;
+        
+        // Map recurringBookingDetails to bookingDetails/serviceDetails format
+        const serviceDetails = (recurringBooking.recurringBookingDetails || []).map((detail: any) => ({
+          service: detail.service,
+          quantity: detail.quantity,
+          pricePerUnit: detail.pricePerUnit,
+          formattedPricePerUnit: detail.formattedPricePerUnit,
+          subTotal: detail.subTotal,
+          formattedSubTotal: detail.formattedSubTotal,
+          selectedChoices: detail.selectedChoices || [],
+          formattedDuration: detail.formattedDuration || detail.duration || `${detail.service?.estimatedDurationHours || 2}h`,
+        }));
+        
         response = {
           bookingId: recurringBooking.recurringBookingId,
           customerId: recurringBooking.customerId,
           customerName: recurringBooking.customerName,
           address: recurringBooking.address,
-          bookingDetails: recurringBooking.recurringBookingDetails || [],
+          bookingDetails: serviceDetails,
+          serviceDetails: serviceDetails,
           totalPrice: recurringBooking.recurringBookingDetails?.reduce(
             (sum: number, detail: any) => sum + (detail.subTotal || 0), 0
           ) || 0,
           status: recurringBooking.status,
           statusDisplay: recurringBooking.statusDisplay,
           createdAt: recurringBooking.createdAt,
+          note: recurringBooking.note,
+          title: recurringBooking.title,
           // Add recurring-specific info
           isRecurring: true,
           recurringInfo: {
@@ -328,33 +344,48 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
             recurrenceTypeDisplay: recurringBooking.recurrenceTypeDisplay,
             recurrenceDays: recurringBooking.recurrenceDays,
             recurrenceDaysDisplay: recurringBooking.recurrenceDaysDisplay,
+            bookingTime: recurringBooking.bookingTime, // Add booking time
             startDate: recurringBooking.startDate,
             endDate: recurringBooking.endDate,
-            totalGeneratedBookings: recurringResponse.totalGeneratedBookings,
+            totalGeneratedBookings: recurringResponse.totalGeneratedBookings || recurringBooking.totalGeneratedBookings,
+            totalBookingsToBeCreated: recurringResponse.totalBookingsToBeCreated,
             generatedBookingIds: recurringResponse.generatedBookingIds,
+            upcomingBookings: recurringBooking.upcomingBookings,
           }
         };
       } else if (bookingMode === 'multiple') {
         console.log('📅 Creating multiple bookings for dates:', selectedDates.length);
         const multipleResponse: any = await bookingService.createMultipleBookings(bookingData, images);
-        console.log('📅 Multiple response:', multipleResponse);
+        console.log('📅 Multiple response:', JSON.stringify(multipleResponse, null, 2));
         
         // Transform multiple response to match single booking format for success screen
-        // Multiple API returns: { totalBookingsCreated, successfulBookings, failedBookings, bookings[], errors[] }
+        // Multiple API returns: { totalBookingsCreated, successfulBookings, failedBookings, bookings[], errors[], totalAmount, formattedTotalAmount }
         const firstBooking = multipleResponse.bookings?.[0] || {};
+        console.log('📅 First booking:', JSON.stringify(firstBooking, null, 2));
+        
         response = {
           bookingId: firstBooking.bookingId,
+          bookingCode: firstBooking.bookingCode,
           customerId: firstBooking.customerId,
           customerName: firstBooking.customerName,
-          address: firstBooking.address,
-          bookingDetails: firstBooking.bookingDetails || [],
-          totalPrice: multipleResponse.bookings?.reduce(
-            (sum: number, booking: any) => sum + (booking.totalPrice || 0), 0
+          // API returns customerInfo, not address
+          address: firstBooking.customerInfo || firstBooking.address,
+          customerInfo: firstBooking.customerInfo,
+          bookingDetails: firstBooking.bookingDetails || firstBooking.serviceDetails || [],
+          serviceDetails: firstBooking.serviceDetails,
+          totalPrice: multipleResponse.totalAmount || multipleResponse.bookings?.reduce(
+            (sum: number, booking: any) => sum + (booking.totalAmount || booking.totalPrice || 0), 0
           ) || 0,
+          totalAmount: multipleResponse.totalAmount,
+          formattedTotalAmount: multipleResponse.formattedTotalAmount,
           status: firstBooking.status,
           statusDisplay: firstBooking.statusDisplay,
           bookingTime: firstBooking.bookingTime,
           createdAt: firstBooking.createdAt,
+          title: firstBooking.title,
+          note: firstBooking.note,
+          paymentInfo: firstBooking.paymentInfo,
+          assignedEmployees: firstBooking.assignedEmployees || [],
           // Add multiple-specific info
           isMultiple: true,
           multipleInfo: {
@@ -363,8 +394,11 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
             failedBookings: multipleResponse.failedBookings,
             bookings: multipleResponse.bookings,
             errors: multipleResponse.errors,
+            totalAmount: multipleResponse.totalAmount,
+            formattedTotalAmount: multipleResponse.formattedTotalAmount,
           }
         };
+        console.log('📅 Transformed response for success screen:', JSON.stringify(response, null, 2));
       } else {
         response = await bookingService.createBooking(bookingData, images);
       }

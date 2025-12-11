@@ -278,11 +278,13 @@ class EmployeeAssignmentService {
       },
     );
 
-    if (!response.success || !response.data) {
+    // Check-in thành công nếu response.success === true HOẶC có data và status 200/201
+    // Điều này xử lý trường hợp API trả về data nhưng không có field "success"
+    if (response.success === false && !response.data) {
       throw new Error(response.message || 'Không thể check-in');
     }
 
-    return response.data;
+    return response.data as CheckInResponse;
   }
 
   async checkOut(
@@ -311,11 +313,13 @@ class EmployeeAssignmentService {
       },
     );
 
-    if (!response.success || !response.data) {
+    // Check-out thành công nếu response.success === true HOẶC có data và status 200/201
+    // Điều này xử lý trường hợp API trả về data nhưng không có field "success"
+    if (response.success === false && !response.data) {
       throw new Error(response.message || 'Không thể check-out');
     }
 
-    return response.data;
+    return response.data as CheckOutResponse;
   }
 
   /**

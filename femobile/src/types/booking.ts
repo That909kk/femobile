@@ -234,6 +234,15 @@ export interface BookingPaymentInfo {
   paidAt?: string | null;
 }
 
+// Fee item interface for booking - giống web
+export interface BookingFeeItem {
+  name: string;
+  type: string;
+  value: number;
+  amount: number;
+  systemSurcharge?: boolean;
+}
+
 export interface BookingResponse {
   bookingId: string;
   bookingCode: string;
@@ -250,6 +259,11 @@ export interface BookingResponse {
   imageUrls?: string[];
   isVerified?: boolean;
   cancelReason?: string;
+  adminComment?: string;
+  // Fee & Pricing fields - giống web
+  baseAmount?: number;
+  totalFees?: number;
+  fees?: BookingFeeItem[];
   address?: {
     addressId: string;
     fullAddress: string;

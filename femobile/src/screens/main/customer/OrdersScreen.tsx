@@ -44,7 +44,7 @@ interface Order {
   promotionDescription?: string;
 }
 
-type FilterTab = 'all' | 'upcoming' | 'inProgress' | 'completed' | 'cancelled';
+type FilterTab = 'all' | 'pending' | 'awaitingEmployee' | 'confirmed' | 'inProgress' | 'completed' | 'cancelled';
 
 interface BookingStatistics {
   PENDING?: number;
@@ -324,7 +324,9 @@ export const OrdersScreen = () => {
 
   const FILTER_STATUS_MAP: Record<FilterTab, BookingStatus[]> = {
     all: [],
-    upcoming: ['PENDING', 'AWAITING_EMPLOYEE', 'CONFIRMED'],
+    pending: ['PENDING'],
+    awaitingEmployee: ['AWAITING_EMPLOYEE'],
+    confirmed: ['CONFIRMED'],
     inProgress: ['IN_PROGRESS'],
     completed: ['COMPLETED'],
     cancelled: ['CANCELLED'],
@@ -332,13 +334,15 @@ export const OrdersScreen = () => {
 
   const FILTER_LABELS: Record<FilterTab, string> = {
     all: 'Tất cả',
-    upcoming: 'Sắp diễn ra',
+    pending: 'Chờ xử lý',
+    awaitingEmployee: 'Chờ phân công',
+    confirmed: 'Đã xác nhận',
     inProgress: 'Đang thực hiện',
     completed: 'Hoàn thành',
     cancelled: 'Đã hủy',
   };
 
-  const filterOrder: FilterTab[] = ['all', 'upcoming', 'inProgress', 'completed', 'cancelled'];
+  const filterOrder: FilterTab[] = ['all', 'pending', 'awaitingEmployee', 'confirmed', 'inProgress', 'completed', 'cancelled'];
 
   // Get total count from API response (totalElements) or statistics
   const getFilterCount = (filterKey: FilterTab): number => {
@@ -351,8 +355,14 @@ export const OrdersScreen = () => {
     const hasStatistics = Object.keys(statistics).length > 0;
     
     if (hasStatistics) {
-      if (filterKey === 'upcoming') {
-        return (statistics.PENDING || 0) + (statistics.AWAITING_EMPLOYEE || 0) + (statistics.CONFIRMED || 0);
+      if (filterKey === 'pending') {
+        return statistics.PENDING || 0;
+      }
+      if (filterKey === 'awaitingEmployee') {
+        return statistics.AWAITING_EMPLOYEE || 0;
+      }
+      if (filterKey === 'confirmed') {
+        return statistics.CONFIRMED || 0;
       }
       if (filterKey === 'inProgress') {
         return statistics.IN_PROGRESS || 0;
@@ -382,7 +392,7 @@ export const OrdersScreen = () => {
   const filterOptions = useMemo(() => {
     return filterOrder.map((key) => {
       if (key === 'all') {
-        // For "Tất cả": loaded count / total count from API
+        // For "Tất cả": loaded count / total count from API (supports load more)
         return {
           id: key,
           label: FILTER_LABELS[key],
@@ -390,12 +400,13 @@ export const OrdersScreen = () => {
           count: getFilterCount(key), // Total count from API
         };
       } else {
-        // For other filters: count of this status / total loaded orders
+        // For other filters: count from loaded orders only (no separate loading)
+        const loadedCount = getLoadedCount(key);
         return {
           id: key,
           label: FILTER_LABELS[key],
-          loadedCount: getLoadedCount(key), // Count of this specific status in loaded orders
-          count: orders.length, // Total loaded orders
+          loadedCount: loadedCount, // Count of this specific status in loaded orders
+          count: loadedCount, // Same as loaded (filtered from "all")
         };
       }
     });
@@ -910,6 +921,7 @@ export const OrdersScreen = () => {
         >
           {filterOptions.map((filter) => {
             const isActive = selectedFilter === filter.id;
+            const isAllFilter = filter.id === 'all';
             
             return (
               <TouchableOpacity
@@ -937,7 +949,7 @@ export const OrdersScreen = () => {
                     styles.filterCountText,
                     isActive && styles.activeFilterCountText
                   ]}>
-                    {filter.loadedCount}/{filter.count}
+                    {isAllFilter ? `${filter.loadedCount}/${filter.count}` : filter.count}
                   </Text>
                 </View>
               </TouchableOpacity>

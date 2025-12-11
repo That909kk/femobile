@@ -18,8 +18,10 @@ import { COLORS, UI } from '../../../constants';
 import { colors } from '../../../styles';
 import { 
   employeeScheduleService,
+  employeeAssignmentService,
   type TimeSlot,
   type AssignmentStatus as ScheduleAssignmentStatus,
+  type EmployeeAssignment,
 } from '../../../services';
 
 export const ScheduleScreen = () => {
@@ -35,9 +37,32 @@ export const ScheduleScreen = () => {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [datesWithJobs, setDatesWithJobs] = useState<Set<string>>(new Set());
+  // Map bookingCode -> assignmentId để check-in/check-out
+  const [assignmentMap, setAssignmentMap] = useState<Map<string, string>>(new Map());
   
   const employeeId =
     userInfo?.id || (user && 'employeeId' in user ? (user as any).employeeId : undefined);
+
+  // Load assignments để có map bookingCode -> assignmentId
+  const loadAssignments = useCallback(async () => {
+    if (!employeeId) return;
+    
+    try {
+      await ensureValidToken.ensureValidToken();
+      const assignments = await employeeAssignmentService.getAssignments(employeeId);
+      
+      const map = new Map<string, string>();
+      assignments.forEach((a: EmployeeAssignment) => {
+        if (a.bookingCode && a.assignmentId) {
+          map.set(a.bookingCode, a.assignmentId);
+        }
+      });
+      setAssignmentMap(map);
+      console.log('[ScheduleScreen] Loaded assignment map:', map.size, 'entries');
+    } catch (error) {
+      console.error('[ScheduleScreen] Error loading assignments:', error);
+    }
+  }, [employeeId, ensureValidToken]);
 
   const loadSchedule = useCallback(async (isInitial = false) => {
     if (!employeeId) {
@@ -78,6 +103,7 @@ export const ScheduleScreen = () => {
   useEffect(() => {
     if (employeeId) {
       loadSchedule(true);
+      loadAssignments(); // Load assignments để có map bookingCode -> assignmentId
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employeeId]);
@@ -131,7 +157,8 @@ export const ScheduleScreen = () => {
     setRefreshing(true);
     await Promise.all([
       loadSchedule(),
-      loadWeekSchedule()
+      loadWeekSchedule(),
+      loadAssignments()
     ]);
     setRefreshing(false);
   };
@@ -220,12 +247,90 @@ export const ScheduleScreen = () => {
     }
   };
 
-  const handleCheckIn = async (bookingCode: string) => {
-    Alert.alert('Thông báo', 'Tính năng check-in đang được phát triển');
+  const handleCheckIn = async (assignmentId: string, bookingCode: string) => {
+    if (!employeeId) {
+      Alert.alert('Lỗi', 'Không tìm thấy thông tin nhân viên');
+      return;
+    }
+
+    Alert.alert(
+      'Check-in',
+      `Bạn có chắc muốn check-in công việc #${bookingCode}?`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Check-in',
+          onPress: async () => {
+            try {
+              setActioningId(bookingCode);
+              await ensureValidToken.ensureValidToken();
+              await employeeAssignmentService.checkIn(assignmentId, employeeId);
+
+              Alert.alert('Thành công', 'Đã check-in thành công!', [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    loadSchedule();
+                    loadAssignments(); // Reload để cập nhật map
+                  },
+                },
+              ]);
+            } catch (error: any) {
+              console.error('Check-in error:', error);
+              Alert.alert(
+                'Lỗi',
+                error?.message || 'Không thể check-in. Vui lòng thử lại.',
+              );
+            } finally {
+              setActioningId(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
-  const handleCheckOut = async (bookingCode: string) => {
-    Alert.alert('Thông báo', 'Tính năng check-out đang được phát triển');
+  const handleCheckOut = async (assignmentId: string, bookingCode: string) => {
+    if (!employeeId) {
+      Alert.alert('Lỗi', 'Không tìm thấy thông tin nhân viên');
+      return;
+    }
+
+    Alert.alert(
+      'Check-out',
+      `Bạn có chắc muốn check-out công việc #${bookingCode}?`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Check-out',
+          onPress: async () => {
+            try {
+              setActioningId(bookingCode);
+              await ensureValidToken.ensureValidToken();
+              await employeeAssignmentService.checkOut(assignmentId, employeeId);
+
+              Alert.alert('Thành công', 'Đã check-out thành công!', [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    loadSchedule();
+                    loadAssignments(); // Reload để cập nhật map
+                  },
+                },
+              ]);
+            } catch (error: any) {
+              console.error('Check-out error:', error);
+              Alert.alert(
+                'Lỗi',
+                error?.message || 'Không thể check-out. Vui lòng thử lại.',
+              );
+            } finally {
+              setActioningId(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleCancelAssignment = async (bookingCode: string) => {
@@ -315,7 +420,14 @@ export const ScheduleScreen = () => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionButton, styles.primaryButton]}
-                onPress={() => handleCheckIn(timeSlot.bookingCode!)}
+                onPress={() => {
+                  const assignmentId = assignmentMap.get(timeSlot.bookingCode!);
+                  if (assignmentId) {
+                    handleCheckIn(assignmentId, timeSlot.bookingCode!);
+                  } else {
+                    Alert.alert('Lỗi', 'Không tìm thấy thông tin công việc. Vui lòng tải lại trang.');
+                  }
+                }}
               >
                 <Ionicons name="play-circle" size={18} color="#fff" />
                 <Text style={[styles.actionButtonText, { color: '#fff' }]}>Check-in</Text>
@@ -326,7 +438,14 @@ export const ScheduleScreen = () => {
           {!isActioning && timeSlot.status === 'IN_PROGRESS' && timeSlot.bookingCode && (
             <TouchableOpacity
               style={[styles.actionButton, styles.successButton]}
-              onPress={() => handleCheckOut(timeSlot.bookingCode!)}
+              onPress={() => {
+                const assignmentId = assignmentMap.get(timeSlot.bookingCode!);
+                if (assignmentId) {
+                  handleCheckOut(assignmentId, timeSlot.bookingCode!);
+                } else {
+                  Alert.alert('Lỗi', 'Không tìm thấy thông tin công việc. Vui lòng tải lại trang.');
+                }
+              }}
             >
               <Ionicons name="checkmark-circle" size={18} color="#fff" />
               <Text style={[styles.actionButtonText, { color: '#fff' }]}>Check-out</Text>

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   TouchableOpacity,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -20,6 +21,7 @@ import { useStaticData } from '../../hooks/useStaticData';
 import { COLORS, UI, VALIDATION } from '../../constants';
 import { colors, typography, spacing, borderRadius, shadows, responsive, responsiveSpacing, responsiveFontSize } from '../../styles';
 import type { RootStackParamList, UserRole } from '../../types/auth';
+import addressService, { Province, Commune } from '../../services/addressService';
 
 type RegisterScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Register'>;
 
@@ -36,10 +38,20 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     phoneNumber: '',
     password: '',
     confirmPassword: '',
+    // Address fields - giống web
+    provinceCode: '',
+    communeCode: '',
+    streetAddress: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  
+  // Address data state
+  const [provinces, setProvinces] = useState<Province[]>([]);
+  const [communes, setCommunes] = useState<Commune[]>([]);
+  const [loadingProvinces, setLoadingProvinces] = useState(false);
+  const [loadingCommunes, setLoadingCommunes] = useState(false);
   
   // Refs for input fields
   const fullNameRef = useRef<TextInput>(null);
@@ -48,9 +60,48 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const phoneNumberRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
+  const streetAddressRef = useRef<TextInput>(null);
   
   const { register, loading, error } = useAuth();
   const { data: staticData } = useStaticData('register');
+  
+  // Load provinces on mount
+  useEffect(() => {
+    const loadProvinces = async () => {
+      setLoadingProvinces(true);
+      try {
+        const data = await addressService.getProvinces();
+        setProvinces(data);
+      } catch (error) {
+        console.error('Failed to load provinces:', error);
+      } finally {
+        setLoadingProvinces(false);
+      }
+    };
+    loadProvinces();
+  }, []);
+  
+  // Load communes when province changes
+  useEffect(() => {
+    if (formData.provinceCode) {
+      const loadCommunes = async () => {
+        setLoadingCommunes(true);
+        setCommunes([]);
+        setFormData(prev => ({ ...prev, communeCode: '' }));
+        try {
+          const data = await addressService.getCommunesByProvince(formData.provinceCode);
+          setCommunes(data);
+        } catch (error) {
+          console.error('Failed to load communes:', error);
+        } finally {
+          setLoadingCommunes(false);
+        }
+      };
+      loadCommunes();
+    } else {
+      setCommunes([]);
+    }
+  }, [formData.provinceCode]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -97,6 +148,21 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       newErrors.confirmPassword = staticData?.messages?.validation?.passwords_not_match || 'Mật khẩu không khớp';
     }
     
+    // Address validation - giống web
+    if (!formData.provinceCode) {
+      newErrors.provinceCode = 'Vui lòng chọn Tỉnh/Thành phố';
+    }
+    
+    if (!formData.communeCode) {
+      newErrors.communeCode = 'Vui lòng chọn Phường/Xã';
+    }
+    
+    if (!formData.streetAddress.trim()) {
+      newErrors.streetAddress = 'Vui lòng nhập số nhà, tên đường';
+    } else if (formData.streetAddress.length > 200) {
+      newErrors.streetAddress = 'Địa chỉ không được vượt quá 200 ký tự';
+    }
+    
     if (!acceptTerms) {
       newErrors.terms = staticData?.messages?.validation?.terms_required || 'Bạn phải đồng ý với điều khoản dịch vụ';
     }
@@ -111,6 +177,17 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     }
 
     try {
+      // Lấy thông tin địa chỉ - giống web
+      const selectedProvince = provinces.find(p => p.code === formData.provinceCode);
+      const selectedCommune = communes.find(c => c.code === formData.communeCode);
+      
+      // Format full address
+      const fullAddress = [
+        formData.streetAddress.trim(),
+        selectedCommune?.name || '',
+        selectedProvince?.name || ''
+      ].filter(Boolean).join(', ');
+      
       await register({
         role: formData.role as UserRole,
         fullName: formData.fullName.trim(),
@@ -118,11 +195,20 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         email: formData.email.trim(),
         phoneNumber: formData.phoneNumber.trim(),
         password: formData.password,
+        // Gửi address data - giống web
+        address: {
+          fullAddress: fullAddress,
+          ward: selectedCommune?.name || '',
+          city: selectedProvince?.name || '',
+          latitude: null,
+          longitude: null
+        }
       });
       
+      // Thành công - navigate to VerifyOTP (giống web navigate to /verify-email)
       Alert.alert(
         staticData?.messages?.alert_success || 'Thành công',
-        staticData?.messages?.register_success || 'Đăng ký thành công!',
+        staticData?.messages?.register_success || 'Đăng ký thành công! Vui lòng xác thực email để hoàn tất.',
         [
           {
             text: staticData?.messages?.alert_ok || 'Đồng ý',
@@ -279,9 +365,59 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
               secureTextEntry
               error={errors.confirmPassword}
               leftIcon="lock-closed"
-              returnKeyType="done"
-              onSubmitEditing={handleRegister}
+              returnKeyType="next"
+              onSubmitEditing={() => streetAddressRef.current?.focus()}
+              blurOnSubmit={false}
             />
+
+            {/* Address Section - giống web */}
+            <View style={styles.addressSection}>
+              <View style={styles.addressHeader}>
+                <Ionicons name="location" size={responsive.moderateScale(20)} color={colors.highlight.teal} />
+                <Text style={styles.addressTitle}>Địa chỉ</Text>
+              </View>
+              
+              {/* Province Select */}
+              <Select
+                label="Tỉnh/Thành phố"
+                value={formData.provinceCode}
+                options={provinces.map(p => ({ label: p.name, value: p.code }))}
+                onSelect={(value) => handleInputChange('provinceCode', value)}
+                error={errors.provinceCode}
+                placeholder={loadingProvinces ? 'Đang tải...' : 'Chọn Tỉnh/Thành phố'}
+                disabled={loadingProvinces}
+              />
+              
+              {/* Commune Select */}
+              <Select
+                label="Phường/Xã"
+                value={formData.communeCode}
+                options={communes.map(c => ({ label: c.name, value: c.code }))}
+                onSelect={(value) => handleInputChange('communeCode', value)}
+                error={errors.communeCode}
+                placeholder={
+                  !formData.provinceCode 
+                    ? 'Vui lòng chọn Tỉnh/Thành phố trước' 
+                    : loadingCommunes 
+                      ? 'Đang tải...' 
+                      : 'Chọn Phường/Xã'
+                }
+                disabled={!formData.provinceCode || loadingCommunes}
+              />
+              
+              {/* Street Address Input */}
+              <Input
+                ref={streetAddressRef}
+                label="Số nhà, tên đường"
+                value={formData.streetAddress}
+                onChangeText={(value) => handleInputChange('streetAddress', value)}
+                placeholder="VD: 123 Nguyễn Văn A"
+                error={errors.streetAddress}
+                leftIcon="home"
+                returnKeyType="done"
+                onSubmitEditing={handleRegister}
+              />
+            </View>
 
             {/* Terms and Conditions Checkbox */}
             <View style={styles.termsContainer}>
@@ -405,6 +541,27 @@ const styles = StyleSheet.create({
     marginBottom: responsiveSpacing.lg,
     ...shadows.card,
   },
+  
+  // Address Section Styles
+  addressSection: {
+    marginTop: responsiveSpacing.md,
+    marginBottom: responsiveSpacing.md,
+    paddingTop: responsiveSpacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.neutral.border,
+  },
+  addressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: responsiveSpacing.md,
+  },
+  addressTitle: {
+    fontSize: responsiveFontSize.body,
+    fontWeight: '600',
+    color: colors.primary.navy,
+    marginLeft: responsiveSpacing.sm,
+  },
+  
   termsContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',

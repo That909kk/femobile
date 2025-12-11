@@ -197,7 +197,8 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
     if (!state.currentRequestId) return;
 
     try {
-      set({ isProcessing: true });
+      // Reset isRecording và set isProcessing
+      set({ isRecording: false, isProcessing: true });
 
       const response = await voiceBookingService.continueVoiceBooking(
         state.currentRequestId,
@@ -210,6 +211,7 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
     } catch (error: any) {
       console.error('[VoiceBookingStore] Error continuing with audio:', error);
       set({
+        isRecording: false,
         isProcessing: false,
         error: error.message || 'Có lỗi xảy ra. Vui lòng thử lại.',
       });
@@ -382,9 +384,16 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
       speechClarificationUrl: response.speech?.clarification?.audioUrl,
     });
 
-    // Cập nhật transcript
+    // Cập nhật transcript và thêm user message (giống web)
     if (response.transcript) {
       set({ transcript: response.transcript });
+      
+      // Thêm user message với transcript - giống web
+      // Kiểm tra để tránh duplicate
+      const lastMessage = state.messages[state.messages.length - 1];
+      if (!lastMessage || lastMessage.type !== 'user' || lastMessage.content !== response.transcript) {
+        get().addUserMessage(response.transcript);
+      }
     }
 
     // Cập nhật status
