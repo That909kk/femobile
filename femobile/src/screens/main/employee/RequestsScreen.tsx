@@ -137,11 +137,9 @@ export const RequestsScreen = () => {
           break;
         case 'call':
           // In a real app, this would initiate a phone call
-          console.log('Call customer for request:', requestId);
           break;
         case 'navigate':
           // In a real app, this would open maps/navigation
-          console.log('Navigate to customer address:', requestId);
           break;
         case 'cancel':
           Alert.alert(
@@ -187,7 +185,8 @@ export const RequestsScreen = () => {
           );
           break;
         default:
-          console.log(action, requestId);
+          // Unknown action
+          break;
       }
     } catch (error) {
       console.error('Error handling request action:', error);

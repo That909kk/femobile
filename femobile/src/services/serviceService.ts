@@ -221,16 +221,10 @@ class ServiceService {
     ward: string;
     city: string;
   }) {
-    console.log('[getSuitableEmployees] Calling API with params:', params);
-    
     // Build URL manually without encoding Vietnamese characters
     const url = `${this.BASE_PATH}/employee/suitable?serviceId=${params.serviceId}&bookingTime=${params.bookingTime}&ward=${params.ward}&city=${params.city}`;
     
-    console.log('[getSuitableEmployees] URL:', url);
-    
     const response = await httpClient.get<SuitableEmployee[]>(url);
-    
-    console.log('[getSuitableEmployees] API response:', response);
     return response;
   }
 

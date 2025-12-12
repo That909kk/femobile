@@ -22,17 +22,12 @@ export const ConversationUnreadBadge: React.FC<ConversationUnreadBadgeProps> = (
     10000, // Refresh every 10 seconds
   );
 
-  console.log('🔔 ConversationUnreadBadge:', { conversationId, unreadCount, enabled });
-
   if (unreadCount <= 0) {
-    console.log('🔔 Badge hidden - no unread messages');
     return null;
   }
 
   // Format count: show "99+" if more than 99
   const displayCount = unreadCount > 99 ? '99+' : unreadCount.toString();
-
-  console.log('🔔 Badge showing:', displayCount);
 
   return (
     <View style={styles.badge}>

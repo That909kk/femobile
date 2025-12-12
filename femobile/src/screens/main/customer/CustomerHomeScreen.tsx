@@ -136,18 +136,13 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
   // Refresh unread count when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      console.log('[CustomerHomeScreen] 🔔 Screen focused, current unreadCount before fetch:', unreadCount);
-      getUnreadCount().then(() => {
-        console.log('[CustomerHomeScreen] 🔔 After getUnreadCount, checking store...');
-        const freshCount = useNotificationStore.getState().unreadCount;
-        console.log('[CustomerHomeScreen] 🔔 Fresh unreadCount from store:', freshCount);
-      });
+      getUnreadCount();
     }, [getUnreadCount]),
   );
 
   // Debug: Log unreadCount when it changes
   useEffect(() => {
-    console.log('[CustomerHomeScreen] 🔔 Unread count:', unreadCount);
+    // Unread count updated silently
   }, [unreadCount]);
 
   const loadInitialData = async () => {
@@ -170,7 +165,6 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
     try {
       const customerId = user && 'customerId' in user ? (user as any).customerId : undefined;
       if (!customerId) {
-        console.log('No customerId found, skipping upcoming bookings');
         return;
       }
 
@@ -191,7 +185,6 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
         }).slice(0, 3);
         
         setUpcomingBookings(upcoming);
-        console.log('📅 Loaded upcoming bookings:', upcoming.length);
       }
     } catch (error) {
       console.error('Error loading upcoming bookings:', error);
@@ -225,7 +218,6 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
       const customerId = user && 'customerId' in user ? (user as any).customerId : undefined;
       
       if (!customerId) {
-        console.log('No customerId found, skipping booking statistics');
         return;
       }
 
@@ -248,11 +240,6 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
       
       const startDateStr = formatDate(startDate);
       const endDateStr = formatDate(endDate);
-      
-      console.log('Loading booking statistics for current month:', {
-        startDate: startDateStr,
-        endDate: endDateStr,
-      });
 
       // Gọi API statistics với timeUnit=MONTH, startDate và endDate
       const response = await bookingService.getBookingStatistics(
@@ -262,8 +249,6 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
         endDateStr
       );
       
-      console.log('📊 Raw API response:', JSON.stringify(response, null, 2));
-      
       // bookingService.getBookingStatistics() đã return response.data
       // Vì vậy response ở đây chính là data: { timeUnit, startDate, endDate, totalBookings, countByStatus }
       // Cast to any để tránh lỗi TypeScript do type definition không khớp
@@ -272,9 +257,6 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
       if (data && data.countByStatus) {
         const stats = data.countByStatus;
         const totalBookings = data.totalBookings || 0;
-        
-        console.log('📊 Count by status:', stats);
-        console.log('📊 Total bookings:', totalBookings);
         
         // Tính tổng số đơn sắp diễn ra (PENDING + AWAITING_EMPLOYEE + CONFIRMED)
         const totalUpcoming = (stats.PENDING || 0) + (stats.AWAITING_EMPLOYEE || 0) + (stats.CONFIRMED || 0);
@@ -287,15 +269,6 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
           totalUpcoming,
           totalInProgress,
         });
-        
-        console.log('📊 ✅ Booking statistics set:', {
-          'Tổng số đơn': totalBookings,
-          'Sắp diễn ra': totalUpcoming,
-          'Đang thực hiện': totalInProgress,
-          'Raw stats': stats,
-        });
-      } else {
-        console.warn('📊 ⚠️ No valid stats data found in response:', response);
       }
     } catch (error) {
       console.error('Error loading booking statistics:', error);
@@ -376,7 +349,6 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
         <TouchableOpacity
           style={styles.notificationButton}
           onPress={() => {
-            console.log('[CustomerHomeScreen] 🔔 Notification bell tapped, unreadCount:', unreadCount);
             navigation.navigate('NotificationList');
           }}
           activeOpacity={0.7}
@@ -392,9 +364,7 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
                 {unreadCount > 99 ? '99+' : unreadCount}
               </Text>
             </View>
-          ) : (
-            console.log('[CustomerHomeScreen] 🔔 Badge hidden, unreadCount:', unreadCount) as any
-          )}
+          ) : null}
         </TouchableOpacity>
       </View>
 

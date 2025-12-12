@@ -35,15 +35,7 @@ export const useUnreadCountByConversation = (
     : null;
 
   const fetchUnreadCount = useCallback(async () => {
-    console.log('[useUnreadCountByConversation] Fetching:', {
-      conversationId,
-      receiverId,
-      enabled,
-      role,
-    });
-
     if (!conversationId || !receiverId || !enabled) {
-      console.log('[useUnreadCountByConversation] Skipping fetch - missing params');
       setUnreadCount(0);
       return;
     }
@@ -51,10 +43,8 @@ export const useUnreadCountByConversation = (
     try {
       setLoading(true);
       const count = await chatService.getUnreadCountByConversation(conversationId, receiverId);
-      console.log('[useUnreadCountByConversation] Result:', { conversationId, count });
       setUnreadCount(count);
     } catch (error) {
-      console.error('[useUnreadCountByConversation] Error:', error);
       setUnreadCount(0);
     } finally {
       setLoading(false);
@@ -114,15 +104,7 @@ export const useTotalUnreadCount = (
     : null;
 
   const fetchUnreadCount = useCallback(async () => {
-    console.log('[useTotalUnreadCount] Fetching:', {
-      receiverId,
-      enabled,
-      role,
-      hasUser: !!user,
-    });
-
     if (!receiverId || !enabled) {
-      console.log('[useTotalUnreadCount] Skipping fetch - missing params');
       setUnreadCount(0);
       return;
     }
@@ -130,10 +112,8 @@ export const useTotalUnreadCount = (
     try {
       setLoading(true);
       const count = await chatService.getTotalUnreadCount(receiverId);
-      console.log('[useTotalUnreadCount] Result:', { receiverId, count });
       setUnreadCount(count);
     } catch (error) {
-      console.error('[useTotalUnreadCount] Error:', error);
       setUnreadCount(0);
     } finally {
       setLoading(false);
@@ -192,7 +172,6 @@ export const useMarkAsRead = () => {
 
       try {
         const markedCount = await chatService.markConversationAsRead(conversationId, receiverId);
-        console.log(`[useMarkAsRead] Marked ${markedCount} messages as read in ${conversationId}`);
         
         // Update chatStore to sync with bottom tab badge
         if (markedCount > 0) {
@@ -217,7 +196,6 @@ export const useMarkAsRead = () => {
 
     try {
       const markedCount = await chatService.markAllAsRead(receiverId);
-      console.log(`[useMarkAsRead] Marked ${markedCount} messages as read across all conversations`);
       
       // Update chatStore - set to 0 since all are read
       if (markedCount > 0) {

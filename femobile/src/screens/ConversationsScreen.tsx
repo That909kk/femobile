@@ -57,8 +57,6 @@ export const ConversationsScreen: React.FC = () => {
 
   // Handler cho conversation summary từ WebSocket (giống web)
   const handleConversationSummary = useCallback((summary: ConversationSummaryDTO) => {
-    console.log('[ConversationsScreen] Received conversation summary:', summary);
-    
     // Nếu tin nhắn được gửi bởi chính mình (summary.senderId === accountId), bỏ qua unread count
     const isMyMessage = summary.senderId === accountId;
     
@@ -98,7 +96,6 @@ export const ConversationsScreen: React.FC = () => {
       try {
         // Kết nối WebSocket nếu chưa kết nối
         if (!websocketService.isActive()) {
-          console.log('[ConversationsScreen] Connecting WebSocket...');
           await websocketService.connect();
         }
         
@@ -106,7 +103,6 @@ export const ConversationsScreen: React.FC = () => {
         
         // Subscribe to conversation summary
         if (websocketService.isActive() && !summarySubscribedRef.current) {
-          console.log('[ConversationsScreen] Subscribing to summary for:', senderId);
           unsubscribe = websocketService.subscribeToConversationSummary(senderId, handleConversationSummary);
           summarySubscribedRef.current = true;
         }

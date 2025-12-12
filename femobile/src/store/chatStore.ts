@@ -50,10 +50,9 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   fetchTotalUnread: async (receiverId: string) => {
     try {
       const count = await chatService.getTotalUnreadCount(receiverId);
-      console.log('📬 ChatStore: Total unread count:', count);
       set({ totalUnread: count });
     } catch (error: any) {
-      console.error('❌ ChatStore: Error fetching unread count:', error);
+      // Silent fail
     }
   },
 
@@ -72,14 +71,8 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   // Backend trả về ARRAY trực tiếp, không wrap trong {success, data}
   fetchConversations: async (senderId: string, page = 0) => {
     try {
-      console.log('🔄 ChatStore: Fetching conversations for senderId:', senderId, 'page:', page);
       set({ loading: true, error: null });
       const conversations = await chatService.getConversationsBySender({ senderId, page, size: 20 });
-      
-      console.log('📦 ChatStore: Received conversations:', {
-        isArray: Array.isArray(conversations),
-        length: conversations?.length || 0,
-      });
       
       if (Array.isArray(conversations)) {
         set({
@@ -90,13 +83,10 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
           totalUnread: 0, // Will be calculated separately
           loading: false,
         });
-        console.log('✅ ChatStore: Conversations loaded successfully:', conversations.length);
       } else {
-        console.log('⚠️ ChatStore: Response is not an array');
         set({ loading: false });
       }
     } catch (error: any) {
-      console.error('❌ ChatStore: Error fetching conversations:', error);
       set({ error: error.message || 'Không thể tải danh sách hội thoại', loading: false });
     }
   },

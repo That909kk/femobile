@@ -33,12 +33,10 @@ class VoiceBookingWebSocketService {
    */
   async connect(): Promise<void> {
     if (this.isConnected) {
-      console.log('[VoiceBookingWS] Already connected');
       return;
     }
 
     if (this.isConnecting) {
-      console.log('[VoiceBookingWS] Already connecting, waiting...');
       return new Promise((resolve) => {
         const checkInterval = setInterval(() => {
           if (this.isConnected || !this.isConnecting) {
@@ -62,20 +60,12 @@ class VoiceBookingWebSocketService {
         // WebSocket endpoint: /ws/voice-booking
         const wsUrl = API_CONFIG.WEBSOCKET_URL + '/voice-booking';
 
-        console.log('[VoiceBookingWS] ===== CONNECTING =====');
-        console.log('[VoiceBookingWS] WS_BASE_URL:', API_CONFIG.WEBSOCKET_URL);
-        console.log('[VoiceBookingWS] Full WebSocket URL:', wsUrl);
-        console.log('[VoiceBookingWS] =====================');
-
         // Tạo SockJS socket
         const socket = new SockJS(wsUrl);
 
         // Tạo STOMP client
         this.client = new Client({
           webSocketFactory: () => socket as any,
-          debug: (str) => {
-            console.log('[VoiceBookingWS Debug]', str);
-          },
           reconnectDelay: 0,
           heartbeatIncoming: 10000,
           heartbeatOutgoing: 10000,
@@ -83,7 +73,6 @@ class VoiceBookingWebSocketService {
 
         // Timeout 5 giây (giảm từ 10s)
         const timeoutId = setTimeout(() => {
-          console.warn('[VoiceBookingWS] Connection timeout (non-critical)');
           this.isConnecting = false;
           if (this.client) {
             this.client.deactivate();
@@ -94,7 +83,6 @@ class VoiceBookingWebSocketService {
 
         // Xử lý kết nối thành công
         this.client.onConnect = (frame) => {
-          console.log('[VoiceBookingWS] Connected successfully', frame);
           this.isConnected = true;
           this.isConnecting = false;
           this.reconnectAttempts = 0;
@@ -126,7 +114,6 @@ class VoiceBookingWebSocketService {
 
         // Xử lý ngắt kết nối
         this.client.onDisconnect = () => {
-          console.log('[VoiceBookingWS] Disconnected');
           this.isConnected = false;
           this.subscriptions.clear();
           this.onDisconnectCallbacks.forEach(callback => callback());
@@ -134,9 +121,8 @@ class VoiceBookingWebSocketService {
           // Auto reconnect nếu chưa vượt quá số lần thử
           if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
-            console.log(`[VoiceBookingWS] Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
             setTimeout(() => {
-              this.connect().catch(console.error);
+              this.connect().catch(() => {});
             }, this.reconnectDelay);
           }
         };
@@ -145,7 +131,6 @@ class VoiceBookingWebSocketService {
         this.client.activate();
       } catch (error) {
         this.isConnecting = false;
-        console.error('[VoiceBookingWS] Connection error:', error);
         reject(error);
       }
     });
@@ -157,7 +142,6 @@ class VoiceBookingWebSocketService {
    */
   subscribeToRequest(requestId: string, callback: VoiceBookingEventCallback): void {
     if (!this.isConnected || !this.client) {
-      console.warn('[VoiceBookingWS] Not connected, skipping WebSocket subscription (using REST API only)');
       // Không tự động kết nối - WebSocket là optional
       return;
     }
@@ -172,22 +156,18 @@ class VoiceBookingWebSocketService {
 
     // Nếu đã subscribe rồi thì không subscribe lại
     if (this.subscriptions.has(requestId)) {
-      console.log('[VoiceBookingWS] Already subscribed to', topic);
       return;
     }
-
-    console.log('[VoiceBookingWS] Subscribing to', topic);
 
     const subscription = this.client.subscribe(topic, (message: IMessage) => {
       try {
         const event: VoiceBookingEventPayload = JSON.parse(message.body);
-        console.log('[VoiceBookingWS] Received event from', topic, event);
 
         // Gọi tất cả callbacks cho requestId này
         const handlers = this.eventHandlers.get(requestId) || [];
         handlers.forEach(handler => handler(event));
       } catch (error) {
-        console.error('[VoiceBookingWS] Error parsing message:', error);
+        // Parse error - ignore
       }
     });
 
@@ -200,7 +180,6 @@ class VoiceBookingWebSocketService {
   unsubscribeFromRequest(requestId: string): void {
     const subscription = this.subscriptions.get(requestId);
     if (subscription) {
-      console.log('[VoiceBookingWS] Unsubscribing from', requestId);
       subscription.unsubscribe();
       this.subscriptions.delete(requestId);
       this.eventHandlers.delete(requestId);
@@ -212,7 +191,6 @@ class VoiceBookingWebSocketService {
    */
   disconnect(): void {
     if (this.client) {
-      console.log('[VoiceBookingWS] Disconnecting...');
       this.subscriptions.forEach(sub => sub.unsubscribe());
       this.subscriptions.clear();
       this.eventHandlers.clear();

@@ -58,28 +58,16 @@ export const ConversationListScreen: React.FC = () => {
 
   // Debug logging
   useEffect(() => {
-    console.log('📊 ConversationList: Unread count status:', {
-      senderId,
-      totalUnread,
-      hasSenderId: !!senderId,
-    });
+    // Unread count status monitoring (silent in production)
   }, [senderId, totalUnread]);
 
   // Debug userInfo
   useEffect(() => {
-    console.log('👤 ConversationList: UserInfo changed:', {
-      hasUserInfo: !!userInfo,
-      senderId,
-      fullName: userInfo?.fullName,
-    });
+    // UserInfo monitoring (silent in production)
   }, [userInfo, senderId]);
 
   // Handler cho conversation summary từ WebSocket (giống web)
   const handleConversationSummary = useCallback((summary: ConversationSummaryDTO) => {
-    console.log('[ConversationList] Received conversation summary:', summary);
-    console.log('[ConversationList] Current accountId:', accountId);
-    console.log('[ConversationList] Summary senderId:', summary.senderId);
-    
     // Cập nhật lastMessage và lastMessageTime
     setConversationSummaries(prev => {
       const newMap = new Map(prev);
@@ -100,30 +88,23 @@ export const ConversationListScreen: React.FC = () => {
 
     const setupWebSocket = async () => {
       if (!senderId) {
-        console.log('[ConversationList] No senderId, skipping WebSocket setup');
         return;
       }
 
       try {
-        console.log('[ConversationList] Setting up WebSocket...');
-        
         // Kết nối WebSocket nếu chưa kết nối
         if (!websocketService.isActive()) {
-          console.log('[ConversationList] WebSocket not active, connecting...');
           await websocketService.connect();
         }
         
         setWsConnected(true);
-        console.log('[ConversationList] ✅ WebSocket connected');
         
         // Subscribe to conversation summary
         if (!summarySubscribedRef.current) {
-          console.log('[ConversationList] Subscribing to conversation summary for:', senderId);
           unsubscribe = websocketService.subscribeToConversationSummary(senderId, handleConversationSummary);
           summarySubscribedRef.current = true;
         }
       } catch (error) {
-        console.warn('[ConversationList] ⚠️ WebSocket unavailable:', error);
         setWsConnected(false);
       }
     };
@@ -141,27 +122,21 @@ export const ConversationListScreen: React.FC = () => {
   // Load conversations khi vào màn hình
   useFocusEffect(
     useCallback(() => {
-      console.log('📱 ConversationList: Screen focused, senderId:', senderId);
       if (senderId) {
         loadConversations();
-      } else {
-        console.log('⚠️ ConversationList: No senderId, skipping load');
       }
     }, [senderId])
   );
 
   const loadConversations = async () => {
     if (!senderId) {
-      console.log('❌ ConversationList: No senderId available');
       return;
     }
     
     try {
-      console.log('🔄 ConversationList: Loading conversations for senderId:', senderId);
       // Gọi API GET /api/v1/conversations/sender/{senderId}
       // Trả về TẤT CẢ conversations (kể cả đã xóa) với field canChat
       await fetchConversations(senderId, 0);
-      console.log('✅ ConversationList: Loaded', conversations.length, 'conversations');
     } catch (error) {
       console.error('❌ ConversationList: Error loading conversations:', error);
     }

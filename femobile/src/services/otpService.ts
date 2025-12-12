@@ -42,7 +42,6 @@ class OtpService {
    * POST /otp/email/send
    */
   async sendEmailOtp(data: SendOtpRequest): Promise<SendOtpResponse> {
-    console.log('[OtpService] Sending OTP to email:', data.email);
     const response = await httpClient.post<SendOtpResponse>('/otp/email/send', data);
     return response as SendOtpResponse;
   }
@@ -52,7 +51,6 @@ class OtpService {
    * POST /otp/email/verify
    */
   async verifyEmailOtp(data: VerifyOtpRequest): Promise<VerifyOtpResponse> {
-    console.log('[OtpService] Verifying OTP for email:', data.email);
     const response = await httpClient.post<VerifyOtpResponse>('/otp/email/verify', data);
     return response as VerifyOtpResponse;
   }
@@ -62,7 +60,6 @@ class OtpService {
    * GET /otp/email/resend-cooldown
    */
   async checkResendCooldown(email: string): Promise<ResendCooldownResponse> {
-    console.log('[OtpService] Checking resend cooldown for email:', email);
     const response = await httpClient.get<ResendCooldownResponse>('/otp/email/resend-cooldown', {
       params: { email }
     });

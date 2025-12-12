@@ -91,7 +91,6 @@ export const useWebSocketNotifications = (
    * Manual retry connection (resets error state)
    */
   const retry = useCallback(async () => {
-    console.log('[useWebSocketNotifications] Manual retry requested');
     setError(null);
     
     // Force disconnect first
@@ -148,7 +147,6 @@ export const useWebSocketNotifications = (
     const shouldConnect = autoConnect && accountId && role && status === 'disconnected';
     
     if (shouldConnect) {
-      console.log('[useWebSocketNotifications] Auto-connecting...', { accountId, role });
       connect();
     }
 

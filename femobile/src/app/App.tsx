@@ -22,8 +22,6 @@ const AppContent: React.FC = () => {
 
   // Callback to handle incoming WebSocket notifications
   const handleNotification = useCallback((notification: any) => {
-    console.log('[App] Received WebSocket notification:', notification);
-    
     // Add to notification store
     addWebSocketNotification(notification);
     
@@ -48,16 +46,7 @@ const AppContent: React.FC = () => {
 
   // Log WebSocket status changes
   useEffect(() => {
-    if (isAuthenticated) {
-      console.log('[App] WebSocket Notification Status:', status);
-      if (status === 'error' && error) {
-        console.error('[App] WebSocket Connection Failed:', error);
-        console.log('[App] To retry manually, call the retry() function');
-      }
-      if (status === 'connected') {
-        console.log('[App] ✅ WebSocket notifications connected successfully!');
-      }
-    }
+    // WebSocket status tracking for debugging if needed
   }, [status, error, isAuthenticated]);
 
   return (

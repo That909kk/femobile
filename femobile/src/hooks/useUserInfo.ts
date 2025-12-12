@@ -36,17 +36,6 @@ export const useUserInfo = (): UseUserInfoResult => {
         throw new Error('Unsupported user role');
       }
 
-      console.log('Attempting to fetch user info for:', { 
-        role, 
-        userId, 
-        user: user ? {
-          customerId: (user as any).customerId,
-          employeeId: (user as any).employeeId,
-          id: (user as any).id,
-          username: (user as any).username
-        } : null
-      });
-
       const info = await userInfoService.getUserInfo(role, userId);
       setUserInfo(info);
     } catch (err) {

@@ -96,17 +96,59 @@ export const NotificationsScreen: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const fetchNotifications = useCallback(async () => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+  // Load notifications - giống pattern trên web
+  useEffect(() => {
+    let isMounted = true;
 
-    try {
-      if (!refreshing) {
-        setLoading(true);
+    const loadNotifications = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
       }
 
+      try {
+        setLoading(true);
+        await ensureValidToken.ensureValidToken();
+
+        const response = await notificationService.getNotifications({
+          page: 0,
+          size: 50,
+          unreadOnly: filter === 'unread',
+        });
+
+        if (isMounted) {
+          setNotifications(response.data || []);
+        }
+
+        const count = await notificationService.getUnreadCount();
+        if (isMounted) {
+          setUnreadCount(count);
+        }
+      } catch (error) {
+        console.error('Fetch notifications error:', error);
+        if (isMounted) {
+          setNotifications([]);
+          setUnreadCount(0);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadNotifications();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user, filter]); // Chỉ depend vào user và filter
+
+  // Hàm reload notifications sau khi thực hiện action
+  const reloadNotifications = useCallback(async () => {
+    if (!user) return;
+    
+    try {
       await ensureValidToken.ensureValidToken();
 
       const response = await notificationService.getNotifications({
@@ -120,30 +162,24 @@ export const NotificationsScreen: React.FC = () => {
       const count = await notificationService.getUnreadCount();
       setUnreadCount(count);
     } catch (error) {
-      console.error('Fetch notifications error:', error);
-      // Không hiển thị alert nữa, chỉ set empty array
-      setNotifications([]);
-      setUnreadCount(0);
+      console.error('Reload notifications error:', error);
+    }
+  }, [user, filter]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await reloadNotifications();
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
-  }, [user, ensureValidToken, filter, refreshing]);
-
-  useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    fetchNotifications();
-  }, [fetchNotifications]);
+  }, [reloadNotifications]);
 
   const handleMarkAsRead = async (notificationId: string) => {
     try {
       await ensureValidToken.ensureValidToken();
       await notificationService.markAsRead(notificationId);
-      fetchNotifications();
+      await reloadNotifications();
     } catch (error: any) {
       console.error('Mark as read error:', error);
     }
@@ -154,7 +190,7 @@ export const NotificationsScreen: React.FC = () => {
       await ensureValidToken.ensureValidToken();
       await notificationService.markAllAsRead();
       Alert.alert('Thành công', 'Đã đánh dấu tất cả thông báo là đã đọc');
-      fetchNotifications();
+      await reloadNotifications();
     } catch (error: any) {
       console.error('Mark all as read error:', error);
       Alert.alert('Lỗi', 'Không thể đánh dấu tất cả đã đọc');
@@ -171,7 +207,7 @@ export const NotificationsScreen: React.FC = () => {
           try {
             await ensureValidToken.ensureValidToken();
             await notificationService.deleteNotification(notificationId);
-            fetchNotifications();
+            await reloadNotifications();
           } catch (error: any) {
             console.error('Delete notification error:', error);
             Alert.alert('Lỗi', 'Không thể xóa thông báo');

@@ -91,13 +91,6 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
   const [selectedProvinceCode, setSelectedProvinceCode] = useState<string>('');
 
   useEffect(() => {
-    console.log('🎯 LocationSelection mounted:', {
-      userInfo,
-      isAuthenticated,
-      hasAccessToken: !!accessToken,
-      timestamp: new Date().toISOString()
-    });
-    
     // Preload location permissions for faster GPS access
     preloadLocationPermissions();
     
@@ -107,46 +100,24 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
 
   // Debug auth state changes
   useEffect(() => {
-    console.log('🔄 Auth state changed:', {
-      isAuthenticated,
-      hasAccessToken: !!accessToken,
-      userInfoId: userInfo?.id,
-      timestamp: new Date().toISOString()
-    });
+    // Auth state monitoring (silent in production)
   }, [isAuthenticated, accessToken, userInfo]);
 
   useEffect(() => {
     // Use preloaded default address if available
     if (preloadedDefaultAddress) {
-      console.log('✅ Using preloaded default address:', preloadedDefaultAddress);
       setDefaultAddress(preloadedDefaultAddress);
       setHasTriedLoadingDefault(true);
     } else if (isAuthenticated && accessToken && !hasTriedLoadingDefault) {
-      console.log('🔐 No preloaded data, loading default address...', {
-        isAuthenticated,
-        hasAccessToken: !!accessToken,
-        userInfo: userInfo?.id,
-        timestamp: new Date().toISOString()
-      });
       loadDefaultAddress();
-    } else {
-      console.log('⚠️ Authentication not ready yet:', {
-        isAuthenticated,
-        hasAccessToken: !!accessToken,
-        userInfo: userInfo?.id,
-        hasPreloaded: !!preloadedDefaultAddress,
-        timestamp: new Date().toISOString()
-      });
     }
   }, [isAuthenticated, accessToken, userInfo, preloadedDefaultAddress]);
 
   useEffect(() => {
     // Auto-select appropriate option based on available data
     if (defaultAddress && selectedOption !== 'default') {
-      console.log('🎯 Auto-selecting default option');
       setSelectedOption('default');
     } else if (defaultAddress === null && selectedOption === 'default') {
-      console.log('🎯 Auto-switching to GPS option - no default address');
       setSelectedOption('gps');
     }
   }, [defaultAddress]);
@@ -155,7 +126,7 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
     try {
       await Location.getForegroundPermissionsAsync();
     } catch (error) {
-      console.log('Preload permissions failed:', error);
+      // Preload permissions failed silently
     }
   };
 
@@ -164,7 +135,6 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
     try {
       const provincesList = await addressService.getProvinces();
       setProvinces(provincesList);
-      console.log('✅ Loaded provinces:', provincesList.length);
     } catch (error) {
       console.error('❌ Error loading provinces:', error);
       Alert.alert('Lỗi', 'Không thể tải danh sách tỉnh/thành phố. Vui lòng thử lại.');
@@ -178,7 +148,6 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
     try {
       const communesList = await addressService.getCommunesByProvince(provinceCode);
       setCommunes(communesList);
-      console.log('✅ Loaded communes for province', provinceCode, ':', communesList.length);
     } catch (error) {
       console.error('❌ Error loading communes:', error);
       Alert.alert('Lỗi', 'Không thể tải danh sách phường/xã. Vui lòng thử lại.');
@@ -211,7 +180,6 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
   const loadDefaultAddress = async () => {
     // Prevent multiple concurrent calls
     if (loadingDefaultAddress || hasTriedLoadingDefault) {
-      console.log('🚫 Skipping loadDefaultAddress - already loading or tried');
       return;
     }
 
@@ -219,61 +187,32 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
       setLoadingDefaultAddress(true);
       setHasTriedLoadingDefault(true);
       
-      // Check token availability for debugging
+      // Check token availability
       let token = await SecureStore.getItemAsync(STORAGE_KEYS.ACCESS_TOKEN);
-      console.log('🔍 Initial token check:', {
-        hasToken: !!token,
-        tokenLength: token ? token.length : 0,
-        tokenPreview: token ? `${token.slice(0, 20)}...` : 'none'
-      });
       
       // If no token, wait and retry (authentication might still be in progress)
       if (!token) {
-        console.log('⏳ No token found, waiting for authentication...');
         await new Promise(resolve => setTimeout(resolve, 1500)); // Wait 1.5 seconds
         
         token = await SecureStore.getItemAsync(STORAGE_KEYS.ACCESS_TOKEN);
-        console.log('🔍 Retry token check:', {
-          hasToken: !!token,
-          tokenLength: token ? token.length : 0,
-          tokenPreview: token ? `${token.slice(0, 20)}...` : 'none'
-        });
         
         if (!token) {
-          console.log('❌ Still no access token found after retry');
           setDefaultAddress(null);
           return;
         }
       }
       
-      console.log('Loading default address for user:', userInfo?.id);
-      console.log('API Base URL:', process.env.EXPO_PUBLIC_API_BASE_URL);
-      console.log('User Info:', {
-        id: userInfo?.id,
-        roles: userInfo?.roles,
-        fullUserInfo: userInfo
-      });
-      
       // Try multiple sources for customerId
       const customerId = userInfo?.id || (authUser as any)?.customerId;
-      console.log('🔍 Customer ID sources:', {
-        userInfoId: userInfo?.id,
-        authUserCustomerId: (authUser as any)?.customerId,
-        finalCustomerId: customerId
-      });
       
       if (!customerId) {
-        console.log('❌ No customerId available from any source');
         setDefaultAddress(null);
         return;
       }
       
-      console.log('Using customerId:', customerId);
       const response = await bookingService.getDefaultAddress(customerId);
-      console.log('Default address API response:', response);
 
       if (!response) {
-        console.log('ℹ️ API returned no default address');
         setDefaultAddress(null);
         return;
       }
@@ -297,7 +236,6 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
       }
 
       setDefaultAddress(addressData);
-      console.log('Default address loaded successfully:', addressData);
     } catch (error) {
       console.error('Error loading default address:', error);
       setDefaultAddress(null);
@@ -331,8 +269,6 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
         setGettingLocation(false);
         return;
       }
-
-      console.log('Getting current location...');
       
       // Try to get last known location first for faster loading
       let location;
@@ -344,10 +280,9 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
         
         if (lastKnownLocation) {
           location = lastKnownLocation;
-          console.log('Using cached location:', location.coords);
         }
       } catch (error) {
-        console.log('No cached location available');
+        // No cached location available
       }
 
       // If no cached location, get fresh position with optimized settings
@@ -355,7 +290,6 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
         location = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced, // Faster than High
         });
-        console.log('Got fresh location:', location.coords);
       }
 
       const { latitude, longitude } = location.coords;
@@ -375,8 +309,6 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
           longitude,
         });
 
-        console.log('Reverse geocoded address:', address);
-
         const locationData: LocationData = {
           fullAddress: [
             address.name,
@@ -394,10 +326,7 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
 
         setCurrentLocation(locationData);
         setCachedLocation(locationData);
-        console.log('Address resolved and updated:', locationData);
       } catch (geocodeError) {
-        console.log('Reverse geocoding failed:', geocodeError);
-        
         const coordinateLocationData: LocationData = {
           fullAddress: `Tọa độ: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
           ward: '',
@@ -421,7 +350,6 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
 
   const handleMapPress = async (event: any) => {
     const { latitude, longitude } = event.nativeEvent.coordinate;
-    console.log('Map pressed at:', { latitude, longitude });
     
     setLoading(true);
     try {

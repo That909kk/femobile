@@ -78,14 +78,10 @@ export const EmployeeDashboard: React.FC = () => {
   
   const userAvatar = userInfo?.avatar || (user && 'avatar' in user ? (user as any).avatar : undefined);
   const userFullName = userInfo?.fullName || user?.fullName || user?.username || 'Nhân viên';
-  
-  console.log('[EmployeeDashboard] 🔑 EmployeeId:', employeeId);
-  console.log('[EmployeeDashboard] 👤 User:', user);
 
   // Refresh unread count when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      console.log('[EmployeeHomeScreen] 🔔 Screen focused, refreshing unread count');
       getUnreadCount();
     }, [getUnreadCount]),
   );
@@ -119,8 +115,6 @@ export const EmployeeDashboard: React.FC = () => {
         sort: 'scheduledDate,asc',
       });
 
-      console.log('[EmployeeDashboard] 📊 API Response - Assignments:', assignmentData?.length || 0);
-
       setAssignments(assignmentData || []);
       
       // Tính toán statistics từ assignments data (fallback vì API statistics chưa có)
@@ -142,13 +136,6 @@ export const EmployeeDashboard: React.FC = () => {
         totalRevenue,
       });
 
-      console.log('[EmployeeDashboard] 📊 Statistics calculated:', {
-        todayCount: todayAssignments.length,
-        upcomingCount: upcomingAssignments.length,
-        inProgressCount: inProgressAssignments.length,
-        completedCount: completedAssignments.length,
-        totalRevenue,
-      });
       hasServerError.current = false; // Reset error flag khi thành công
     } catch (error: any) {
       console.error('Employee dashboard data error:', error);
@@ -329,7 +316,6 @@ export const EmployeeDashboard: React.FC = () => {
         <TouchableOpacity
           style={styles.notificationButton}
           onPress={() => {
-            console.log('[EmployeeHomeScreen] 🔔 Notification bell tapped, unreadCount:', unreadCount);
             navigation.navigate('EmployeeNotifications');
           }}
           activeOpacity={0.7}
@@ -345,9 +331,7 @@ export const EmployeeDashboard: React.FC = () => {
                 {unreadCount > 99 ? '99+' : unreadCount}
               </Text>
             </View>
-          ) : (
-            console.log('[EmployeeHomeScreen] 🔔 Badge hidden, unreadCount:', unreadCount) as any
-          )}
+          ) : null}
         </TouchableOpacity>
       </View>
 

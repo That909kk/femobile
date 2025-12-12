@@ -8,21 +8,38 @@ import {
   RefreshControl,
   Alert,
   ActivityIndicator,
+  Modal,
+  Switch,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Button } from '../../../components';
 import { useAuth, useEnsureValidToken, useUserInfo } from '../../../hooks';
 import { COLORS, UI } from '../../../constants';
 import { colors } from '../../../styles';
 import { 
   employeeScheduleService,
-  employeeAssignmentService,
+  workingHoursService,
   type TimeSlot,
   type AssignmentStatus as ScheduleAssignmentStatus,
-  type EmployeeAssignment,
+  type WorkingHours,
+  type DayOfWeek,
+  DAY_OF_WEEK_LABELS,
+  DAY_ORDER,
 } from '../../../services';
+
+type TabType = 'schedule' | 'working-hours';
+
+interface EditFormState {
+  startTime: string;
+  endTime: string;
+  isWorkingDay: boolean;
+  breakStartTime: string;
+  breakEndTime: string;
+}
 
 export const ScheduleScreen = () => {
   const { user } = useAuth();
@@ -35,34 +52,165 @@ export const ScheduleScreen = () => {
   const [initialLoading, setInitialLoading] = useState(true); // Loading lần đầu
   const [dateLoading, setDateLoading] = useState(false); // Loading khi đổi ngày
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-  const [actioningId, setActioningId] = useState<string | null>(null);
   const [datesWithJobs, setDatesWithJobs] = useState<Set<string>>(new Set());
-  // Map bookingCode -> assignmentId để check-in/check-out
-  const [assignmentMap, setAssignmentMap] = useState<Map<string, string>>(new Map());
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState<TabType>('schedule');
+  
+  // Working hours state
+  const [workingHours, setWorkingHours] = useState<WorkingHours[]>([]);
+  const [workingHoursLoading, setWorkingHoursLoading] = useState(false);
+  const [savingWorkingHours, setSavingWorkingHours] = useState(false);
+  const [editingDay, setEditingDay] = useState<DayOfWeek | null>(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editForm, setEditForm] = useState<EditFormState>({
+    startTime: '08:00',
+    endTime: '18:00',
+    isWorkingDay: true,
+    breakStartTime: '12:00',
+    breakEndTime: '13:00'
+  });
+  
+  // Time picker state
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [timePickerField, setTimePickerField] = useState<keyof EditFormState | null>(null);
+  const [tempTime, setTempTime] = useState(new Date());
+  
+
   
   const employeeId =
     userInfo?.id || (user && 'employeeId' in user ? (user as any).employeeId : undefined);
 
-  // Load assignments để có map bookingCode -> assignmentId
-  const loadAssignments = useCallback(async () => {
+  // Load working hours
+  const loadWorkingHours = useCallback(async () => {
     if (!employeeId) return;
     
     try {
+      setWorkingHoursLoading(true);
       await ensureValidToken.ensureValidToken();
-      const assignments = await employeeAssignmentService.getAssignments(employeeId);
-      
-      const map = new Map<string, string>();
-      assignments.forEach((a: EmployeeAssignment) => {
-        if (a.bookingCode && a.assignmentId) {
-          map.set(a.bookingCode, a.assignmentId);
-        }
-      });
-      setAssignmentMap(map);
-      console.log('[ScheduleScreen] Loaded assignment map:', map.size, 'entries');
+      const data = await workingHoursService.getWorkingHours(employeeId);
+      setWorkingHours(data);
     } catch (error) {
-      console.error('[ScheduleScreen] Error loading assignments:', error);
+      console.error('[ScheduleScreen] Error loading working hours:', error);
+    } finally {
+      setWorkingHoursLoading(false);
     }
   }, [employeeId, ensureValidToken]);
+
+  // Initialize default working hours
+  const handleInitializeWorkingHours = async () => {
+    if (!employeeId) return;
+    
+    Alert.alert(
+      'Khởi tạo khung giờ mặc định',
+      'Bạn có chắc muốn tạo khung giờ làm việc mặc định (Thứ 2 - Thứ 7: 8:00-18:00, nghỉ trưa 12:00-13:00)?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Đồng ý',
+          onPress: async () => {
+            try {
+              setSavingWorkingHours(true);
+              await ensureValidToken.ensureValidToken();
+              const data = await workingHoursService.initializeDefaultWorkingHours(employeeId);
+              setWorkingHours(data);
+              Alert.alert('Thành công', 'Đã khởi tạo khung giờ làm việc mặc định');
+            } catch (error: any) {
+              Alert.alert('Lỗi', error?.message || 'Không thể khởi tạo khung giờ làm việc');
+            } finally {
+              setSavingWorkingHours(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Start editing a day
+  const startEditingDay = (day: WorkingHours) => {
+    setEditingDay(day.dayOfWeek);
+    setEditForm({
+      startTime: day.startTime?.substring(0, 5) || '08:00',
+      endTime: day.endTime?.substring(0, 5) || '18:00',
+      isWorkingDay: day.isWorkingDay,
+      breakStartTime: day.breakStartTime?.substring(0, 5) || '12:00',
+      breakEndTime: day.breakEndTime?.substring(0, 5) || '13:00'
+    });
+    setEditModalVisible(true);
+  };
+
+  // Save working hours changes
+  const handleSaveWorkingHours = async () => {
+    if (!employeeId || !editingDay) return;
+    
+    try {
+      setSavingWorkingHours(true);
+      await ensureValidToken.ensureValidToken();
+      
+      await workingHoursService.setWorkingHours({
+        employeeId,
+        dayOfWeek: editingDay,
+        startTime: editForm.isWorkingDay ? `${editForm.startTime}:00` : '08:00:00',
+        endTime: editForm.isWorkingDay ? `${editForm.endTime}:00` : '18:00:00',
+        isWorkingDay: editForm.isWorkingDay,
+        breakStartTime: editForm.isWorkingDay ? `${editForm.breakStartTime}:00` : undefined,
+        breakEndTime: editForm.isWorkingDay ? `${editForm.breakEndTime}:00` : undefined
+      });
+      
+      await loadWorkingHours();
+      setEditModalVisible(false);
+      setEditingDay(null);
+      Alert.alert('Thành công', 'Đã cập nhật khung giờ làm việc');
+    } catch (error: any) {
+      Alert.alert('Lỗi', error?.message || 'Không thể cập nhật khung giờ làm việc');
+    } finally {
+      setSavingWorkingHours(false);
+    }
+  };
+
+  // Time picker helpers
+  const parseTimeString = (timeStr: string): Date => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  };
+
+  const formatTimeFromDate = (date: Date): string => {
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
+  const openTimePicker = (field: keyof EditFormState) => {
+    const currentTime = editForm[field] as string;
+    setTempTime(parseTimeString(currentTime));
+    setTimePickerField(field);
+    setShowTimePicker(true);
+  };
+
+  const handleTimeChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+    }
+    
+    if (selectedDate && timePickerField) {
+      const timeString = formatTimeFromDate(selectedDate);
+      setEditForm(prev => ({ ...prev, [timePickerField]: timeString }));
+      if (Platform.OS === 'ios') {
+        setTempTime(selectedDate);
+      }
+    }
+  };
+
+  const confirmTimePicker = () => {
+    if (timePickerField) {
+      const timeString = formatTimeFromDate(tempTime);
+      setEditForm(prev => ({ ...prev, [timePickerField]: timeString }));
+    }
+    setShowTimePicker(false);
+    setTimePickerField(null);
+  };
 
   const loadSchedule = useCallback(async (isInitial = false) => {
     if (!employeeId) {
@@ -103,7 +251,7 @@ export const ScheduleScreen = () => {
   useEffect(() => {
     if (employeeId) {
       loadSchedule(true);
-      loadAssignments(); // Load assignments để có map bookingCode -> assignmentId
+      loadWorkingHours(); // Load working hours
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employeeId]);
@@ -145,7 +293,6 @@ export const ScheduleScreen = () => {
             datesSet.add(dateKey);
           }
         });
-        console.log('📅 Dates with jobs:', Array.from(datesSet));
         setDatesWithJobs(datesSet);
       }
     } catch (error) {
@@ -155,11 +302,14 @@ export const ScheduleScreen = () => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([
-      loadSchedule(),
-      loadWeekSchedule(),
-      loadAssignments()
-    ]);
+    if (activeTab === 'schedule') {
+      await Promise.all([
+        loadSchedule(),
+        loadWeekSchedule()
+      ]);
+    } else {
+      await loadWorkingHours();
+    }
     setRefreshing(false);
   };
 
@@ -187,13 +337,7 @@ export const ScheduleScreen = () => {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     const dateKey = `${year}-${month}-${day}`;
-    const hasJob = datesWithJobs.has(dateKey);
-    
-    if (__DEV__ && hasJob) {
-      console.log(`✅ Date ${dateKey} has jobs`);
-    }
-    
-    return hasJob;
+    return datesWithJobs.has(dateKey);
   };
 
   const getStatusColor = (status: ScheduleAssignmentStatus | null) => {
@@ -247,103 +391,11 @@ export const ScheduleScreen = () => {
     }
   };
 
-  const handleCheckIn = async (assignmentId: string, bookingCode: string) => {
-    if (!employeeId) {
-      Alert.alert('Lỗi', 'Không tìm thấy thông tin nhân viên');
-      return;
-    }
-
-    Alert.alert(
-      'Check-in',
-      `Bạn có chắc muốn check-in công việc #${bookingCode}?`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Check-in',
-          onPress: async () => {
-            try {
-              setActioningId(bookingCode);
-              await ensureValidToken.ensureValidToken();
-              await employeeAssignmentService.checkIn(assignmentId, employeeId);
-
-              Alert.alert('Thành công', 'Đã check-in thành công!', [
-                {
-                  text: 'OK',
-                  onPress: () => {
-                    loadSchedule();
-                    loadAssignments(); // Reload để cập nhật map
-                  },
-                },
-              ]);
-            } catch (error: any) {
-              console.error('Check-in error:', error);
-              Alert.alert(
-                'Lỗi',
-                error?.message || 'Không thể check-in. Vui lòng thử lại.',
-              );
-            } finally {
-              setActioningId(null);
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  const handleCheckOut = async (assignmentId: string, bookingCode: string) => {
-    if (!employeeId) {
-      Alert.alert('Lỗi', 'Không tìm thấy thông tin nhân viên');
-      return;
-    }
-
-    Alert.alert(
-      'Check-out',
-      `Bạn có chắc muốn check-out công việc #${bookingCode}?`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Check-out',
-          onPress: async () => {
-            try {
-              setActioningId(bookingCode);
-              await ensureValidToken.ensureValidToken();
-              await employeeAssignmentService.checkOut(assignmentId, employeeId);
-
-              Alert.alert('Thành công', 'Đã check-out thành công!', [
-                {
-                  text: 'OK',
-                  onPress: () => {
-                    loadSchedule();
-                    loadAssignments(); // Reload để cập nhật map
-                  },
-                },
-              ]);
-            } catch (error: any) {
-              console.error('Check-out error:', error);
-              Alert.alert(
-                'Lỗi',
-                error?.message || 'Không thể check-out. Vui lòng thử lại.',
-              );
-            } finally {
-              setActioningId(null);
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  const handleCancelAssignment = async (bookingCode: string) => {
-    Alert.alert('Thông báo', 'Tính năng hủy công việc đang được phát triển');
-  };
-
   const assignments = timeSlots.filter(slot => slot.type === 'ASSIGNMENT');
   const completedToday = assignments.filter((a) => a.status === 'COMPLETED').length;
   const inProgressToday = assignments.filter((a) => a.status === 'IN_PROGRESS').length;
 
   const renderTimeSlotCard = (timeSlot: TimeSlot, index: number) => {
-    const isActioning = actioningId === timeSlot.bookingCode;
-    
     // Chỉ hiển thị ASSIGNMENT, không hiển thị UNAVAILABLE
     if (timeSlot.type !== 'ASSIGNMENT') {
       return null;
@@ -401,58 +453,308 @@ export const ScheduleScreen = () => {
             </View>
           )}
         </View>
+      </View>
+    );
+  };
 
-        <View style={styles.assignmentActions}>
-          {isActioning && (
-            <View style={styles.loadingIndicator}>
-              <ActivityIndicator size="small" color={COLORS.primary} />
+  // Render working hours tab content
+  const renderWorkingHoursTab = () => {
+    if (workingHoursLoading) {
+      return (
+        <View style={styles.workingHoursLoadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Đang tải khung giờ làm việc...</Text>
+        </View>
+      );
+    }
+
+    if (workingHours.length === 0) {
+      return (
+        <View style={styles.emptyWorkingHours}>
+          <Ionicons name="time-outline" size={64} color={COLORS.text.tertiary} />
+          <Text style={styles.emptyStateTitle}>Chưa có khung giờ làm việc</Text>
+          <Text style={styles.emptyStateSubtitle}>
+            Nhấn "Khởi tạo mặc định" để tạo khung giờ làm việc tiêu chuẩn
+          </Text>
+          <TouchableOpacity
+            style={[styles.initializeButton, savingWorkingHours && styles.disabledButton]}
+            onPress={handleInitializeWorkingHours}
+            disabled={savingWorkingHours}
+          >
+            {savingWorkingHours ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="settings-outline" size={20} color="#fff" />
+                <Text style={styles.initializeButtonText}>Khởi tạo mặc định</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.workingHoursContainer}>
+        <Text style={styles.workingHoursDescription}>
+          Cài đặt khung giờ làm việc cho từng ngày trong tuần. Hệ thống sẽ sử dụng thông tin này để phân công công việc phù hợp.
+        </Text>
+
+        {workingHours.map((day) => (
+          <TouchableOpacity
+            key={day.dayOfWeek}
+            style={[
+              styles.workingDayCard,
+              day.isWorkingDay ? styles.workingDayActive : styles.workingDayInactive
+            ]}
+            onPress={() => startEditingDay(day)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.workingDayHeader}>
+              <View style={[
+                styles.workingDayIcon,
+                day.isWorkingDay ? styles.workingDayIconActive : styles.workingDayIconInactive
+              ]}>
+                <Ionicons 
+                  name={day.isWorkingDay ? 'checkmark-circle' : 'close-circle'} 
+                  size={24} 
+                  color="#fff" 
+                />
+              </View>
+              <View style={styles.workingDayInfo}>
+                <Text style={styles.workingDayName}>{DAY_OF_WEEK_LABELS[day.dayOfWeek]}</Text>
+                <Text style={[
+                  styles.workingDayTime,
+                  !day.isWorkingDay && styles.workingDayOff
+                ]}>
+                  {day.isWorkingDay ? (
+                    <>
+                      {workingHoursService.formatTime(day.startTime)} - {workingHoursService.formatTime(day.endTime)}
+                      {day.breakStartTime && day.breakEndTime && (
+                        <Text style={styles.breakTimeText}>
+                          {' '}(Nghỉ: {workingHoursService.formatTime(day.breakStartTime)} - {workingHoursService.formatTime(day.breakEndTime)})
+                        </Text>
+                      )}
+                    </>
+                  ) : (
+                    'Nghỉ'
+                  )}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.text.tertiary} />
             </View>
-          )}
+          </TouchableOpacity>
+        ))}
 
-          {!isActioning && timeSlot.status === 'ASSIGNED' && timeSlot.bookingCode && (
-            <>
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.cancelButton]}
-                onPress={() => handleCancelAssignment(timeSlot.bookingCode!)}
-              >
-                <Ionicons name="close-circle" size={18} color={COLORS.error} />
-                <Text style={[styles.actionButtonText, { color: COLORS.error }]}>Hủy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.primaryButton]}
-                onPress={() => {
-                  const assignmentId = assignmentMap.get(timeSlot.bookingCode!);
-                  if (assignmentId) {
-                    handleCheckIn(assignmentId, timeSlot.bookingCode!);
-                  } else {
-                    Alert.alert('Lỗi', 'Không tìm thấy thông tin công việc. Vui lòng tải lại trang.');
-                  }
-                }}
-              >
-                <Ionicons name="play-circle" size={18} color="#fff" />
-                <Text style={[styles.actionButtonText, { color: '#fff' }]}>Check-in</Text>
-              </TouchableOpacity>
-            </>
-          )}
-
-          {!isActioning && timeSlot.status === 'IN_PROGRESS' && timeSlot.bookingCode && (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.successButton]}
-              onPress={() => {
-                const assignmentId = assignmentMap.get(timeSlot.bookingCode!);
-                if (assignmentId) {
-                  handleCheckOut(assignmentId, timeSlot.bookingCode!);
-                } else {
-                  Alert.alert('Lỗi', 'Không tìm thấy thông tin công việc. Vui lòng tải lại trang.');
-                }
-              }}
-            >
-              <Ionicons name="checkmark-circle" size={18} color="#fff" />
-              <Text style={[styles.actionButtonText, { color: '#fff' }]}>Check-out</Text>
-            </TouchableOpacity>
-          )}
+        {/* Info note */}
+        <View style={styles.infoNote}>
+          <Ionicons name="information-circle" size={20} color={colors.feedback.warning} />
+          <View style={styles.infoNoteContent}>
+            <Text style={styles.infoNoteTitle}>Lưu ý quan trọng:</Text>
+            <Text style={styles.infoNoteText}>• Khung giờ làm việc sẽ ảnh hưởng đến việc phân công công việc</Text>
+            <Text style={styles.infoNoteText}>• Hệ thống sẽ tự động thêm 30 phút buffer giữa các công việc</Text>
+            <Text style={styles.infoNoteText}>• Slot trong giờ nghỉ trưa sẽ không được đề xuất cho khách hàng</Text>
+          </View>
         </View>
       </View>
+    );
+  };
+
+  // Render edit modal
+  const renderEditModal = () => {
+    const getTimePickerTitle = () => {
+      switch (timePickerField) {
+        case 'startTime': return 'Chọn giờ bắt đầu';
+        case 'endTime': return 'Chọn giờ kết thúc';
+        case 'breakStartTime': return 'Chọn giờ nghỉ trưa bắt đầu';
+        case 'breakEndTime': return 'Chọn giờ nghỉ trưa kết thúc';
+        default: return 'Chọn giờ';
+      }
+    };
+
+    return (
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          if (showTimePicker) {
+            setShowTimePicker(false);
+          } else {
+            setEditModalVisible(false);
+            setEditingDay(null);
+          }
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* Time Picker View - Shows when selecting time */}
+            {showTimePicker ? (
+              <>
+                <View style={styles.timePickerHeader}>
+                  <Text style={styles.timePickerTitle}>{getTimePickerTitle()}</Text>
+                </View>
+                
+                <View style={styles.timePickerBody}>
+                  {Platform.OS === 'ios' ? (
+                    <DateTimePicker
+                      value={tempTime}
+                      mode="time"
+                      is24Hour={true}
+                      display="spinner"
+                      onChange={handleTimeChange}
+                      style={styles.timePicker}
+                      textColor={COLORS.text.primary}
+                    />
+                  ) : (
+                    <DateTimePicker
+                      value={tempTime}
+                      mode="time"
+                      is24Hour={true}
+                      display="spinner"
+                      onChange={handleTimeChange}
+                      style={styles.timePicker}
+                    />
+                  )}
+                </View>
+                
+                <View style={styles.timePickerFooter}>
+                  <TouchableOpacity
+                    style={styles.timePickerCancelButton}
+                    onPress={() => setShowTimePicker(false)}
+                  >
+                    <Text style={styles.timePickerCancelText}>Hủy</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.timePickerConfirmButton}
+                    onPress={confirmTimePicker}
+                  >
+                    <Text style={styles.timePickerConfirmText}>Xác nhận</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <>
+                {/* Normal Edit View */}
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    Chỉnh sửa {editingDay ? DAY_OF_WEEK_LABELS[editingDay] : ''}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEditModalVisible(false);
+                      setEditingDay(null);
+                    }}
+                    style={styles.modalCloseButton}
+                  >
+                    <Ionicons name="close" size={24} color={COLORS.text.primary} />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                  {/* Is Working Day Switch */}
+                  <View style={styles.formRow}>
+                    <Text style={styles.formLabel}>Ngày làm việc</Text>
+                    <Switch
+                      value={editForm.isWorkingDay}
+                      onValueChange={(value) => setEditForm(prev => ({ ...prev, isWorkingDay: value }))}
+                      trackColor={{ false: COLORS.text.tertiary, true: colors.highlight.teal }}
+                      thumbColor={editForm.isWorkingDay ? colors.neutral.white : '#f4f3f4'}
+                    />
+                  </View>
+
+                  {editForm.isWorkingDay && (
+                    <>
+                      {/* Start Time */}
+                      <View style={styles.formGroup}>
+                        <Text style={styles.formLabel}>Giờ bắt đầu</Text>
+                        <TouchableOpacity
+                          style={styles.timeInput}
+                          onPress={() => openTimePicker('startTime')}
+                        >
+                          <Ionicons name="time-outline" size={20} color={colors.highlight.teal} />
+                          <Text style={styles.timeInputText}>{editForm.startTime}</Text>
+                          <Ionicons name="chevron-forward" size={20} color={COLORS.text.tertiary} style={{ marginLeft: 'auto' }} />
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* End Time */}
+                      <View style={styles.formGroup}>
+                        <Text style={styles.formLabel}>Giờ kết thúc</Text>
+                        <TouchableOpacity
+                          style={styles.timeInput}
+                          onPress={() => openTimePicker('endTime')}
+                        >
+                          <Ionicons name="time-outline" size={20} color={colors.highlight.teal} />
+                          <Text style={styles.timeInputText}>{editForm.endTime}</Text>
+                          <Ionicons name="chevron-forward" size={20} color={COLORS.text.tertiary} style={{ marginLeft: 'auto' }} />
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Break Start Time */}
+                      <View style={styles.formGroup}>
+                        <Text style={styles.formLabel}>
+                          <Ionicons name="cafe-outline" size={16} color={COLORS.text.secondary} /> Giờ nghỉ trưa bắt đầu
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.timeInput}
+                          onPress={() => openTimePicker('breakStartTime')}
+                        >
+                          <Ionicons name="time-outline" size={20} color={colors.highlight.teal} />
+                          <Text style={styles.timeInputText}>{editForm.breakStartTime}</Text>
+                          <Ionicons name="chevron-forward" size={20} color={COLORS.text.tertiary} style={{ marginLeft: 'auto' }} />
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Break End Time */}
+                      <View style={styles.formGroup}>
+                        <Text style={styles.formLabel}>
+                          <Ionicons name="cafe-outline" size={16} color={COLORS.text.secondary} /> Giờ nghỉ trưa kết thúc
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.timeInput}
+                          onPress={() => openTimePicker('breakEndTime')}
+                        >
+                          <Ionicons name="time-outline" size={20} color={colors.highlight.teal} />
+                          <Text style={styles.timeInputText}>{editForm.breakEndTime}</Text>
+                          <Ionicons name="chevron-forward" size={20} color={COLORS.text.tertiary} style={{ marginLeft: 'auto' }} />
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  )}
+                </ScrollView>
+
+                <View style={styles.modalFooter}>
+                  <TouchableOpacity
+                    style={styles.modalCancelButton}
+                    onPress={() => {
+                      setEditModalVisible(false);
+                      setEditingDay(null);
+                      setShowTimePicker(false);
+                    }}
+                  >
+                    <Text style={styles.modalCancelButtonText}>Hủy</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalSaveButton, savingWorkingHours && styles.disabledButton]}
+                    onPress={handleSaveWorkingHours}
+                    disabled={savingWorkingHours}
+                  >
+                    {savingWorkingHours ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="save-outline" size={18} color="#fff" />
+                        <Text style={styles.modalSaveButtonText}>Lưu thay đổi</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     );
   };
 
@@ -469,102 +771,139 @@ export const ScheduleScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {renderEditModal()}
+      
       <View style={styles.headerContainer}>
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Lịch Làm Việc</Text>
             <Text style={styles.headerSubtitle}>
-              Quản lý công việc hàng ngày
+              Quản lý công việc và khung giờ làm việc
             </Text>
           </View>
         </View>
 
-        <View style={styles.weekNavigation}>
-          <TouchableOpacity 
-            style={styles.weekNavButton}
-            onPress={() => {
-              setWeekOffset(weekOffset - 1);
-              // Tự động chọn ngày đầu tiên của tuần mới
-              const newDate = new Date();
-              newDate.setDate(newDate.getDate() + ((weekOffset - 1) * 7));
-              setSelectedDate(newDate);
-            }}
-          >
-            <Ionicons name="chevron-back" size={24} color={colors.neutral.textPrimary} />
-          </TouchableOpacity>
-          
+        {/* Tab Navigation */}
+        <View style={styles.tabContainer}>
           <TouchableOpacity
-            style={styles.weekLabelButton}
-            onPress={() => {
-              setWeekOffset(0);
-              setSelectedDate(new Date());
-            }}
+            style={[styles.tabButton, activeTab === 'schedule' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('schedule')}
           >
-            <Text style={styles.weekLabel}>
-              {weekOffset === 0 ? 'Tuần này' : weekOffset > 0 ? `${weekOffset} tuần sau` : `${Math.abs(weekOffset)} tuần trước`}
+            <Ionicons 
+              name="calendar-outline" 
+              size={18} 
+              color={activeTab === 'schedule' ? '#fff' : colors.neutral.textSecondary} 
+            />
+            <Text style={[styles.tabButtonText, activeTab === 'schedule' && styles.tabButtonTextActive]}>
+              Lịch làm việc
             </Text>
-            {weekOffset !== 0 && (
-              <Text style={styles.weekSubLabel}>Nhấn để về hôm nay</Text>
-            )}
           </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.weekNavButton}
-            onPress={() => {
-              setWeekOffset(weekOffset + 1);
-              const newDate = new Date();
-              newDate.setDate(newDate.getDate() + ((weekOffset + 1) * 7));
-              setSelectedDate(newDate);
-            }}
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'working-hours' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('working-hours')}
           >
-            <Ionicons name="chevron-forward" size={24} color={colors.neutral.textPrimary} />
+            <Ionicons 
+              name="settings-outline" 
+              size={18} 
+              color={activeTab === 'working-hours' ? '#fff' : colors.neutral.textSecondary} 
+            />
+            <Text style={[styles.tabButtonText, activeTab === 'working-hours' && styles.tabButtonTextActive]}>
+              Khung giờ
+            </Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.weekContainer}
-          contentContainerStyle={styles.weekContent}
-        >
-          {weekDates.map((date, index) => {
-            const isSelected = date.toDateString() === selectedDate.toDateString();
-            const isToday = date.toDateString() === new Date().toDateString();
-            const hasJobs = hasJobsOnDate(date);
-            return (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.dayCard,
-                  isSelected && styles.selectedDayCard,
-                  isToday && !isSelected && styles.todayCard,
-                ]}
-                onPress={() => setSelectedDate(date)}
+        {/* Week Navigation - Only show on schedule tab */}
+        {activeTab === 'schedule' && (
+          <>
+            <View style={styles.weekNavigation}>
+              <TouchableOpacity 
+                style={styles.weekNavButton}
+                onPress={() => {
+                  setWeekOffset(weekOffset - 1);
+                  // Tự động chọn ngày đầu tiên của tuần mới
+                  const newDate = new Date();
+                  newDate.setDate(newDate.getDate() + ((weekOffset - 1) * 7));
+                  setSelectedDate(newDate);
+                }}
               >
-                <Text style={[
-                  styles.dayName,
-                  isSelected && styles.selectedDayName,
-                  isToday && !isSelected && styles.todayText,
-                ]}>
-                  {weekDays[date.getDay()]}
+                <Ionicons name="chevron-back" size={24} color={colors.neutral.textPrimary} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.weekLabelButton}
+                onPress={() => {
+                  setWeekOffset(0);
+                  setSelectedDate(new Date());
+                }}
+              >
+                <Text style={styles.weekLabel}>
+                  {weekOffset === 0 ? 'Tuần này' : weekOffset > 0 ? `${weekOffset} tuần sau` : `${Math.abs(weekOffset)} tuần trước`}
                 </Text>
-                <Text style={[
-                  styles.dayNumber,
-                  isSelected && styles.selectedDayNumber,
-                  isToday && !isSelected && styles.todayText,
-                ]}>
-                  {date.getDate()}
-                </Text>
-                {hasJobs && (
-                  <View style={[
-                    styles.jobIndicator,
-                    isSelected && styles.jobIndicatorSelected,
-                  ]} />
+                {weekOffset !== 0 && (
+                  <Text style={styles.weekSubLabel}>Nhấn để về hôm nay</Text>
                 )}
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+
+              <TouchableOpacity 
+                style={styles.weekNavButton}
+                onPress={() => {
+                  setWeekOffset(weekOffset + 1);
+                  const newDate = new Date();
+                  newDate.setDate(newDate.getDate() + ((weekOffset + 1) * 7));
+                  setSelectedDate(newDate);
+                }}
+              >
+                <Ionicons name="chevron-forward" size={24} color={colors.neutral.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={styles.weekContainer}
+              contentContainerStyle={styles.weekContent}
+            >
+              {weekDates.map((date, index) => {
+                const isSelected = date.toDateString() === selectedDate.toDateString();
+                const isToday = date.toDateString() === new Date().toDateString();
+                const hasJobs = hasJobsOnDate(date);
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.dayCard,
+                      isSelected && styles.selectedDayCard,
+                      isToday && !isSelected && styles.todayCard,
+                    ]}
+                    onPress={() => setSelectedDate(date)}
+                  >
+                    <Text style={[
+                      styles.dayName,
+                      isSelected && styles.selectedDayName,
+                      isToday && !isSelected && styles.todayText,
+                    ]}>
+                      {weekDays[date.getDay()]}
+                    </Text>
+                    <Text style={[
+                      styles.dayNumber,
+                      isSelected && styles.selectedDayNumber,
+                      isToday && !isSelected && styles.todayText,
+                    ]}>
+                      {date.getDate()}
+                    </Text>
+                    {hasJobs && (
+                      <View style={[
+                        styles.jobIndicator,
+                        isSelected && styles.jobIndicatorSelected,
+                      ]} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </>
+        )}
       </View>
 
       <ScrollView
@@ -580,41 +919,72 @@ export const ScheduleScreen = () => {
         }
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>
-            {selectedDate.toLocaleDateString('vi-VN')}
-          </Text>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryNumber}>{assignments.length}</Text>
-              <Text style={styles.summaryLabel}>Tổng việc</Text>
+        {activeTab === 'schedule' ? (
+          <>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryTitle}>
+                {selectedDate.toLocaleDateString('vi-VN')}
+              </Text>
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryNumber}>{assignments.length}</Text>
+                  <Text style={styles.summaryLabel}>Tổng việc</Text>
+                </View>
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryNumber}>{completedToday}</Text>
+                  <Text style={styles.summaryLabel}>Hoàn thành</Text>
+                </View>
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryNumber}>{inProgressToday}</Text>
+                  <Text style={styles.summaryLabel}>Đang làm</Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryNumber}>{completedToday}</Text>
-              <Text style={styles.summaryLabel}>Hoàn thành</Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryNumber}>{inProgressToday}</Text>
-              <Text style={styles.summaryLabel}>Đang làm</Text>
-            </View>
-          </View>
-        </View>
 
-        {dateLoading ? (
-          <View style={styles.dateLoadingContainer}>
-            <ActivityIndicator size="small" color={COLORS.primary} />
-            <Text style={styles.dateLoadingText}>Đang tải...</Text>
-          </View>
-        ) : assignments.length > 0 ? (
-          timeSlots.map((timeSlot, index) => renderTimeSlotCard(timeSlot, index))
+            {/* Status Legend */}
+            <View style={styles.legendCard}>
+              <Text style={styles.legendTitle}>Ghi chú:</Text>
+              <View style={styles.legendRow}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: COLORS.warning }]} />
+                  <Text style={styles.legendText}>Đã phân công</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: COLORS.secondary }]} />
+                  <Text style={styles.legendText}>Đang làm</Text>
+                </View>
+              </View>
+              <View style={styles.legendRow}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: COLORS.success }]} />
+                  <Text style={styles.legendText}>Hoàn thành</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: COLORS.error }]} />
+                  <Text style={styles.legendText}>Đã hủy</Text>
+                </View>
+              </View>
+            </View>
+
+            {dateLoading ? (
+              <View style={styles.dateLoadingContainer}>
+                <ActivityIndicator size="small" color={COLORS.primary} />
+                <Text style={styles.dateLoadingText}>Đang tải...</Text>
+              </View>
+            ) : assignments.length > 0 ? (
+              timeSlots.map((timeSlot, index) => renderTimeSlotCard(timeSlot, index))
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons name="calendar-outline" size={64} color={COLORS.text.tertiary} />
+                <Text style={styles.emptyStateTitle}>Không có lịch làm việc</Text>
+                <Text style={styles.emptyStateSubtitle}>
+                  Bạn chưa có công việc nào được lên lịch cho ngày này
+                </Text>
+              </View>
+            )}
+          </>
         ) : (
-          <View style={styles.emptyState}>
-            <Ionicons name="calendar-outline" size={64} color={COLORS.text.tertiary} />
-            <Text style={styles.emptyStateTitle}>Không có lịch làm việc</Text>
-            <Text style={styles.emptyStateSubtitle}>
-              Bạn chưa có công việc nào được lên lịch cho ngày này
-            </Text>
-          </View>
+          renderWorkingHoursTab()
         )}
       </ScrollView>
     </SafeAreaView>
@@ -656,6 +1026,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.neutral.textSecondary,
     marginTop: 4,
+  },
+  // Tab styles
+  tabContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 8,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: colors.neutral.white,
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
+  },
+  tabButtonActive: {
+    backgroundColor: colors.highlight.teal,
+    borderColor: colors.highlight.teal,
+  },
+  tabButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.neutral.textSecondary,
+  },
+  tabButtonTextActive: {
+    color: '#fff',
   },
   weekNavigation: {
     flexDirection: 'row',
@@ -843,40 +1245,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.primary,
   },
-  assignmentActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
-    justifyContent: 'flex-end',
-  },
-  loadingIndicator: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  cancelButton: {
-    backgroundColor: COLORS.error + '15',
-  },
-  primaryButton: {
-    backgroundColor: colors.highlight.teal,
-  },
-  successButton: {
-    backgroundColor: colors.feedback.success,
-    flex: 1,
-    justifyContent: 'center',
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
@@ -902,5 +1270,318 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: COLORS.text.secondary,
+  },
+  // Legend styles
+  legendCard: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    ...UI.SHADOW.small,
+  },
+  legendTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.text.secondary,
+    marginBottom: 8,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 4,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  legendText: {
+    fontSize: 11,
+    color: COLORS.text.secondary,
+  },
+  // Working hours styles
+  workingHoursLoadingContainer: {
+    paddingVertical: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyWorkingHours: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  initializeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.highlight.teal,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 20,
+  },
+  initializeButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  workingHoursContainer: {
+    gap: 12,
+  },
+  workingHoursDescription: {
+    fontSize: 13,
+    color: COLORS.text.secondary,
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  workingDayCard: {
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+  },
+  workingDayActive: {
+    backgroundColor: colors.highlight.teal + '10',
+    borderColor: colors.highlight.teal + '30',
+  },
+  workingDayInactive: {
+    backgroundColor: colors.neutral.white,
+    borderColor: colors.neutral.border,
+  },
+  workingDayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  workingDayIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  workingDayIconActive: {
+    backgroundColor: colors.highlight.teal,
+  },
+  workingDayIconInactive: {
+    backgroundColor: COLORS.text.tertiary,
+  },
+  workingDayInfo: {
+    flex: 1,
+  },
+  workingDayName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+  },
+  workingDayTime: {
+    fontSize: 13,
+    color: colors.highlight.teal,
+    marginTop: 2,
+  },
+  workingDayOff: {
+    color: COLORS.error,
+  },
+  breakTimeText: {
+    color: COLORS.text.tertiary,
+    fontSize: 12,
+  },
+  infoNote: {
+    flexDirection: 'row',
+    backgroundColor: colors.feedback.warning + '15',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+    gap: 10,
+  },
+  infoNoteContent: {
+    flex: 1,
+  },
+  infoNoteTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.feedback.warning,
+    marginBottom: 4,
+  },
+  infoNoteText: {
+    fontSize: 12,
+    color: COLORS.text.secondary,
+    lineHeight: 18,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.neutral.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.border,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.text.primary,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalBody: {
+    padding: 16,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.neutral.border,
+  },
+  formRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.border,
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.text.primary,
+    marginBottom: 8,
+  },
+  timeInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.neutral.background,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
+  },
+  timeInputText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: COLORS.text.primary,
+  },
+  modalCancelButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: colors.neutral.background,
+    borderWidth: 1,
+    borderColor: colors.neutral.border,
+  },
+  modalCancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text.secondary,
+  },
+  modalSaveButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: colors.highlight.teal,
+  },
+  modalSaveButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  // Time Picker Modal - Center of screen
+  timePickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  timePickerContainer: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 340,
+    overflow: 'hidden',
+    ...UI.SHADOW.large,
+  },
+  timePickerHeader: {
+    backgroundColor: colors.highlight.teal,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  timePickerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  timePickerBody: {
+    backgroundColor: colors.neutral.white,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  timePicker: {
+    width: 300,
+    height: 200,
+  },
+  timePickerFooter: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: colors.neutral.border,
+  },
+  timePickerCancelButton: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 0.5,
+    borderRightColor: colors.neutral.border,
+  },
+  timePickerCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.error,
+  },
+  timePickerConfirmButton: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.highlight.teal + '10',
+    borderLeftWidth: 0.5,
+    borderLeftColor: colors.neutral.border,
+  },
+  timePickerConfirmText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.highlight.teal,
   },
 });

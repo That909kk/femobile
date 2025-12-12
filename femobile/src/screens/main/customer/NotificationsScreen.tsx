@@ -123,7 +123,6 @@ export const NotificationsScreen: React.FC = () => {
     role: role as any,
     autoConnect: true,
     onNotification: (notification) => {
-      console.log('[NotificationsScreen] 📩 Received WebSocket notification:', notification);
       addWebSocketNotification(notification);
     },
     onError: (error) => {
@@ -133,12 +132,11 @@ export const NotificationsScreen: React.FC = () => {
 
   // Log WebSocket status
   useEffect(() => {
-    console.log('[NotificationsScreen] WebSocket Status:', wsStatus, '| Connected:', isConnected);
+    // WebSocket status monitoring (silent in production)
   }, [wsStatus, isConnected]);
 
   const fetchNotifications = useCallback(async (isRefreshing = false) => {
     if (!user) {
-      console.log('[NotificationsScreen] No user, skipping fetch');
       setLoading(false);
       return;
     }
@@ -149,8 +147,6 @@ export const NotificationsScreen: React.FC = () => {
       }
 
       await ensureValidToken.ensureValidToken();
-
-      console.log('[NotificationsScreen] 🔄 Fetching notifications from REST API...');
       
       // Sync from REST API (history/backup)
       await useNotificationStore.getState().fetchNotifications({
@@ -160,8 +156,6 @@ export const NotificationsScreen: React.FC = () => {
 
       // Update unread count
       await useNotificationStore.getState().getUnreadCount();
-      
-      console.log('[NotificationsScreen] ✅ Fetched notifications:', allNotifications.length);
     } catch (error: any) {
       console.error('[NotificationsScreen] ❌ Fetch error:', error);
     } finally {
@@ -173,8 +167,6 @@ export const NotificationsScreen: React.FC = () => {
   }, [user, ensureValidToken, allNotifications.length]);
 
   useEffect(() => {
-    console.log('[NotificationsScreen] 🚀 Component mounted');
-    console.log('[NotificationsScreen] User:', { accountId, role });
     fetchNotifications();
   }, []); // Load on mount
 

@@ -47,17 +47,8 @@ export const useNotificationStore = create<NotificationState & NotificationActio
   // Fetch notifications
   fetchNotifications: async (params = {}) => {
     try {
-      console.log('[NotificationStore] 🔄 Fetching notifications with params:', params);
       set({ loading: true, error: null });
       const response = await notificationService.getNotifications(params);
-      
-      console.log('[NotificationStore] 📦 Received response:', {
-        success: response.success,
-        dataLength: response.data?.length || 0,
-        currentPage: response.currentPage,
-        totalPages: response.totalPages,
-        totalItems: response.totalItems
-      });
       
       if (response.success && response.data) {
         const isFirstPage = !params.page || params.page === 0;
@@ -66,8 +57,6 @@ export const useNotificationStore = create<NotificationState & NotificationActio
           ...response.data,
         ];
         
-        console.log('[NotificationStore] 💾 Saving to store:', newNotifications.length, 'notifications');
-        
         set({
           notifications: newNotifications,
           currentPage: response.currentPage,
@@ -75,16 +64,12 @@ export const useNotificationStore = create<NotificationState & NotificationActio
           hasMore: response.currentPage < response.totalPages - 1,
           loading: false,
         });
-        
-        console.log('[NotificationStore] ✅ Store updated successfully');
       } else {
         // API returned but no success
-        console.warn('[NotificationStore] ⚠️ API returned unsuccessful response:', response);
         set({ loading: false });
       }
     } catch (error: any) {
       // Gracefully handle error - don't throw
-      console.error('[NotificationStore] ❌ fetchNotifications error:', error.message);
       set({ 
         error: error.message || 'Không thể tải thông báo', 
         loading: false 
@@ -151,13 +136,10 @@ export const useNotificationStore = create<NotificationState & NotificationActio
   // Get unread count
   getUnreadCount: async () => {
     try {
-      console.log('[NotificationStore] 🔔 Fetching unread count...');
       const count = await notificationService.getUnreadCount();
-      console.log('[NotificationStore] 🔔 Unread count received:', count);
       set({ unreadCount: count });
     } catch (error: any) {
       // Silent fail for unread count
-      console.error('[NotificationStore] ❌ Failed to get unread count:', error);
     }
   },
 
@@ -178,8 +160,6 @@ export const useNotificationStore = create<NotificationState & NotificationActio
       receivedAt: new Date().toISOString(),
     };
 
-    console.log('[NotificationStore] Adding WebSocket notification:', notification);
-
     set(state => {
       // Check if notification already exists (prevent duplicates)
       const exists = state.notifications.some(
@@ -187,7 +167,6 @@ export const useNotificationStore = create<NotificationState & NotificationActio
       );
 
       if (exists) {
-        console.warn('[NotificationStore] Notification already exists, skipping:', notification.notificationId);
         return state;
       }
 

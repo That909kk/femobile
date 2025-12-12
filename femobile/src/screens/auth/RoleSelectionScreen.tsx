@@ -50,12 +50,26 @@ const RoleSelectionScreen: React.FC<Props> = ({ route, navigation }) => {
     
     try {
       // Use login hook to handle token storage and user state
-      await login({
+      const loginResult = await login({
         username,
         password,
         role: selectedRole,
         deviceType: 'MOBILE'
       });
+      
+      // Kiểm tra nếu cần xác thực email (tương tự web)
+      if (loginResult && typeof loginResult === 'object' && 'requireEmailVerification' in loginResult) {
+        const result = loginResult as { requireEmailVerification?: boolean; email?: string };
+        if (result.requireEmailVerification && result.email) {
+          // Navigate trực tiếp đến OTP không cần alert
+          navigation.navigate('VerifyOTP', {
+            email: result.email!,
+            type: 'register',
+            fromLogin: true,
+          });
+          return;
+        }
+      }
       
       // Login successful - authentication state will update automatically
       // and navigation will switch to MainStack

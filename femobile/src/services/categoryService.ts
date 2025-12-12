@@ -44,35 +44,15 @@ class CategoryService {
    */
   async getAllCategories(): Promise<CategoryServiceResponse<Category[]>> {
     try {
-      console.log('CategoryService - Loading categories...');
-      console.log('CategoryService - Request URL:', `${API_CONFIG.BASE_URL}${this.baseURL}`);
-      
-      // Test với endpoint khác để verify httpClient hoạt động
-      console.log('CategoryService - Testing httpClient with known endpoint...');
-      try {
-        const testResponse = await httpClient.get('/auth/info');
-        console.log('CategoryService - Test /auth/info response:', testResponse);
-      } catch (testError) {
-        console.log('CategoryService - Test /auth/info error:', testError);
-      }
-      
       const response = await httpClient.get<Category[]>(this.baseURL);
       
-      console.log('CategoryService - Raw response:', response);
-      console.log('CategoryService - Response type:', typeof response);
-      console.log('CategoryService - Success field:', response?.success);
-      console.log('CategoryService - Data field exists:', !!response?.data);
-      console.log('CategoryService - Response keys:', response ? Object.keys(response) : 'null');
-      
       if (response && response.success && response.data) {
-        console.log('CategoryService - Valid response, returning data:', response.data);
         return {
           success: true,
           message: response.message || 'Lấy danh sách danh mục thành công',
           data: response.data
         };
       } else {
-        console.log('CategoryService - Invalid response or no data');
         return {
           success: false,
           message: response?.message || 'Không thể tải danh sách danh mục',
@@ -80,7 +60,6 @@ class CategoryService {
         };
       }
     } catch (error: any) {
-      console.error('CategoryService - Catch block error:', error);
       return {
         success: false,
         message: error?.response?.data?.message || 'Không thể tải danh sách danh mục',
@@ -95,7 +74,6 @@ class CategoryService {
   async getCategoryWithServices(categoryId: number): Promise<CategoryServiceResponse<CategoryWithServices>> {
     try {
       const response = await httpClient.get<CategoryWithServices>(`${this.baseURL}/${categoryId}/services`);
-      console.log('CategoryService - Category with Services Response:', response);
       
       if (response.success && response.data) {
         return {
@@ -143,7 +121,6 @@ class CategoryService {
   async getAllServices(): Promise<CategoryServiceResponse<Service[]>> {
     try {
       const response = await httpClient.get('/customer/services');
-      console.log('CategoryService - All Services Response:', response);
       
       if (response.success && response.data) {
         return {

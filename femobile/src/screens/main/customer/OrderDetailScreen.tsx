@@ -101,15 +101,6 @@ export const OrderDetailScreen = () => {
       // Call API to get booking detail
       const response = await bookingService.getBookingById(bookingId);
       
-      // Debug: Log response để xem có fees không
-      console.log('[OrderDetail] API Response:', JSON.stringify({
-        bookingId: response.bookingId,
-        baseAmount: response.baseAmount,
-        fees: response.fees,
-        totalFees: response.totalFees,
-        totalAmount: response.totalAmount,
-      }, null, 2));
-      
       // Transform API response to OrderDetail
       const bookingDate = response.bookingTime ? new Date(response.bookingTime) : null;
       

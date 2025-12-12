@@ -19,8 +19,6 @@ type TabType = 'my-assignments' | 'available-bookings';
 export const WorkScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('my-assignments');
 
-  console.log('WorkScreen render - activeTab:', activeTab);
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}

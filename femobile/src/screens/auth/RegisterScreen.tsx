@@ -21,7 +21,8 @@ import { useStaticData } from '../../hooks/useStaticData';
 import { COLORS, UI, VALIDATION } from '../../constants';
 import { colors, typography, spacing, borderRadius, shadows, responsive, responsiveSpacing, responsiveFontSize } from '../../styles';
 import type { RootStackParamList, UserRole } from '../../types/auth';
-import addressService, { Province, Commune } from '../../services/addressService';
+import { addressService, Province, Commune } from '../../services/addressService';
+import type { RegisterResult } from '../../store/authStore';
 
 type RegisterScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Register'>;
 
@@ -52,6 +53,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const [communes, setCommunes] = useState<Commune[]>([]);
   const [loadingProvinces, setLoadingProvinces] = useState(false);
   const [loadingCommunes, setLoadingCommunes] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
   
   // Refs for input fields
   const fullNameRef = useRef<TextInput>(null);
@@ -112,7 +114,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     
     if (!formData.fullName.trim()) {
       newErrors.fullName = staticData?.messages?.validation?.fullName_required || 'Vui lòng nhập họ và tên';
-    } else if (!/^[a-zA-ZÀ-ÿ\s]+$/.test(formData.fullName.trim())) {
+    } else if (!/^[\p{L}\s]+$/u.test(formData.fullName.trim())) {
       newErrors.fullName = staticData?.messages?.validation?.fullName_invalid || 'Họ và tên chỉ được chứa chữ cái và khoảng trắng';
     }
     
@@ -176,6 +178,8 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
 
+    setIsRegistering(true);
+    
     try {
       // Lấy thông tin địa chỉ - giống web
       const selectedProvince = provinces.find(p => p.code === formData.provinceCode);
@@ -188,7 +192,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         selectedProvince?.name || ''
       ].filter(Boolean).join(', ');
       
-      await register({
+      const response = await register({
         role: formData.role as UserRole,
         fullName: formData.fullName.trim(),
         username: formData.username.trim(),
@@ -203,23 +207,26 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
           latitude: null,
           longitude: null
         }
-      });
+      }) as RegisterResult;
       
-      // Thành công - navigate to VerifyOTP (giống web navigate to /verify-email)
-      Alert.alert(
-        staticData?.messages?.alert_success || 'Thành công',
-        staticData?.messages?.register_success || 'Đăng ký thành công! Vui lòng xác thực email để hoàn tất.',
-        [
-          {
-            text: staticData?.messages?.alert_ok || 'Đồng ý',
-            onPress: () => navigation.navigate('VerifyOTP', {
-              email: formData.email,
-              type: 'register',
-            }),
-          },
-        ]
-      );
+      // Xử lý response giống web
+      if (response?.success) {
+        // Đăng ký thành công - navigate to VerifyOTP ngay lập tức (giống web navigate to /verify-email)
+        navigation.navigate('VerifyOTP', {
+          email: formData.email.trim(),
+          type: 'register',
+        });
+      } else {
+        setIsRegistering(false);
+        // Đăng ký thất bại
+        Alert.alert(
+          staticData?.messages?.alert_error || 'Lỗi',
+          response?.message || staticData?.messages?.register_error || 'Đăng ký thất bại',
+          [{ text: staticData?.messages?.alert_ok || 'Đồng ý' }]
+        );
+      }
     } catch (err: any) {
+      setIsRegistering(false);
       Alert.alert(
         staticData?.messages?.alert_error || 'Lỗi',
         err.message || staticData?.messages?.register_error || 'Đăng ký thất bại',
@@ -451,10 +458,10 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             )}
 
             <Button
-              title={loading ? staticData.actions.registering : staticData.actions.register}
+              title={isRegistering ? staticData.actions.registering : staticData.actions.register}
               onPress={handleRegister}
-              loading={loading}
-              disabled={loading || !acceptTerms}
+              loading={isRegistering}
+              disabled={isRegistering || !acceptTerms}
               fullWidth
               size="large"
             />

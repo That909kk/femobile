@@ -84,23 +84,14 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
   // Handler for receiving new messages via WebSocket
   const handleNewMessage = useCallback((message: ChatMessage) => {
-    console.log('[ChatScreen] ===== NEW MESSAGE RECEIVED =====');
-    console.log('[ChatScreen] Message ID:', message.messageId);
-    console.log('[ChatScreen] Content:', message.content || '[Image]');
-    console.log('[ChatScreen] Sender ID:', message.senderId);
-    console.log('[ChatScreen] My Account ID:', accountId);
-    console.log('[ChatScreen] ================================');
-    
     // Thêm tin nhắn mới vào danh sách
     setMessages((prev) => {
       // Kiểm tra xem message đã tồn tại chưa (tránh duplicate)
       const exists = prev.some((m) => m.messageId === message.messageId);
       if (exists) {
-        console.log('[ChatScreen] Message already exists, skipping');
         return prev;
       }
       
-      console.log('[ChatScreen] Adding new message to list');
       // Đảm bảo message có createdAt để hiển thị timestamp
       const messageWithTimestamp: ChatMessage = {
         ...message,
@@ -121,13 +112,10 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
     // Mark as read nếu tin nhắn từ người khác (so sánh với accountId)
     if (message.senderId !== accountId) {
-      console.log('[ChatScreen] Message from other user, marking as read');
       // Delay a bit to ensure message is rendered first
       setTimeout(() => {
         markConversationAsRead(conversationId);
       }, 500);
-    } else {
-      console.log('[ChatScreen] Message from me, not marking as read');
     }
   }, [accountId, senderId]);
 
@@ -140,21 +128,14 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
     const setupWebSocket = async () => {
       try {
-        console.log('[ChatScreen] Attempting WebSocket connection...');
-        
         // Kết nối WebSocket nếu chưa kết nối
         const wasActive = websocketService.isActive();
         
         if (!wasActive) {
-          console.log('[ChatScreen] WebSocket not active, connecting...');
           await websocketService.connect();
-          console.log('[ChatScreen] WebSocket connected successfully');
-        } else {
-          console.log('[ChatScreen] WebSocket already active');
         }
 
         // Subscribe to conversation để nhận tin nhắn real-time
-        console.log('[ChatScreen] Subscribing to conversation:', conversationId);
         unsubscribe = websocketService.subscribeToConversation(
           conversationId,
           handleNewMessage
@@ -162,7 +143,6 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
         if (isComponentMounted) {
           setIsConnected(true);
-          console.log('[ChatScreen] ✅ WebSocket connected - real-time updates enabled');
         }
       } catch (error) {
         console.warn('[ChatScreen] ⚠️ WebSocket unavailable, using polling fallback');
@@ -185,8 +165,6 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
               const newMessages = latestMessages.filter(m => !prevIds.has(m.messageId));
               
               if (newMessages.length > 0) {
-                console.log('[ChatScreen] 📥 Polling found', newMessages.length, 'new message(s)');
-                
                 // Mark as read if from other user
                 if (newMessages.some(m => m.senderId !== accountId)) {
                   markConversationAsRead(conversationId).catch(err => 
@@ -215,7 +193,6 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
 
     // Cleanup khi unmount
     return () => {
-      console.log('[ChatScreen] Cleaning up WebSocket subscription');
       isComponentMounted = false;
       
       if (unsubscribe) {
@@ -259,36 +236,29 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
     setSending(true);
 
     try {
-      console.log('[ChatScreen] Sending text message...');
       // Gửi tin nhắn qua REST API (dùng accountId)
       const newMessage = await chatService.sendTextMessage({
         conversationId,
         senderId: accountId,
         content: messageContent
       });
-      
-      console.log('[ChatScreen] Message sent successfully:', newMessage.messageId);
 
       // Nếu WebSocket connected, tin nhắn sẽ được nhận qua subscription
       // Nếu không (polling mode), thêm vào danh sách ngay
       if (!isConnected) {
-        console.log('[ChatScreen] WebSocket not connected, adding message directly');
         setMessages((prev) => {
           const exists = prev.some((m) => m.messageId === newMessage.messageId);
           if (exists) return prev;
           return [...prev, newMessage];
         });
       } else {
-        console.log('[ChatScreen] WebSocket connected, message will arrive via subscription');
         // Fallback: nếu sau 2 giây chưa nhận được qua WebSocket, thêm trực tiếp
         setTimeout(() => {
           setMessages((prev) => {
             const exists = prev.some((m) => m.messageId === newMessage.messageId);
             if (exists) {
-              console.log('[ChatScreen] Message already received via WebSocket');
               return prev;
             }
-            console.log('[ChatScreen] Message not received via WebSocket, adding directly');
             return [...prev, newMessage];
           });
         }, 2000);
@@ -370,7 +340,6 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
     setSending(true);
 
     try {
-      console.log('[ChatScreen] Sending image message...');
       // Tạo FormData để gửi ảnh
       const filename = selectedImage.split('/').pop() || 'image.jpg';
       const match = /\.(\w+)$/.exec(filename);
@@ -390,8 +359,6 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
         caption: inputText.trim() || undefined,
       });
 
-      console.log('[ChatScreen] Image sent successfully:', newMessage.messageId);
-
       // Xóa ảnh và text sau khi gửi thành công
       setSelectedImage(null);
       setInputText('');
@@ -399,23 +366,19 @@ export const ChatScreen: React.FC<Props> = ({ route, navigation }) => {
       // Nếu WebSocket connected, tin nhắn sẽ được nhận qua subscription
       // Nếu không (polling mode), thêm vào danh sách ngay
       if (!isConnected) {
-        console.log('[ChatScreen] WebSocket not connected, adding message directly');
         setMessages((prev) => {
           const exists = prev.some((m) => m.messageId === newMessage.messageId);
           if (exists) return prev;
           return [...prev, newMessage];
         });
       } else {
-        console.log('[ChatScreen] WebSocket connected, message will arrive via subscription');
         // Fallback: nếu sau 2 giây chưa nhận được qua WebSocket, thêm trực tiếp
         setTimeout(() => {
           setMessages((prev) => {
             const exists = prev.some((m) => m.messageId === newMessage.messageId);
             if (exists) {
-              console.log('[ChatScreen] Message already received via WebSocket');
               return prev;
             }
-            console.log('[ChatScreen] Message not received via WebSocket, adding directly');
             return [...prev, newMessage];
           });
         }, 2000);

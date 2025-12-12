@@ -232,17 +232,30 @@ export interface RecurringBookingPreviewResponse {
   recurrenceType: RecurrenceType;
   recurrenceDays: number[];
   recurrenceDaysDisplay: string;
+  recurrenceDescription?: string;
   bookingTime: string;
   startDate: string;
   endDate: string | null;
   
   // Generated Occurrences
   totalOccurrences: number;
+  occurrenceCount?: number;
   previewedOccurrences: number;
+  maxPreviewOccurrences?: number;
   occurrenceDates: string[];
+  plannedBookingTimes?: string[];
+  hasMoreOccurrences?: boolean;
   
   // Service & Price Info
   serviceItems: ServicePreviewItem[];
+  totalServices?: number;
+  totalQuantityPerOccurrence?: number;
+  
+  // Subtotal per occurrence (trước phí)
+  subtotalPerOccurrence?: number;
+  formattedSubtotalPerOccurrence?: string;
+  
+  // Price per occurrence (sau phí)
   pricePerOccurrence: number;
   formattedPricePerOccurrence: string;
   totalEstimatedPrice: number;
@@ -251,12 +264,19 @@ export interface RecurringBookingPreviewResponse {
   // Customer & Address
   customerId: string;
   customerName: string;
+  customerPhone?: string;
+  customerEmail?: string;
   addressInfo: AddressPreviewInfo;
   usingNewAddress: boolean;
   
   // Fees & Promotion
   feeBreakdowns: FeeBreakdownItem[];
+  totalFeesPerOccurrence?: number;
+  formattedTotalFeesPerOccurrence?: string;
+  
   promotionInfo: PromotionPreviewInfo | null;
+  discountPerOccurrence?: number;
+  formattedDiscountPerOccurrence?: string;
   
   // Payment
   paymentMethodId: number | null;

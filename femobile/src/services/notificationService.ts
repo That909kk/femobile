@@ -80,14 +80,11 @@ class NotificationService {
       if (params?.priority) query.append('priority', params.priority);
 
       const endpoint = `${this.BASE_PATH}${query.toString() ? `?${query.toString()}` : ''}`;
-      console.log('[NotificationService] 📡 Calling endpoint:', endpoint);
       
       const response = await httpClient.get<any>(endpoint);
-      console.log('[NotificationService] 📥 Raw response:', JSON.stringify(response).substring(0, 300));
 
       // API trả về: { success, data: [...], currentPage, totalItems, totalPages }
       if (!response.success) {
-        console.error('[NotificationService] ❌ API returned success=false:', response.message);
         throw new Error(response.message || 'Khong the tai danh sach thong bao');
       }
 
@@ -102,10 +99,8 @@ class NotificationService {
         totalPages: typedResponse.totalPages || 0,
       };
       
-      console.log('[NotificationService] ✅ Parsed notifications:', result.data?.length || 0, 'items');
       return result;
     } catch (error: any) {
-      console.error('[NotificationService] getNotifications failed:', error?.message);
       // Return empty data instead of throwing to prevent app crash
       return {
         success: false,
@@ -119,15 +114,11 @@ class NotificationService {
 
   async getUnreadCount(): Promise<number> {
     try {
-      console.log('[NotificationService] 📡 Calling /unread-count...');
       const response = await httpClient.get<UnreadCountResponse>(
         `${this.BASE_PATH}/unread-count`,
       );
 
-      console.log('[NotificationService] 📥 Unread count response:', JSON.stringify(response).substring(0, 200));
-
       if (!response.success) {
-        console.warn('[NotificationService] ⚠️ getUnreadCount failed:', response.message);
         return 0;
       }
 
@@ -135,10 +126,8 @@ class NotificationService {
       // But httpClient wraps it in ApiResponse: { success: true, data: { success: true, count: X } }
       const rawResponse = response as any;
       const count = rawResponse.count ?? rawResponse.data?.count ?? 0;
-      console.log('[NotificationService] ✅ Unread count parsed:', count);
       return count;
     } catch (error: any) {
-      console.warn('[NotificationService] ❌ getUnreadCount error:', error?.message);
       return 0;
     }
   }

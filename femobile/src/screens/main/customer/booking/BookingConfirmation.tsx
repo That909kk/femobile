@@ -35,7 +35,11 @@ import type {
 
 // Helper to check if preview is RecurringBookingPreviewResponse
 const isRecurringPreview = (preview: any): preview is RecurringBookingPreviewResponse => {
-  return preview && 'totalOccurrences' in preview && 'pricePerOccurrence' in preview;
+  // Check for various recurring-specific fields (API may return different field names)
+  return preview && (
+    ('totalOccurrences' in preview || 'occurrenceCount' in preview) && 
+    ('pricePerOccurrence' in preview || 'formattedPricePerOccurrence' in preview || 'recurrenceType' in preview)
+  );
 };
 
 // Helper to check if preview is MultipleBookingPreviewResponse
@@ -209,7 +213,6 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
             promoCode: promoCode || undefined,
             paymentMethodId: selectedPaymentMethodId,
           };
-          console.log('[BookingConfirmation] Recurring preview request:', request);
           const response = await bookingService.getRecurringBookingPreview(request);
           setPreviewData(response);
         } else if (bookingMode === 'multiple' && selectedDates.length > 1) {
@@ -222,7 +225,6 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
             promoCode: promoCode || undefined,
             paymentMethodId: selectedPaymentMethodId,
           };
-          console.log('[BookingConfirmation] Multiple preview request:', request);
           const response = await bookingService.getMultipleBookingPreview(request);
           setPreviewData(response);
         } else if (selectedDates.length > 0 && selectedTime) {
@@ -235,7 +237,6 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
             promoCode: promoCode || undefined,
             paymentMethodId: selectedPaymentMethodId,
           };
-          console.log('[BookingConfirmation] Single preview request:', request);
           const response = await bookingService.getBookingPreview(request);
           setPreviewData(response);
         }
@@ -362,12 +363,6 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
       const choiceIds = Array.from(new Set(selectedOptions.map((option) => option.choiceId)))
         .filter((id) => id !== null && id !== undefined && !isNaN(id));
       
-      console.log('📋 Selected options for booking:', {
-        selectedOptions,
-        choiceIds,
-        serviceId: selectedService.serviceId,
-      });
-      
       // Validate that we have valid choice IDs
       if (selectedOptions.length > 0 && choiceIds.length === 0) {
         Alert.alert(
@@ -435,8 +430,6 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
           ],
         };
 
-        console.log('📅 RECURRING booking data:', bookingData);
-
       } else if (bookingMode === 'multiple') {
         if (selectedDates.length < 2) {
           Alert.alert('Thiếu thông tin', 'Vui lòng chọn ít nhất 2 ngày.');
@@ -466,8 +459,6 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
           paymentMethodId: selectedPaymentMethodId,
           additionalFeeIds: [], // Thêm field này giống web
         };
-
-        console.log('📅 MULTIPLE booking data:', bookingData);
 
       } else {
         bookingData = {
@@ -499,8 +490,6 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
           }
         }
       }
-
-      console.log('� Creating booking with data:', bookingData);
 
       // Gọi API tạo booking với ảnh (nếu có)
       const images = isCreatingPost && postData?.images ? postData.images : undefined;
@@ -779,19 +768,27 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                   </View>
                 )}
                 
-                {/* Subtotal - different display for multiple booking */}
-                {'bookingCount' in previewData && (previewData as MultipleBookingPreviewResponse).bookingCount > 1 ? (
+                {/* Subtotal - different display for each booking type */}
+                {isMultiplePreview(previewData) ? (
                   <>
-                    <View style={[commonStyles.flexRowBetween, { marginBottom: 8 }]}>
-                      <Text style={commonStyles.cardDescription}>Giá mỗi lịch</Text>
-                      <Text style={[commonStyles.cardDescription, { fontWeight: '600' }]}>
-                        {(previewData as MultipleBookingPreviewResponse).formattedPricePerBooking || formatPrice((previewData as MultipleBookingPreviewResponse).pricePerBooking)}
-                      </Text>
-                    </View>
                     <View style={[commonStyles.flexRowBetween, { marginBottom: 8 }]}>
                       <Text style={commonStyles.cardDescription}>Tạm tính mỗi lịch</Text>
                       <Text style={[commonStyles.cardDescription, { fontWeight: '600' }]}>
-                        {(previewData as MultipleBookingPreviewResponse).formattedSubtotalPerBooking || formatPrice((previewData as MultipleBookingPreviewResponse).subtotalPerBooking)}
+                        {previewData.formattedSubtotalPerBooking || formatPrice(previewData.subtotalPerBooking)}
+                      </Text>
+                    </View>
+                  </>
+                ) : isRecurringPreview(previewData) ? (
+                  <>
+                    {/* Tạm tính mỗi lần - giống web */}
+                    <View style={[commonStyles.flexRowBetween, { marginBottom: 8 }]}>
+                      <Text style={commonStyles.cardDescription}>Tạm tính mỗi lần</Text>
+                      <Text style={[commonStyles.cardDescription, { fontWeight: '600' }]}>
+                        {previewData.formattedSubtotalPerOccurrence || 
+                         (previewData.serviceItems && previewData.serviceItems.length > 0 
+                           ? previewData.serviceItems[0]?.formattedSubTotal || formatPrice(previewData.serviceItems.reduce((sum, item) => sum + (item.subTotal || 0), 0))
+                           : formatPrice(0)
+                         )}
                       </Text>
                     </View>
                   </>
@@ -799,7 +796,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                   <View style={[commonStyles.flexRowBetween, { marginBottom: 8 }]}>
                     <Text style={commonStyles.cardDescription}>Tạm tính dịch vụ</Text>
                     <Text style={[commonStyles.cardDescription, { fontWeight: '600' }]}>
-                      {(previewData as any).formattedSubtotal || formatPrice((previewData as any).subtotal)}
+                      {(previewData as BookingPreviewResponse).formattedSubtotal || formatPrice((previewData as BookingPreviewResponse).subtotal || 0)}
                     </Text>
                   </View>
                 )}
@@ -808,7 +805,8 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                 {previewData.feeBreakdowns && previewData.feeBreakdowns.length > 0 && (
                   <View style={{ marginBottom: 8 }}>
                     <Text style={[commonStyles.cardDescription, { fontWeight: '500', marginBottom: 4, color: colors.neutral.textSecondary }]}>
-                      {'bookingCount' in previewData && (previewData as MultipleBookingPreviewResponse).bookingCount > 1 ? 'Phí mỗi lịch:' : 'Phí dịch vụ:'}
+                      {isRecurringPreview(previewData) ? 'Phí mỗi lần:' : 
+                       isMultiplePreview(previewData) ? 'Phí mỗi lịch:' : 'Phí dịch vụ:'}
                     </Text>
                     {previewData.feeBreakdowns.map((fee, index) => (
                       <View key={index} style={[commonStyles.flexRowBetween, { marginBottom: 4 }]}>
@@ -835,6 +833,16 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                         </Text>
                       </View>
                     ))}
+                  </View>
+                )}
+
+                {/* Giá mỗi lần cho recurring */}
+                {isRecurringPreview(previewData) && (
+                  <View style={[commonStyles.flexRowBetween, { marginBottom: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: dividerColor }]}>
+                    <Text style={[commonStyles.cardDescription, { fontWeight: '600' }]}>Giá mỗi lần</Text>
+                    <Text style={[commonStyles.cardDescription, { fontWeight: '700', color: colors.highlight.purple }]}>
+                      {previewData.formattedPricePerOccurrence}
+                    </Text>
                   </View>
                 )}
 
@@ -892,13 +900,15 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                           <Ionicons name="calendar-outline" size={14} color={colors.neutral.textSecondary} style={{ marginRight: 6 }} />
                           <Text style={[commonStyles.cardDescription, { fontSize: 13 }]}>
-                            {booking.bookingTime ? new Date(booking.bookingTime).toLocaleDateString('vi-VN', {
-                              weekday: 'short',
-                              day: '2-digit',
-                              month: '2-digit',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            }) : ''}
+                            {booking.bookingTime ? (() => {
+                              const d = new Date(booking.bookingTime);
+                              const day = String(d.getDate()).padStart(2, '0');
+                              const month = String(d.getMonth() + 1).padStart(2, '0');
+                              const year = d.getFullYear();
+                              const hour = String(d.getHours()).padStart(2, '0');
+                              const minute = String(d.getMinutes()).padStart(2, '0');
+                              return `${day}/${month}/${year} ${hour}:${minute}`;
+                            })() : ''}
                           </Text>
                         </View>
                         <Text style={[commonStyles.cardDescription, { fontWeight: '600', fontSize: 13 }]}>
@@ -1397,6 +1407,54 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                       </Text>
                     </View>
 
+                    {/* Chi tiết dịch vụ */}
+                    {previewData.serviceItems && previewData.serviceItems.length > 0 && (
+                      <View style={{ marginBottom: 12 }}>
+                        <Text style={[commonStyles.cardDescription, { fontWeight: '700', marginBottom: 8, color: colors.primary.navy }]}>
+                          Chi tiết dịch vụ
+                        </Text>
+                        {previewData.serviceItems.map((item, index) => (
+                          <View key={index} style={{ 
+                            padding: 10, 
+                            backgroundColor: colors.warm.beige, 
+                            borderRadius: 8,
+                            marginBottom: index < previewData.serviceItems.length - 1 ? 8 : 0
+                          }}>
+                            <View style={commonStyles.flexRowBetween}>
+                              <Text style={[commonStyles.cardDescription, { fontWeight: '600', flex: 1 }]}>
+                                {item.serviceName}
+                              </Text>
+                              <Text style={[commonStyles.cardDescription, { fontWeight: '600' }]}>
+                                {item.formattedSubTotal}
+                              </Text>
+                            </View>
+                            <Text style={[commonStyles.cardDescription, { fontSize: 12, color: colors.neutral.textSecondary, marginTop: 2 }]}>
+                              {item.formattedUnitPrice} × {item.quantity} {item.unit}
+                            </Text>
+                            {item.selectedChoices && item.selectedChoices.length > 0 && (
+                              <View style={{ marginTop: 6 }}>
+                                {item.selectedChoices.map((choice, cIndex) => (
+                                  <View key={cIndex} style={[commonStyles.flexRowBetween, { paddingVertical: 2 }]}>
+                                    <Text style={[commonStyles.cardDescription, { fontSize: 12, color: colors.neutral.textSecondary }]}>
+                                      + {choice.optionName}: {choice.choiceName}
+                                    </Text>
+                                    <Text style={[commonStyles.cardDescription, { fontSize: 12, color: colors.neutral.textSecondary }]}>
+                                      {choice.formattedPrice}
+                                    </Text>
+                                  </View>
+                                ))}
+                              </View>
+                            )}
+                            {item.estimatedDuration && (
+                              <Text style={[commonStyles.cardDescription, { fontSize: 11, color: colors.neutral.textSecondary, marginTop: 4 }]}>
+                                ⏱ Thời gian: {item.estimatedDuration}
+                              </Text>
+                            )}
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
                     {/* Số lần thực hiện */}
                     <View style={[commonStyles.flexRowBetween, { paddingVertical: 6 }]}>
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -1404,19 +1462,23 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                         <Text style={commonStyles.cardDescription}>Số lần thực hiện</Text>
                       </View>
                       <Text style={[commonStyles.cardDescription, { fontWeight: '700', color: colors.highlight.purple }]}>
-                        {previewData.totalOccurrences} lần
+                        {previewData.occurrenceCount || previewData.totalOccurrences} lần
                       </Text>
                     </View>
 
-                    {/* Giá mỗi lần */}
+                    {/* Tạm tính mỗi lần (giống web) */}
                     <View style={[commonStyles.flexRowBetween, { paddingVertical: 6 }]}>
-                      <Text style={commonStyles.cardDescription}>Giá mỗi lần</Text>
+                      <Text style={commonStyles.cardDescription}>Tạm tính mỗi lần</Text>
                       <Text style={[commonStyles.cardDescription, { fontWeight: '600' }]}>
-                        {previewData.formattedPricePerOccurrence}
+                        {previewData.formattedSubtotalPerOccurrence || 
+                         (previewData.serviceItems && previewData.serviceItems.length > 0 
+                           ? previewData.serviceItems[0]?.formattedSubTotal || formatPrice(previewData.serviceItems.reduce((sum, item) => sum + (item.subTotal || 0), 0))
+                           : formatPrice(0)
+                         )}
                       </Text>
                     </View>
 
-                    {/* Khuyến mãi */}
+                    {/* Khuyến mãi mỗi lần */}
                     {previewData.promotionInfo && (
                       <View style={{ backgroundColor: successColor + '10', padding: 10, borderRadius: 8, marginVertical: 8, borderLeftWidth: 3, borderLeftColor: successColor }}>
                         <View style={commonStyles.flexRowBetween}>
@@ -1431,11 +1493,16 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                               {previewData.promotionInfo.description}
                             </Text>
                           </View>
+                          {previewData.formattedDiscountPerOccurrence && (
+                            <Text style={[commonStyles.cardDescription, { fontWeight: '700', color: successColor }]}>
+                              -{previewData.formattedDiscountPerOccurrence}
+                            </Text>
+                          )}
                         </View>
                       </View>
                     )}
 
-                    {/* Phí dịch vụ */}
+                    {/* Phí mỗi lần */}
                     {previewData.feeBreakdowns && previewData.feeBreakdowns.length > 0 && (
                       <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: dividerColor }}>
                         <Text style={[commonStyles.cardDescription, { fontWeight: '700', marginBottom: 6, color: colors.primary.navy }]}>Phí mỗi lần</Text>
@@ -1449,16 +1516,55 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                             </Text>
                           </View>
                         ))}
+                        {/* Tổng phí mỗi lần */}
+                        {previewData.formattedTotalFeesPerOccurrence && (
+                          <View style={[commonStyles.flexRowBetween, { paddingVertical: 4, marginTop: 4 }]}>
+                            <Text style={[commonStyles.cardDescription, { fontWeight: '600' }]}>Tổng phí mỗi lần</Text>
+                            <Text style={[commonStyles.cardDescription, { fontWeight: '600' }]}>
+                              {previewData.formattedTotalFeesPerOccurrence}
+                            </Text>
+                          </View>
+                        )}
                       </View>
                     )}
 
+                    {/* Tóm tắt thanh toán - Header */}
+                    <View style={{ marginTop: 16, marginBottom: 12 }}>
+                      <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.heading3, color: colors.primary.navy }]}>
+                        Tóm tắt thanh toán
+                      </Text>
+                      <View style={{ 
+                        flexDirection: 'row', 
+                        alignItems: 'center', 
+                        marginTop: 6,
+                        backgroundColor: colors.highlight.purple + '15',
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        borderRadius: 6,
+                        alignSelf: 'flex-start'
+                      }}>
+                        <Ionicons name="repeat" size={14} color={colors.highlight.purple} style={{ marginRight: 6 }} />
+                        <Text style={[commonStyles.cardDescription, { fontWeight: '600', color: colors.highlight.purple, fontSize: 13 }]}>
+                          Thanh toán theo từng lần
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Giá mỗi lần (sau phí) */}
+                    <View style={[commonStyles.flexRowBetween, { paddingVertical: 6, marginTop: 8 }]}>
+                      <Text style={[commonStyles.cardDescription, { fontWeight: '600' }]}>Giá mỗi lần</Text>
+                      <Text style={[commonStyles.cardDescription, { fontWeight: '700', color: colors.highlight.purple }]}>
+                        {previewData.formattedPricePerOccurrence}
+                      </Text>
+                    </View>
+
                     {/* Lịch thực hiện preview */}
-                    {previewData.occurrenceDates && previewData.occurrenceDates.length > 0 && (
+                    {((previewData.occurrenceDates?.length || 0) > 0 || (previewData.plannedBookingTimes?.length || 0) > 0) && (
                       <View style={{ marginTop: 12 }}>
                         <Text style={[commonStyles.cardDescription, { fontWeight: '600', marginBottom: 8, color: colors.primary.navy }]}>
-                          Các ngày thực hiện ({previewData.previewedOccurrences}/{previewData.totalOccurrences})
+                          Các lịch dự kiến ({previewData.occurrenceCount || previewData.previewedOccurrences}/{previewData.occurrenceCount || previewData.totalOccurrences})
                         </Text>
-                        {previewData.occurrenceDates.slice(0, 5).map((date, index) => (
+                        {(previewData.plannedBookingTimes || previewData.occurrenceDates)?.slice(0, 5).map((date, index) => (
                           <View 
                             key={index} 
                             style={[
@@ -1474,12 +1580,14 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                               <Ionicons name="calendar-outline" size={14} color={colors.highlight.purple} style={{ marginRight: 6 }} />
                               <Text style={[commonStyles.cardDescription, { fontSize: 13 }]}>
-                                {new Date(date).toLocaleDateString('vi-VN', {
-                                  weekday: 'short',
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: 'numeric'
-                                })}
+                                {(() => {
+                                  const d = new Date(date);
+                                  const day = String(d.getDate()).padStart(2, '0');
+                                  const month = String(d.getMonth() + 1).padStart(2, '0');
+                                  const year = d.getFullYear();
+                                  const weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+                                  return `${weekdays[d.getDay()]}, ${day}/${month}/${year}`;
+                                })()}
                               </Text>
                             </View>
                             <Text style={[commonStyles.cardDescription, { fontWeight: '600', fontSize: 13, color: accentColor }]}>
@@ -1487,9 +1595,9 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                             </Text>
                           </View>
                         ))}
-                        {previewData.occurrenceDates.length > 5 && (
+                        {((previewData.plannedBookingTimes?.length || previewData.occurrenceDates?.length) || 0) > 5 && (
                           <Text style={[commonStyles.cardDescription, { textAlign: 'center', marginTop: 4, fontSize: 12, color: colors.neutral.textSecondary }]}>
-                            +{previewData.occurrenceDates.length - 5} ngày khác
+                            +{((previewData.plannedBookingTimes?.length || previewData.occurrenceDates?.length) || 0) - 5} lịch khác...
                           </Text>
                         )}
                       </View>
@@ -1497,24 +1605,42 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
 
                     {/* Tổng thanh toán ước tính */}
                     <View style={{ height: 2, backgroundColor: colors.highlight.purple, marginVertical: 16, opacity: 0.3 }} />
-                    <View style={[commonStyles.flexRowBetween, { backgroundColor: colors.highlight.purple + '10', padding: 12, borderRadius: 12 }]}>
-                      <View>
-                        <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.heading3 }]}>Tổng ước tính</Text>
-                        <Text style={[commonStyles.cardDescription, { fontSize: 12, marginTop: 4, color: colors.neutral.textSecondary }]}>
-                          {previewData.totalOccurrences} lần × {previewData.formattedPricePerOccurrence}
+                    <View style={{ backgroundColor: colors.highlight.purple + '10', padding: 12, borderRadius: 12 }}>
+                      <View style={commonStyles.flexRowBetween}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[commonStyles.cardTitle, { fontSize: responsiveFontSize.heading3 }]}>Tổng ước tính</Text>
+                          <Text style={[commonStyles.cardDescription, { fontSize: 12, marginTop: 4, color: colors.neutral.textSecondary }]}>
+                            {previewData.occurrenceCount || previewData.totalOccurrences} lần × {previewData.formattedPricePerOccurrence}
+                          </Text>
+                        </View>
+                        <Text style={[commonStyles.cardPrice, { fontSize: 24, fontWeight: '800', color: colors.highlight.purple }]}>
+                          {previewData.formattedTotalEstimatedPrice}
                         </Text>
                       </View>
-                      <Text style={[commonStyles.cardPrice, { fontSize: 24, fontWeight: '800', color: colors.highlight.purple }]}>
-                        {previewData.formattedTotalEstimatedPrice}
-                      </Text>
+                      
+                      {/* Badge: Thanh toán theo từng lần */}
+                      <View style={{ 
+                        marginTop: 12, 
+                        paddingTop: 12, 
+                        borderTopWidth: 1, 
+                        borderTopColor: colors.highlight.purple + '30',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <Ionicons name="wallet-outline" size={16} color={colors.highlight.purple} style={{ marginRight: 6 }} />
+                        <Text style={[commonStyles.cardDescription, { fontWeight: '600', color: colors.highlight.purple }]}>
+                          Thanh toán: {previewData.formattedPricePerOccurrence}/lần
+                        </Text>
+                      </View>
                     </View>
                     
-                    {/* Ghi chú thanh toán định kỳ */}
-                    <View style={{ marginTop: 12, padding: 10, backgroundColor: colors.feedback.warning + '10', borderRadius: 8 }}>
+                    {/* Ghi chú thanh toán định kỳ - giống web */}
+                    <View style={{ marginTop: 12, padding: 10, backgroundColor: colors.neutral.background, borderRadius: 8 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-                        <Ionicons name="information-circle" size={16} color={colors.feedback.warning} style={{ marginRight: 8, marginTop: 2 }} />
-                        <Text style={[commonStyles.cardDescription, { fontSize: 12, flex: 1, color: colors.feedback.warning }]}>
-                          Bạn sẽ thanh toán sau mỗi lần thực hiện dịch vụ. Tổng ước tính chỉ mang tính tham khảo.
+                        <Ionicons name="information-circle" size={16} color={colors.neutral.textSecondary} style={{ marginRight: 8, marginTop: 2 }} />
+                        <Text style={[commonStyles.cardDescription, { fontSize: 12, flex: 1, color: colors.neutral.textSecondary }]}>
+                          Đây là ước tính cho {previewData.occurrenceCount || previewData.totalOccurrences} lần đặt lịch. Tổng thanh toán thực tế có thể thay đổi nếu có điều chỉnh trong quá trình.
                         </Text>
                       </View>
                     </View>
@@ -1522,6 +1648,49 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                 ) : isMultiplePreview(previewData) ? (
                   /* === MULTIPLE BOOKING PREVIEW === */
                   <>
+                    {/* Chi tiết dịch vụ */}
+                    {previewData.serviceItems && previewData.serviceItems.length > 0 && (
+                      <View style={{ marginBottom: 12 }}>
+                        <Text style={[commonStyles.cardDescription, { fontWeight: '700', marginBottom: 8, color: colors.primary.navy }]}>
+                          Chi tiết dịch vụ (mỗi lịch)
+                        </Text>
+                        {previewData.serviceItems.map((item, index) => (
+                          <View key={index} style={{ 
+                            padding: 10, 
+                            backgroundColor: colors.warm.beige, 
+                            borderRadius: 8,
+                            marginBottom: index < previewData.serviceItems.length - 1 ? 8 : 0
+                          }}>
+                            <View style={commonStyles.flexRowBetween}>
+                              <Text style={[commonStyles.cardDescription, { fontWeight: '600', flex: 1 }]}>
+                                {item.serviceName}
+                              </Text>
+                              <Text style={[commonStyles.cardDescription, { fontWeight: '600' }]}>
+                                {item.formattedSubTotal}
+                              </Text>
+                            </View>
+                            <Text style={[commonStyles.cardDescription, { fontSize: 12, color: colors.neutral.textSecondary, marginTop: 2 }]}>
+                              {item.formattedUnitPrice} × {item.quantity} {item.unit}
+                            </Text>
+                            {item.selectedChoices && item.selectedChoices.length > 0 && (
+                              <View style={{ marginTop: 6 }}>
+                                {item.selectedChoices.map((choice, cIndex) => (
+                                  <View key={cIndex} style={[commonStyles.flexRowBetween, { paddingVertical: 2 }]}>
+                                    <Text style={[commonStyles.cardDescription, { fontSize: 12, color: colors.neutral.textSecondary }]}>
+                                      + {choice.optionName}: {choice.choiceName}
+                                    </Text>
+                                    <Text style={[commonStyles.cardDescription, { fontSize: 12, color: colors.neutral.textSecondary }]}>
+                                      {choice.formattedPrice}
+                                    </Text>
+                                  </View>
+                                ))}
+                              </View>
+                            )}
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
                     {/* Tạm tính mỗi lịch */}
                     <View style={[commonStyles.flexRowBetween, { paddingVertical: 6 }]}>
                       <Text style={commonStyles.cardDescription}>Tạm tính mỗi lịch</Text>
@@ -1623,8 +1792,56 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                     </View>
                   </>
                 ) : isSinglePreview(previewData) ? (
-                  /* === SINGLE / RECURRING BOOKING PREVIEW === */
+                  /* === SINGLE BOOKING PREVIEW === */
                   <>
+                    {/* Chi tiết dịch vụ */}
+                    {(previewData as BookingPreviewResponse).serviceItems && (previewData as BookingPreviewResponse).serviceItems!.length > 0 && (
+                      <View style={{ marginBottom: 12 }}>
+                        <Text style={[commonStyles.cardDescription, { fontWeight: '700', marginBottom: 8, color: colors.primary.navy }]}>
+                          Chi tiết dịch vụ
+                        </Text>
+                        {(previewData as BookingPreviewResponse).serviceItems!.map((item, index) => (
+                          <View key={index} style={{ 
+                            padding: 10, 
+                            backgroundColor: colors.warm.beige, 
+                            borderRadius: 8,
+                            marginBottom: index < (previewData as BookingPreviewResponse).serviceItems!.length - 1 ? 8 : 0
+                          }}>
+                            <View style={commonStyles.flexRowBetween}>
+                              <Text style={[commonStyles.cardDescription, { fontWeight: '600', flex: 1 }]}>
+                                {item.serviceName}
+                              </Text>
+                              <Text style={[commonStyles.cardDescription, { fontWeight: '600' }]}>
+                                {item.formattedSubTotal}
+                              </Text>
+                            </View>
+                            <Text style={[commonStyles.cardDescription, { fontSize: 12, color: colors.neutral.textSecondary, marginTop: 2 }]}>
+                              {item.formattedUnitPrice} × {item.quantity} {item.unit}
+                            </Text>
+                            {item.selectedChoices && item.selectedChoices.length > 0 && (
+                              <View style={{ marginTop: 6 }}>
+                                {item.selectedChoices.map((choice, cIndex) => (
+                                  <View key={cIndex} style={[commonStyles.flexRowBetween, { paddingVertical: 2 }]}>
+                                    <Text style={[commonStyles.cardDescription, { fontSize: 12, color: colors.neutral.textSecondary }]}>
+                                      + {choice.optionName}: {choice.choiceName}
+                                    </Text>
+                                    <Text style={[commonStyles.cardDescription, { fontSize: 12, color: colors.neutral.textSecondary }]}>
+                                      {choice.formattedPrice}
+                                    </Text>
+                                  </View>
+                                ))}
+                              </View>
+                            )}
+                            {item.estimatedDuration && (
+                              <Text style={[commonStyles.cardDescription, { fontSize: 11, color: colors.neutral.textSecondary, marginTop: 4 }]}>
+                                ⏱ Thời gian: {item.estimatedDuration}
+                              </Text>
+                            )}
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
                     {/* Tạm tính */}
                     <View style={[commonStyles.flexRowBetween, { paddingVertical: 6 }]}>
                       <Text style={commonStyles.cardDescription}>Tạm tính</Text>

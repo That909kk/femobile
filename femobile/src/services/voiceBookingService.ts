@@ -41,11 +41,6 @@ class VoiceBookingService {
     // React Native FormData cần format khác với web
     // Nếu là object { uri, type, name } thì append trực tiếp
     if (typeof (audio as RNFileObject).uri === 'string') {
-      console.log('[VoiceBookingService] Appending RN file:', {
-        uri: (audio as RNFileObject).uri,
-        type: (audio as RNFileObject).type,
-        name: (audio as RNFileObject).name,
-      });
       formData.append('audio', audio as any);
     } else {
       // Web Blob/File
@@ -56,25 +51,11 @@ class VoiceBookingService {
       formData.append('hints', JSON.stringify(hints));
     }
 
-    console.log('[VoiceBookingService] Sending createVoiceBooking request...');
-
     const response = await httpClient.postFormData<VoiceBookingResponse>(
       this.baseURL,
       formData,
       { timeout: 90000 } // 90s for STT + AI processing (increased for slow networks)
     );
-
-    console.log('[VoiceBookingService] Create response:', {
-      hasData: !!response.data,
-      success: response.success,
-      message: response.message?.substring(0, 50),
-      hasRequestIdInResponse: !!(response as any).requestId,
-      hasRequestIdInData: !!response.data?.requestId,
-      // Log speech data để xem text đầy đủ
-      hasSpeech: !!(response as any).speech,
-      speechMessageText: (response as any).speech?.message?.text?.substring(0, 100),
-      speechClarificationText: (response as any).speech?.clarification?.text?.substring(0, 100),
-    });
 
     // Backend trả về VoiceBookingResponse trực tiếp (có success, message, requestId, status cùng cấp)
     // httpClient.normalizeSuccess sẽ giữ nguyên vì có 'success' field
@@ -114,13 +95,6 @@ class VoiceBookingService {
 
     if (options?.audio) {
       // React Native FormData cần format khác với web
-      if (typeof (options.audio as RNFileObject).uri === 'string') {
-        console.log('[VoiceBookingService] Continue - Appending RN file:', {
-          uri: (options.audio as RNFileObject).uri,
-          type: (options.audio as RNFileObject).type,
-          name: (options.audio as RNFileObject).name,
-        });
-      }
       formData.append('audio', options.audio as any);
     }
 
@@ -132,24 +106,11 @@ class VoiceBookingService {
       formData.append('explicitFields', JSON.stringify(options.explicitFields));
     }
 
-    console.log('[VoiceBookingService] Sending continueVoiceBooking request...');
-
     const response = await httpClient.postFormData<VoiceBookingResponse>(
       `${this.baseURL}/continue`,
       formData,
       { timeout: 90000 } // 90s for STT + AI processing (increased for slow networks)
     );
-
-    console.log('[VoiceBookingService] Continue response:', {
-      hasData: !!response.data,
-      success: response.success,
-      hasRequestIdInResponse: !!(response as any).requestId,
-      hasRequestIdInData: !!response.data?.requestId,
-      // Log speech data để xem text đầy đủ
-      hasSpeech: !!(response as any).speech,
-      speechMessageText: (response as any).speech?.message?.text?.substring(0, 100),
-      speechClarificationText: (response as any).speech?.clarification?.text?.substring(0, 100),
-    });
 
     // Backend trả về VoiceBookingResponse trực tiếp
     const voiceResponse = response as any;
@@ -179,21 +140,7 @@ class VoiceBookingService {
       payload
     );
 
-    // Log toàn bộ response để debug
-    console.log('[VoiceBookingService] Confirm RAW response:', JSON.stringify(response, null, 2));
-    
     const voiceResponse = response as any;
-    
-    console.log('[VoiceBookingService] Confirm response parsed:', {
-      success: response.success,
-      message: response.message,
-      status: voiceResponse.status,
-      bookingId: voiceResponse.bookingId,
-      hasRequestId: !!voiceResponse.requestId,
-      hasData: !!response.data,
-      dataBookingId: response.data?.bookingId,
-      dataStatus: response.data?.status,
-    });
 
     // Extract bookingId từ nhiều nguồn có thể
     const extractedBookingId = voiceResponse.bookingId 
@@ -257,13 +204,6 @@ class VoiceBookingService {
       `${this.baseURL}/cancel`,
       payload
     );
-
-    console.log('[VoiceBookingService] Cancel response:', {
-      success: response.success,
-      message: response.message,
-      status: (response as any).status,
-      hasRequestId: !!(response as any).requestId,
-    });
 
     // Backend có thể trả về success:false nhưng status:CANCELLED là thành công
     // Hoặc trả về trực tiếp VoiceBookingResponse với status CANCELLED

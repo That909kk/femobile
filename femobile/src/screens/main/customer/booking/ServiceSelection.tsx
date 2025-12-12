@@ -173,7 +173,6 @@ export const ServiceSelection: React.FC<ServiceSelectionProps> = ({
         String(s.serviceId) === String(initialServiceId)
       );
       if (serviceToSelect) {
-        console.log('🎯 Auto-selecting service:', serviceToSelect.name);
         handleServiceSelect(serviceToSelect);
       }
     }

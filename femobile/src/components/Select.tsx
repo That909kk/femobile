@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, UI } from '../constants';
 
@@ -16,6 +16,7 @@ interface SelectProps {
   placeholder?: string;
   error?: string;
   disabled?: boolean;
+  searchable?: boolean;
 }
 
 export const Select: React.FC<SelectProps> = ({
@@ -26,14 +27,31 @@ export const Select: React.FC<SelectProps> = ({
   placeholder = 'Chọn một tùy chọn',
   error,
   disabled = false,
+  searchable = false,
 }) => {
   const [isVisible, setIsVisible] = React.useState(false);
+  const [searchText, setSearchText] = React.useState('');
 
   const selectedOption = options.find(option => option.value === value);
+
+  // Filter options based on search text
+  const filteredOptions = React.useMemo(() => {
+    if (!searchText.trim()) return options;
+    const searchLower = searchText.toLowerCase().trim();
+    return options.filter(option => 
+      option.label.toLowerCase().includes(searchLower)
+    );
+  }, [options, searchText]);
 
   const handleSelect = (optionValue: string) => {
     onSelect(optionValue);
     setIsVisible(false);
+    setSearchText('');
+  };
+
+  const handleClose = () => {
+    setIsVisible(false);
+    setSearchText('');
   };
 
   const getSelectStyle = () => {
@@ -49,6 +67,9 @@ export const Select: React.FC<SelectProps> = ({
     
     return baseStyle;
   };
+
+  // Auto enable search for large lists (provinces, communes)
+  const shouldShowSearch = searchable || options.length > 10;
 
   return (
     <View style={styles.container}>
@@ -79,51 +100,82 @@ export const Select: React.FC<SelectProps> = ({
         visible={isVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setIsVisible(false)}
+        onRequestClose={handleClose}
       >
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setIsVisible(false)}
+          onPress={handleClose}
         >
-          <View style={styles.modalContent}>
+          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{label || 'Chọn tùy chọn'}</Text>
               <TouchableOpacity
-                onPress={() => setIsVisible(false)}
+                onPress={handleClose}
                 style={styles.closeButton}
               >
                 <Ionicons name="close" size={24} color={COLORS.text.primary} />
               </TouchableOpacity>
             </View>
             
-            <View style={styles.optionsContainer}>
-              {options.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.option,
-                    option.value === value && styles.selectedOption
-                  ]}
-                  onPress={() => handleSelect(option.value)}
-                >
-                  <Text style={[
-                    styles.optionText,
-                    option.value === value && styles.selectedOptionText
-                  ]}>
-                    {option.label}
-                  </Text>
-                  
-                  {option.value === value && (
-                    <Ionicons
-                      name="checkmark"
-                      size={20}
-                      color={COLORS.primary}
-                    />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
+            {/* Search input for large lists */}
+            {shouldShowSearch && (
+              <View style={styles.searchContainer}>
+                <Ionicons name="search" size={20} color={COLORS.text.secondary} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Tìm kiếm..."
+                  placeholderTextColor={COLORS.text.disabled}
+                  value={searchText}
+                  onChangeText={setSearchText}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {searchText.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchText('')}>
+                    <Ionicons name="close-circle" size={20} color={COLORS.text.secondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+            
+            <ScrollView 
+              style={styles.optionsContainer}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+            >
+              {filteredOptions.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>Không tìm thấy kết quả</Text>
+                </View>
+              ) : (
+                filteredOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.option,
+                      option.value === value && styles.selectedOption
+                    ]}
+                    onPress={() => handleSelect(option.value)}
+                  >
+                    <Text style={[
+                      styles.optionText,
+                      option.value === value && styles.selectedOptionText
+                    ]}>
+                      {option.label}
+                    </Text>
+                    
+                    {option.value === value && (
+                      <Ionicons
+                        name="checkmark"
+                        size={20}
+                        color={COLORS.primary}
+                      />
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -182,8 +234,8 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: COLORS.surface,
     borderRadius: UI.BORDER_RADIUS.large,
-    width: '80%',
-    maxHeight: '60%',
+    width: '90%',
+    maxHeight: '70%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -201,8 +253,32 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 4,
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.background,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text.primary,
+    marginLeft: 8,
+    paddingVertical: 4,
+  },
   optionsContainer: {
-    maxHeight: 300,
+    maxHeight: 400,
+  },
+  emptyContainer: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: COLORS.text.secondary,
   },
   option: {
     flexDirection: 'row',

@@ -187,18 +187,14 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
     })();
 
     return () => {
-      console.log('[VoiceBooking] Component unmounting, cleaning up...');
-      
       // Tắt audio ngay lập tức (dùng ref để có giá trị mới nhất)
       if (soundRef.current) {
-        console.log('[VoiceBooking] Stopping and unloading audio...');
         soundRef.current.stopAsync().catch(() => {});
         soundRef.current.unloadAsync().catch(() => {});
       }
       
       // Dừng recording nếu đang ghi
       if (recordingRef.current) {
-        console.log('[VoiceBooking] Stopping recording...');
         recordingRef.current.stopAndUnloadAsync().catch(() => {});
       }
       
@@ -214,7 +210,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
           currentStatusRef.current && 
           currentStatusRef.current !== 'COMPLETED' && 
           currentStatusRef.current !== 'CANCELLED') {
-        console.log('[VoiceBooking] Cancelling booking:', currentRequestIdRef.current);
         hasCancelledRef.current = true;
         cancelBooking();
       }
@@ -288,8 +283,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
         !isPlayingAudioLocal &&
         (latestMessage.status === 'PARTIAL' || latestMessage.status === 'AWAITING_CONFIRMATION')) {
       
-      console.log('[VoiceBooking] Auto-playing audio for message:', latestMessage.id, 'status:', latestMessage.status);
-      
       // Đánh dấu đã phát audio này
       playedAudioIdsRef.current.add(latestMessage.id);
       
@@ -300,19 +293,12 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
   // Show/hide confirmation modal based on status - modal chỉ hiện sau khi audio phát xong
   // hoặc hiện ngay nếu không có audio
   useEffect(() => {
-    console.log('[VoiceBooking] Status/Preview changed:', { 
-      currentStatus, 
-      hasPreview: !!preview,
-      isPlayingAudioLocal,
-    });
-    
     // Nếu status là AWAITING_CONFIRMATION và không đang phát audio, hiện modal ngay
     // (trường hợp không có audio URL hoặc audio đã phát xong)
     if (currentStatus === 'AWAITING_CONFIRMATION' && !isPlayingAudioLocal) {
       const latestMessage = messages[messages.length - 1];
       // Nếu message mới nhất không có audio, hiện modal ngay
       if (!latestMessage?.audioUrl) {
-        console.log('[VoiceBooking] Showing confirmation modal (no audio)');
         setShowConfirmModal(true);
         Vibration.vibrate(50);
       }
@@ -321,7 +307,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
         // Delay một chút để đảm bảo audio state đã cập nhật
         setTimeout(() => {
           if (!isPlayingAudioLocal) {
-            console.log('[VoiceBooking] Showing confirmation modal (audio finished)');
             setShowConfirmModal(true);
             Vibration.vibrate(50);
           }
@@ -336,14 +321,11 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
   useEffect(() => {
     const fetchBookingDetails = async () => {
       if (currentStatus === 'COMPLETED' && bookingId && !confirmedBookingDetails) {
-        console.log('[VoiceBooking] Fetching booking details for:', bookingId);
         setLoadingBookingDetails(true);
         try {
           const response = await bookingService.getBookingById(bookingId);
-          console.log('[VoiceBooking] Booking details fetched:', response);
           setConfirmedBookingDetails(response);
         } catch (error) {
-          console.error('[VoiceBooking] Error fetching booking details:', error);
           // Vẫn hiện success screen dù không lấy được chi tiết
         } finally {
           setLoadingBookingDetails(false);
@@ -366,8 +348,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
   // Play audio đơn giản - giống web, hiện modal sau khi audio phát xong (nếu là AWAITING_CONFIRMATION)
   const playAudio = useCallback(async (url: string, showModalAfter: boolean = false) => {
     try {
-      console.log('[VoiceBooking] Playing audio:', { url, showModalAfter });
-      
       // Stop current audio if playing
       if (sound) {
         await sound.unloadAsync();
@@ -413,7 +393,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
         (playbackStatus) => {
           if (playbackStatus.isLoaded) {
             if (playbackStatus.didJustFinish) {
-              console.log('[VoiceBooking] ✅ Audio finished playing');
               setIsPlayingAudioLocal(false);
               newSound.unloadAsync();
               setSound(null);
@@ -429,7 +408,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
               
               // Sau khi audio phát xong, hiện modal nếu là AWAITING_CONFIRMATION (giống web)
               if (showModalAfter) {
-                console.log('[VoiceBooking] Audio finished, showing confirmation modal');
                 setTimeout(() => {
                   setShowConfirmModal(true);
                   Vibration.vibrate(50);
@@ -437,7 +415,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
               }
             }
           } else if (playbackStatus.error) {
-            console.error('[VoiceBooking] Audio playback error:', playbackStatus.error);
             setIsPlayingAudioLocal(false);
             // Graceful fallback - hiện modal nếu cần
             if (showModalAfter) {
@@ -449,7 +426,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
       );
       
       setSound(newSound);
-      console.log('[VoiceBooking] Audio loaded and playing successfully');
       
     } catch (error: any) {
       console.error('[VoiceBooking] Error playing audio:', error);
@@ -478,8 +454,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
 
   // Tắt audio đang phát (KHÔNG tự động ghi âm - giống web)
   const stopAudioPlayback = async () => {
-    console.log('[VoiceBooking] User stopped audio playback');
-    
     // Tắt audio ngay lập tức
     if (sound) {
       try {
@@ -547,7 +521,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
 
     // Nếu đang processing, không start recording
     if (isProcessing) {
-      console.log('[VoiceBooking] Still processing, skip start recording');
       return;
     }
 
@@ -558,7 +531,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
 
       // CRITICAL: Force cleanup TẤT CẢ recording có thể tồn tại
       if (recording) {
-        console.log('[VoiceBooking] Cleaning up recording from state...');
         try {
           const status = await recording.getStatusAsync();
           if (status.isRecording || status.canRecord) {
@@ -571,7 +543,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
       }
       
       if (recordingRef.current) {
-        console.log('[VoiceBooking] Cleaning up recording from ref...');
         try {
           await recordingRef.current.stopAndUnloadAsync();
         } catch (e) {
@@ -607,8 +578,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      console.log('[VoiceBooking] Creating new recording...');
-      
       // Haptic feedback khi bắt đầu ghi
       Vibration.vibrate(10);
       
@@ -617,8 +586,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
       
       const result = await Audio.Recording.createAsync(recordingOptions);
       const newRecording = result.recording;
-      
-      console.log('[VoiceBooking] New recording created successfully');
       
       // Save to both state and ref
       setRecording(newRecording);
@@ -635,7 +602,6 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
 
       // Set max duration timer (60 giây tối đa, giống web)
       maxDurationTimerRef.current = setTimeout(() => {
-        console.log('[VoiceBooking] Max duration reached, auto-stopping...');
         handleStopRecording();
       }, MAX_RECORDING_DURATION);
 
@@ -809,8 +775,8 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
               // Gọi cancel API trực tiếp (không qua store) ở background
               // Không cần chờ, không ảnh hưởng UI
               if (requestIdToCancel) {
-                voiceBookingService.cancelVoiceBooking(requestIdToCancel).catch((err: any) => {
-                  console.log('[VoiceBooking] Background cancel error (ignored):', err.message);
+                voiceBookingService.cancelVoiceBooking(requestIdToCancel).catch(() => {
+                  // Background cancel error - ignored
                 });
               }
             },

@@ -165,16 +165,7 @@ class EmployeeAssignmentService {
       query.toString() ? `?${query.toString()}` : ''
     }`;
 
-    console.log('[EmployeeAssignmentService] Calling endpoint:', endpoint);
-
     const response = await httpClient.get<any>(endpoint);
-
-    console.log('[EmployeeAssignmentService] Response:', {
-      success: response.success,
-      hasData: !!response.data,
-      dataType: Array.isArray(response.data) ? 'array' : typeof response.data,
-      dataLength: Array.isArray(response.data) ? response.data.length : 'N/A',
-    });
 
     if (!response.success) {
       const error: any = new Error(response.message || 'Không thể tải danh sách công việc');
@@ -189,11 +180,9 @@ class EmployeeAssignmentService {
     }
 
     if (Array.isArray(response.data)) {
-      console.log('[EmployeeAssignmentService] Returning assignments:', response.data.length);
       return response.data;
     }
 
-    console.warn('[EmployeeAssignmentService] Unexpected response format:', response.data);
     return [];
   }
 
@@ -422,15 +411,6 @@ class EmployeeAssignmentService {
     // Raw API response is: { data: [...], totalPages, totalItems, currentPage, success }
     
     const responseAny = response as any;
-    
-    console.log('Service full response:', {
-      hasData: !!response.data,
-      dataType: typeof response.data,
-      isDataArray: Array.isArray(response.data),
-      responseTotalPages: responseAny.totalPages,
-      responseTotalItems: responseAny.totalItems,
-      responseCurrentPage: responseAny.currentPage,
-    });
 
     // Get pagination from top level (httpClient might expose them)
     const totalPages = responseAny.totalPages || response.data?.totalPages || 0;
@@ -451,13 +431,6 @@ class EmployeeAssignmentService {
         return item.data;
       }
       return item;
-    });
-
-    console.log('Service processed:', {
-      bookingsCount: bookings.length,
-      totalPages,
-      totalItems,
-      currentPage,
     });
 
     return {

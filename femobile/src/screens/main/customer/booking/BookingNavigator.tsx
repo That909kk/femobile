@@ -94,7 +94,6 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
       const customerId = userInfo?.id;
       if (!customerId) return;
 
-      console.log('🔄 Preloading default address for:', customerId);
       const response = await bookingService.getDefaultAddress(customerId);
 
       if (response && response.addressId) {
@@ -110,9 +109,7 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
         };
         setPreloadedDefaultAddress(addressData);
         setSelectedLocation(addressData); // Auto-select as default
-        console.log('✅ Default address preloaded:', addressData);
       } else {
-        console.log('ℹ️ No default address available');
         setPreloadedDefaultAddress(null);
       }
     } catch (error) {
@@ -123,7 +120,6 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
 
   const loadPaymentMethods = async () => {
     try {
-      console.log('🔄 Loading payment methods...');
       const response = await bookingService.getPaymentMethods();
 
       if (response && Array.isArray(response)) {
@@ -132,9 +128,7 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
         if (response.length > 0) {
           setSelectedPaymentMethodId(response[0].methodId);
         }
-        console.log('✅ Payment methods loaded:', response);
       } else {
-        console.log('ℹ️ No payment methods available');
         setAvailablePaymentMethods([]);
       }
     } catch (error) {
@@ -161,7 +155,6 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
       const url = event.url;
-      console.log('🔗 Deep link received:', url);
 
       // Check if this is VNPay result callback
       if (url.includes('housekeeping://payment/vnpay-result')) {
@@ -177,8 +170,6 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
           const responseCode = params.get('responseCode');
           const transactionNo = params.get('transactionNo');
           const amount = params.get('amount');
-          
-          console.log('💳 VNPay payment result:', { status, responseCode, transactionNo, amount });
           
           if (status === 'success' && responseCode === '00') {
             // Payment successful - navigate to success screen
@@ -200,7 +191,7 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
             );
           }
         } catch (error) {
-          console.error('❌ Error parsing VNPay deep link:', error);
+          // Error parsing deep link
         }
       }
     };
@@ -251,17 +242,6 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
     setSelectedQuantity(normalizedQuantity);
     setTotalPrice(derivedPrice);
 
-    console.log(
-      '🎯 Service selected:',
-      service.name,
-      'with options:',
-      options,
-      'quantity:',
-      normalizedQuantity,
-      'price:',
-      derivedPrice,
-    );
-
     goToNextStep();
   };
 
@@ -289,10 +269,6 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
   ) => {
     setLoading(true);
     try {
-      console.log('🚀 Sending validated booking request:', bookingData);
-      if (images) {
-        console.log('📎 With images:', images.length);
-      }
       
       let response: any;
       
@@ -302,9 +278,7 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
         if (!customerId) {
           throw new Error('Không tìm thấy thông tin khách hàng');
         }
-        console.log('📅 Creating recurring booking for customer:', customerId);
         const recurringResponse: any = await bookingService.createRecurringBooking(customerId, bookingData);
-        console.log('📅 Recurring response:', recurringResponse);
         
         // Transform recurring response to match single booking format for success screen
         // Recurring API returns: { recurringBooking, generatedBookingIds, totalBookingsToBeCreated }
@@ -322,6 +296,15 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
           formattedDuration: detail.formattedDuration || detail.duration || `${detail.service?.estimatedDurationHours || 2}h`,
         }));
         
+        // Calculate price per occurrence from service details
+        const pricePerOccurrence = serviceDetails.reduce(
+          (sum: number, detail: any) => sum + (detail.subTotal || 0), 0
+        );
+        const formattedPricePerOccurrence = new Intl.NumberFormat('vi-VN', { 
+          style: 'currency', 
+          currency: 'VND' 
+        }).format(pricePerOccurrence);
+        
         response = {
           bookingId: recurringBooking.recurringBookingId,
           customerId: recurringBooking.customerId,
@@ -329,9 +312,7 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
           address: recurringBooking.address,
           bookingDetails: serviceDetails,
           serviceDetails: serviceDetails,
-          totalPrice: recurringBooking.recurringBookingDetails?.reduce(
-            (sum: number, detail: any) => sum + (detail.subTotal || 0), 0
-          ) || 0,
+          totalPrice: pricePerOccurrence,
           status: recurringBooking.status,
           statusDisplay: recurringBooking.statusDisplay,
           createdAt: recurringBooking.createdAt,
@@ -351,17 +332,17 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
             totalBookingsToBeCreated: recurringResponse.totalBookingsToBeCreated,
             generatedBookingIds: recurringResponse.generatedBookingIds,
             upcomingBookings: recurringBooking.upcomingBookings,
+            // Add price per occurrence for display on success screen
+            pricePerOccurrence: pricePerOccurrence,
+            formattedPricePerOccurrence: formattedPricePerOccurrence,
           }
         };
       } else if (bookingMode === 'multiple') {
-        console.log('📅 Creating multiple bookings for dates:', selectedDates.length);
         const multipleResponse: any = await bookingService.createMultipleBookings(bookingData, images);
-        console.log('📅 Multiple response:', JSON.stringify(multipleResponse, null, 2));
         
         // Transform multiple response to match single booking format for success screen
         // Multiple API returns: { totalBookingsCreated, successfulBookings, failedBookings, bookings[], errors[], totalAmount, formattedTotalAmount }
         const firstBooking = multipleResponse.bookings?.[0] || {};
-        console.log('📅 First booking:', JSON.stringify(firstBooking, null, 2));
         
         response = {
           bookingId: firstBooking.bookingId,
@@ -398,12 +379,9 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
             formattedTotalAmount: multipleResponse.formattedTotalAmount,
           }
         };
-        console.log('📅 Transformed response for success screen:', JSON.stringify(response, null, 2));
       } else {
         response = await bookingService.createBooking(bookingData, images);
       }
-      
-      console.log('🚀 Booking created successfully:', response);
       
       // Set booking result
       setBookingResult(response);
@@ -428,7 +406,6 @@ export const BookingNavigator: React.FC<BookingNavigatorProps> = ({
       goToNextStep();
       
     } catch (error: any) {
-      console.error('❌ Booking creation error:', error);
       // Re-throw error to be handled by BookingConfirmation
       throw error;
     } finally {

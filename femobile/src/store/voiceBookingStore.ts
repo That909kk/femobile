@@ -119,10 +119,8 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
     try {
       await voiceBookingWebSocketService.connect();
       set({ isConnected: true });
-      console.log('[VoiceBookingStore] WebSocket connected successfully');
     } catch (error) {
-      console.warn('[VoiceBookingStore] WebSocket connection failed (non-critical):', error);
-      // Không set error vì WebSocket là optional, REST API vẫn hoạt động
+      // WebSocket à optional, REST API vẫn hoạt động
       set({ isConnected: false });
     }
   },
@@ -168,13 +166,9 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
               get().handleWebSocketEvent(event);
             }
           );
-          console.log('[VoiceBookingStore] Subscribed to WebSocket for request:', response.requestId);
         } catch (wsError) {
-          console.warn('[VoiceBookingStore] WebSocket subscription failed (non-critical):', wsError);
           // Continue without WebSocket - REST API sẽ handle
         }
-      } else if (response.requestId && !state.isConnected) {
-        console.log('[VoiceBookingStore] WebSocket not connected, using REST API only');
       }
 
       // Xử lý response
@@ -270,18 +264,13 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
   cancelBooking: async () => {
     const state = get();
     if (!state.currentRequestId) {
-      console.log('[VoiceBookingStore] No requestId to cancel');
       return;
     }
 
     try {
       set({ isProcessing: true });
-      
-      console.log('[VoiceBookingStore] Cancelling booking:', state.currentRequestId);
 
       await voiceBookingService.cancelVoiceBooking(state.currentRequestId);
-
-      console.log('[VoiceBookingStore] Booking cancelled successfully');
 
       // Unsubscribe WebSocket
       voiceBookingWebSocketService.unsubscribeFromRequest(state.currentRequestId);
@@ -299,7 +288,6 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
       const errorMsg = error.message || '';
       if (errorMsg.includes('huỷ') || errorMsg.includes('hủy') || errorMsg.includes('cancel')) {
         // This is actually a success - backend returned success message as error
-        console.log('[VoiceBookingStore] Booking cancelled (message in error):', errorMsg);
         voiceBookingWebSocketService.unsubscribeFromRequest(state.currentRequestId);
         set({ isProcessing: false, currentStatus: 'CANCELLED' });
         get().addAIMessage('Đã hủy yêu cầu đặt lịch.');
@@ -330,13 +318,6 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
   },
 
   addAIMessage: (content: string, audioUrl?: string, status?: VoiceBookingStatus) => {
-    console.log('[VoiceBookingStore] Adding AI message:', {
-      content: content.substring(0, 50),
-      hasAudioUrl: !!audioUrl,
-      audioUrl,
-      status,
-    });
-    
     const message: ConversationMessage = {
       id: Date.now().toString(),
       type: 'ai',
@@ -373,16 +354,6 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
   // ===== Internal handlers =====
   handleVoiceBookingResponse: (response: VoiceBookingResponse) => {
     const state = get();
-
-    console.log('[VoiceBookingStore] Handling response:', {
-      status: response.status,
-      hasTranscript: !!response.transcript,
-      hasMessage: !!response.message,
-      hasClarification: !!response.clarificationMessage,
-      hasSpeech: !!response.speech,
-      speechMessageUrl: response.speech?.message?.audioUrl,
-      speechClarificationUrl: response.speech?.clarification?.audioUrl,
-    });
 
     // Cập nhật transcript và thêm user message (giống web)
     if (response.transcript) {
@@ -426,25 +397,8 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
           partialText = response.speech?.clarification?.text || response.clarificationMessage || response.message || 'Vui lòng cung cấp thêm thông tin.';
         }
 
-        console.log('[VoiceBookingStore] PARTIAL - speech data:', {
-          hasSpeech: !!response.speech,
-          hasMessage: !!response.speech?.message,
-          hasClarification: !!response.speech?.clarification,
-          messageAudioUrl: response.speech?.message?.audioUrl,
-          clarificationAudioUrl: response.speech?.clarification?.audioUrl,
-          selectedAudioUrl: partialAudioUrl,
-          audioUrlType: typeof partialAudioUrl,
-          audioUrlValid: partialAudioUrl ? (partialAudioUrl.startsWith('http://') || partialAudioUrl.startsWith('https://')) : false,
-          // Log full text để debug
-          messageText: response.speech?.message?.text,
-          clarificationText: response.speech?.clarification?.text,
-          responseMessage: response.message,
-          selectedText: partialText,
-        });
-
         // Validate audio URL trước khi add message
         if (partialAudioUrl && !partialAudioUrl.startsWith('http://') && !partialAudioUrl.startsWith('https://')) {
-          console.error('[VoiceBookingStore] Invalid audio URL from backend:', partialAudioUrl);
           // Vẫn add message nhưng không có audio
           get().addAIMessage(partialText, undefined, response.status);
         } else {
@@ -455,16 +409,6 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
 
       case 'AWAITING_CONFIRMATION':
         // Đã có preview, chờ xác nhận
-        console.log('[VoiceBookingStore] AWAITING_CONFIRMATION - preview data:', {
-          hasPreview: !!response.preview,
-          preview: response.preview,
-          address: response.preview?.address,
-          bookingTime: response.preview?.bookingTime,
-          services: response.preview?.services,
-          totalAmount: response.preview?.totalAmount,
-          totalAmountFormatted: response.preview?.totalAmountFormatted,
-        });
-        
         set({
           preview: response.preview || null,
           showPreview: true,
@@ -521,8 +465,6 @@ export const useVoiceBookingStore = create<VoiceBookingState & VoiceBookingActio
   },
 
   handleWebSocketEvent: (event: VoiceBookingEventPayload) => {
-    console.log('[VoiceBookingStore] WebSocket event:', event);
-
     // Cập nhật status
     set({ currentStatus: event.status });
 

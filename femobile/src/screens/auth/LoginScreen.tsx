@@ -36,17 +36,21 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [rememberMe, setRememberMe] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false); // Local loading state
   
   // Refs for input fields
   const usernameRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   
-  const { login, loading, error } = useAuth();
+  const { login, error } = useAuth(); // Remove loading from destructure
   const { data: staticData } = useStaticData('login');
 
 
 
   const handleLogin = async () => {
+    // Prevent double submit
+    if (isLoggingIn) return;
+    
     // Validate only username and password first
     const newErrors: Record<string, string> = {};
     
@@ -67,6 +71,8 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
 
+    setIsLoggingIn(true); // Start local loading
+    
     try {
       // First, get user roles
       const rolesResponse = await authService.getRoles({
@@ -87,6 +93,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
           errorMessage = staticData?.messages?.account_locked || 'Tài khoản đã bị khóa do đăng nhập sai quá nhiều lần. Vui lòng thử lại sau.';
         }
         
+        setIsLoggingIn(false);
         Alert.alert(
           staticData?.messages?.alert_error || 'Lỗi',
           errorMessage,
@@ -102,6 +109,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
         .map(([role, _]) => role);
 
       if (activeRoles.length === 0) {
+        setIsLoggingIn(false);
         Alert.alert(
           staticData?.messages?.alert_error || 'Lỗi',
           'Tài khoản chưa được kích hoạt hoặc đã bị khóa',
@@ -112,6 +120,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
       // Check if user has ADMIN role - mobile app doesn't support ADMIN role
       if (activeRoles.includes('ADMIN')) {
+        setIsLoggingIn(false);
         Alert.alert(
           staticData?.messages?.alert_info || 'Thông báo',
           staticData?.messages?.admin_not_supported || 'Ứng dụng không hỗ trợ cho vai trò ADMIN. Vui lòng đăng nhập tại homemate.io.vn',
@@ -136,30 +145,22 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
         });
         
         // Kiểm tra nếu cần xác thực email (tương tự web)
-        if (loginResult && typeof loginResult === 'object' && 'requireEmailVerification' in loginResult) {
-          const result = loginResult as { requireEmailVerification?: boolean; email?: string };
-          if (result.requireEmailVerification && result.email) {
-            Alert.alert(
-              staticData?.messages?.alert_info || 'Thông báo',
-              staticData?.messages?.email_not_verified || 'Email của bạn chưa được xác thực. Vui lòng xác thực để tiếp tục.',
-              [
-                {
-                  text: staticData?.messages?.alert_ok || 'Xác thực ngay',
-                  onPress: () => navigation.navigate('VerifyOTP', {
-                    email: result.email!,
-                    type: 'register',
-                    fromLogin: true,
-                  }),
-                },
-              ]
-            );
-            return;
-          }
+        if (loginResult?.requireEmailVerification && loginResult?.email) {
+          setIsLoggingIn(false);
+          // Navigate trực tiếp đến OTP không cần alert
+          navigation.navigate('VerifyOTP', {
+            email: loginResult.email,
+            type: 'register',
+            fromLogin: true,
+          });
+          return;
         }
         
-        // No alert needed, navigation will happen automatically
+        // Login successful - navigation will happen automatically via AppNavigator
+        // Don't set isLoggingIn to false here as we're navigating away
       } else {
         // Multiple roles, navigate to role selection screen
+        setIsLoggingIn(false);
         navigation.navigate('RoleSelection' as any, {
           username: formData.username.trim(),
           password: formData.password,
@@ -167,6 +168,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
         });
       }
     } catch (err: any) {
+      setIsLoggingIn(false);
       Alert.alert(
         staticData?.messages?.alert_error || 'Lỗi',
         err.message || staticData?.messages?.login_error || 'Đăng nhập thất bại',
@@ -273,9 +275,9 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
                 <View style={styles.buttonContainer}>
                   <Button
-                    title={loading ? staticData.actions.logging_in : staticData.actions.login}
+                    title={isLoggingIn ? staticData.actions.logging_in : staticData.actions.login}
                     onPress={handleLogin}
-                    loading={loading}
+                    loading={isLoggingIn}
                     gradient={true}
                     fullWidth
                     size="large"

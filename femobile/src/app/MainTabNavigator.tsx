@@ -26,8 +26,6 @@ export const MainTabNavigator = () => {
   const { totalUnread, fetchTotalUnread } = useChatStore();
   const authUser = useAuthStore(state => state.user);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-  console.log('MainTabNavigator rendered with role:', role, 'loading:', loading);
 
   // Get receiverId based on role
   const receiverId = role === 'CUSTOMER' 

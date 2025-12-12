@@ -1,7 +1,13 @@
-import { authService } from './authService';
-import { useAuthStore } from '../store/authStore';
 import * as SecureStore from 'expo-secure-store';
-import { STORAGE_KEYS } from '../constants';
+import axios from 'axios';
+import { STORAGE_KEYS, API_CONFIG } from '../constants';
+
+// Callback for when session expires - will be set externally to avoid circular dependency
+let onSessionExpiredCallback: (() => Promise<void>) | null = null;
+
+export const setTokenManagerSessionExpiredCallback = (callback: () => Promise<void>) => {
+  onSessionExpiredCallback = callback;
+};
 
 class TokenManager {
   private isRefreshing = false;
@@ -22,30 +28,42 @@ class TokenManager {
         return false;
       }
 
-      // Validate current token
-      const isValid = await this.validateCurrentToken();
+      // Validate current token using direct axios call to avoid httpClient interceptors
+      const isValid = await this.validateCurrentToken(accessToken);
       
       if (isValid) {
         return true;
       }
 
       // Token is invalid, try to refresh
-      return await this.handleTokenRefresh();
+      return await this.handleTokenRefresh(refreshToken);
     } catch (error) {
-      console.warn('Error ensuring valid token:', error);
+      console.warn('[TokenManager] Error ensuring valid token:', error);
       return false;
     }
   }
 
   /**
-   * Validate the current access token
+   * Validate the current access token - uses direct axios to avoid interceptor loops
    */
-  private async validateCurrentToken(): Promise<boolean> {
+  private async validateCurrentToken(accessToken: string): Promise<boolean> {
     try {
-      const response = await authService.validateToken();
-      return response.success && response.data?.valid === true;
-    } catch (error) {
-      console.warn('Token validation failed:', error);
+      const response = await axios.get(
+        `${API_CONFIG.BASE_URL}/auth/validate-token`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: API_CONFIG.TIMEOUT,
+        }
+      );
+      return response.data?.success && response.data?.data?.valid === true;
+    } catch (error: any) {
+      // 401 means token is invalid, other errors we should log
+      if (error?.response?.status !== 401) {
+        console.warn('[TokenManager] Token validation error:', error?.message);
+      }
       return false;
     }
   }
@@ -53,7 +71,7 @@ class TokenManager {
   /**
    * Handle token refresh with concurrency protection
    */
-  private async handleTokenRefresh(): Promise<boolean> {
+  async handleTokenRefresh(refreshToken?: string): Promise<boolean> {
     // If already refreshing, wait for the existing promise
     if (this.isRefreshing && this.refreshPromise) {
       return await this.refreshPromise;
@@ -61,7 +79,7 @@ class TokenManager {
 
     // Start refreshing
     this.isRefreshing = true;
-    this.refreshPromise = this.performTokenRefresh();
+    this.refreshPromise = this.performTokenRefresh(refreshToken);
 
     try {
       const result = await this.refreshPromise;
@@ -73,36 +91,59 @@ class TokenManager {
   }
 
   /**
-   * Perform the actual token refresh
+   * Perform the actual token refresh - uses direct axios to avoid interceptor loops
    */
-  private async performTokenRefresh(): Promise<boolean> {
+  private async performTokenRefresh(providedRefreshToken?: string): Promise<boolean> {
     try {
-      const refreshToken = await SecureStore.getItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
+      const refreshToken = providedRefreshToken || await SecureStore.getItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
+      const currentAccessToken = await SecureStore.getItemAsync(STORAGE_KEYS.ACCESS_TOKEN);
       
       if (!refreshToken) {
         return false;
       }
 
-      const response = await authService.refreshToken({ refreshToken });
+      // Use direct axios call to avoid httpClient interceptors
+      // Include Authorization header as backend may require it
+      const response = await axios.post(
+        `${API_CONFIG.BASE_URL}/auth/refresh-token`,
+        { refreshToken },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            // Include current access token if available (some backends require this)
+            ...(currentAccessToken ? { 'Authorization': `Bearer ${currentAccessToken}` } : {}),
+          },
+          timeout: API_CONFIG.TIMEOUT,
+        }
+      );
       
-      if (response.success && response.data) {
-        const { accessToken, refreshToken: newRefreshToken } = response.data;
-        
+      if (response.data?.success && response.data?.data) {
+        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+
+
         // Store new tokens
         await SecureStore.setItemAsync(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
         await SecureStore.setItemAsync(STORAGE_KEYS.REFRESH_TOKEN, newRefreshToken);
         
-        // Update auth store
-        const authStore = useAuthStore.getState();
-        authStore.setLoading(false);
-        // You might want to update the store state here if needed
-        
         return true;
       }
       
+      // Silently handle invalid response - just return false
       return false;
-    } catch (error) {
-      console.warn('Token refresh failed:', error);
+    } catch (error: any) {
+      const errorStatus = error?.response?.status;
+      
+      // Nếu refresh token không hợp lệ (401) hoặc bị revoke, âm thầm logout
+      if (errorStatus === 401 || errorStatus === 403) {
+        // Silently clear tokens and logout - no error messages to user
+        await this.clearTokens();
+        
+        // Trigger session expired callback để logout (silent)
+        if (onSessionExpiredCallback) {
+          await onSessionExpiredCallback();
+        }
+      }
+      
       return false;
     }
   }
@@ -116,8 +157,13 @@ class TokenManager {
     
     if (!isValid) {
       // Token refresh failed, user needs to login again
-      const authStore = useAuthStore.getState();
-      await authStore.clearAuth();
+      // Use callback to avoid circular dependency with authStore
+      if (onSessionExpiredCallback) {
+        await onSessionExpiredCallback();
+      } else {
+        // Fallback: clear tokens locally
+        await this.clearTokens();
+      }
     }
   }
 
@@ -142,7 +188,7 @@ class TokenManager {
       await SecureStore.deleteItemAsync(STORAGE_KEYS.ACCESS_TOKEN);
       await SecureStore.deleteItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
     } catch (error) {
-      console.warn('Failed to clear tokens:', error);
+      console.warn('[TokenManager] Failed to clear tokens:', error);
     }
   }
 }

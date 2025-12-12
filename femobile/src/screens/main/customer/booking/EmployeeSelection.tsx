@@ -89,14 +89,6 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
       // Format booking times for API
       const bookingTimes = selectedDates.map(date => `${date}T${selectedTime}:00`);
       
-      console.log('[EmployeeSelection] Loading suitable employees with:', {
-        serviceId: selectedService.serviceId,
-        bookingTimes,
-        ward: selectedLocation.ward,
-        city: selectedLocation.city,
-        customerId: userInfo?.id,
-      });
-      
       const employees = await bookingService.findSuitableEmployees({
         serviceId: selectedService.serviceId,
         bookingTimes,
@@ -105,7 +97,6 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
         customerId: userInfo?.id,
       });
 
-      console.log('[EmployeeSelection] Employees received:', employees.length);
       setSuitableEmployees(employees);
     } catch (err) {
       console.error('[EmployeeSelection] Error loading suitable employees:', err);
@@ -396,13 +387,20 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
                   <Ionicons name="calendar-outline" size={16} color={colors.highlight.teal} />
                   <Text style={[commonStyles.cardTitle, { marginLeft: 6, fontSize: 15 }]}>
                     {bookingMode === 'single' 
-                      ? new Date(selectedDates[0]).toLocaleDateString('vi-VN', {
-                          weekday: 'short',
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric'
-                        })
-                      : `${new Date(selectedDates[0]).toLocaleDateString('vi-VN')} - ${new Date(selectedDates[selectedDates.length - 1]).toLocaleDateString('vi-VN')}`
+                      ? (() => {
+                          const d = new Date(selectedDates[0]);
+                          const day = String(d.getDate()).padStart(2, '0');
+                          const month = String(d.getMonth() + 1).padStart(2, '0');
+                          const year = d.getFullYear();
+                          const weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+                          return `${weekdays[d.getDay()]}, ${day}/${month}/${year}`;
+                        })()
+                      : (() => {
+                          const d1 = new Date(selectedDates[0]);
+                          const d2 = new Date(selectedDates[selectedDates.length - 1]);
+                          const format = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                          return `${format(d1)} - ${format(d2)}`;
+                        })()
                     }
                   </Text>
                 </View>

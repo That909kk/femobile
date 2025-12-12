@@ -36,12 +36,10 @@ class NotificationWebSocketService {
    */
   async connect(accountId: string, role: UserRole): Promise<void> {
     if (this.status === 'connected' && this.subscriptionInfo?.accountId === accountId && this.subscriptionInfo?.role === role) {
-      console.log('[NotificationWS] Already connected with same accountId and role');
       return;
     }
 
     if (this.isConnecting) {
-      console.log('[NotificationWS] Already connecting, waiting...');
       return new Promise((resolve) => {
         const checkInterval = setInterval(() => {
           if (this.status === 'connected' || !this.isConnecting) {
@@ -56,7 +54,6 @@ class NotificationWebSocketService {
     const timeSinceLastAttempt = Date.now() - this.lastConnectionAttempt;
     if (timeSinceLastAttempt < this.connectionCooldown) {
       const remainingCooldown = Math.ceil((this.connectionCooldown - timeSinceLastAttempt) / 1000);
-      console.log(`[NotificationWS] Connection cooldown active. Wait ${remainingCooldown}s before retrying.`);
       throw new Error(`Please wait ${remainingCooldown} seconds before reconnecting`);
     }
 
@@ -64,7 +61,6 @@ class NotificationWebSocketService {
 
     // Nếu đã connect với user/role khác, disconnect trước
     if (this.client && this.status === 'connected') {
-      console.log('[NotificationWS] Disconnecting previous connection...');
       this.disconnect();
     }
 
@@ -75,21 +71,12 @@ class NotificationWebSocketService {
 
         const wsUrl = API_CONFIG.WEBSOCKET_URL + '/notifications';
 
-        console.log('[NotificationWS] ===== CONNECTING =====');
-        console.log('[NotificationWS] URL:', wsUrl);
-        console.log('[NotificationWS] AccountId:', accountId);
-        console.log('[NotificationWS] Role:', role);
-        console.log('[NotificationWS] =========================');
-
         // Tạo SockJS socket
         const socket = new SockJS(wsUrl);
 
         // Tạo STOMP client
         this.client = new Client({
           webSocketFactory: () => socket as any,
-          debug: (str) => {
-            console.log('[NotificationWS Debug]', str);
-          },
           reconnectDelay: 0, // Disable auto-reconnect
           heartbeatIncoming: 10000,
           heartbeatOutgoing: 10000,
@@ -97,7 +84,6 @@ class NotificationWebSocketService {
 
         // Xử lý kết nối thành công
         this.client.onConnect = (frame) => {
-          console.log('[NotificationWS] Connected successfully', frame);
           this.isConnecting = false;
           this.lastConnectionAttempt = Date.now();
           this.updateStatus('connected');
@@ -124,7 +110,6 @@ class NotificationWebSocketService {
 
         // Xử lý mất kết nối
         this.client.onDisconnect = () => {
-          console.log('[NotificationWS] Disconnected');
           this.isConnecting = false;
           this.updateStatus('disconnected');
           this.subscription = null;
@@ -150,21 +135,19 @@ class NotificationWebSocketService {
         // Timeout sau 10 giây
         const timeoutId = setTimeout(() => {
           if (this.isConnecting) {
-            console.error('[NotificationWS] Connection timeout after 10 seconds');
             this.isConnecting = false;
             this.updateStatus('error');
             if (this.client) {
               try {
                 this.client.deactivate();
               } catch (e) {
-                console.error('[NotificationWS] Error deactivating client:', e);
+                // Ignore deactivation error
               }
             }
             reject(new Error('Connection timeout - WebSocket server may not be available'));
           }
         }, 10000);
       } catch (error) {
-        console.error('[NotificationWS] Connection error:', error);
         this.isConnecting = false;
         this.updateStatus('error');
         this.notifyError(error);
@@ -178,31 +161,19 @@ class NotificationWebSocketService {
    */
   private subscribeToNotifications(accountId: string, role: UserRole): void {
     if (!this.client || this.status !== 'connected') {
-      console.warn('[NotificationWS] Cannot subscribe - not connected');
       return;
     }
 
     // Role-based routing destination
     const destination = `/user/${accountId}/${role}/queue/notifications`;
 
-    console.log('[NotificationWS] ===== SUBSCRIBING =====');
-    console.log('[NotificationWS] Destination:', destination);
-    console.log('[NotificationWS] =========================');
-
     try {
       this.subscription = this.client.subscribe(destination, (message: IMessage) => {
-        console.log('[NotificationWS] Received message:', message.body);
-        
         try {
           const notification: NotificationWebSocketDTO = JSON.parse(message.body);
-          console.log('[NotificationWS] Parsed notification:', notification);
           
           // Verify targetRole matches
           if (notification.targetRole !== role) {
-            console.warn('[NotificationWS] Role mismatch - ignoring notification', {
-              expected: role,
-              received: notification.targetRole,
-            });
             return;
           }
 
@@ -211,11 +182,10 @@ class NotificationWebSocketService {
             try {
               handler(notification);
             } catch (error) {
-              console.error('[NotificationWS] Error in notification handler:', error);
+              // Handler error - ignore
             }
           });
         } catch (error) {
-          console.error('[NotificationWS] Error parsing notification:', error);
           this.notifyError(error);
         }
       });
@@ -225,10 +195,7 @@ class NotificationWebSocketService {
         role,
         destination,
       };
-
-      console.log('[NotificationWS] Successfully subscribed to:', destination);
     } catch (error) {
-      console.error('[NotificationWS] Error subscribing:', error);
       this.notifyError(error);
     }
   }
@@ -237,13 +204,11 @@ class NotificationWebSocketService {
    * Ngắt kết nối WebSocket
    */
   disconnect(): void {
-    console.log('[NotificationWS] Disconnecting...');
-
     if (this.subscription) {
       try {
         this.subscription.unsubscribe();
       } catch (error) {
-        console.error('[NotificationWS] Error unsubscribing:', error);
+        // Ignore unsubscribe error
       }
       this.subscription = null;
     }
@@ -252,7 +217,7 @@ class NotificationWebSocketService {
       try {
         this.client.deactivate();
       } catch (error) {
-        console.error('[NotificationWS] Error deactivating client:', error);
+        // Ignore deactivation error
       }
       this.client = null;
     }
@@ -336,12 +301,11 @@ class NotificationWebSocketService {
   private updateStatus(newStatus: WebSocketStatus): void {
     if (this.status !== newStatus) {
       this.status = newStatus;
-      console.log('[NotificationWS] Status changed to:', newStatus);
       this.statusHandlers.forEach(handler => {
         try {
           handler(newStatus);
         } catch (error) {
-          console.error('[NotificationWS] Error in status handler:', error);
+          // Handler error - ignore
         }
       });
     }
@@ -355,7 +319,7 @@ class NotificationWebSocketService {
       try {
         handler(error);
       } catch (err) {
-        console.error('[NotificationWS] Error in error handler:', err);
+        // Error handler error - ignore
       }
     });
   }

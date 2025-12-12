@@ -90,23 +90,24 @@ export const VerifyOTPScreen: React.FC<Props> = ({ navigation, route }) => {
   // Redirect after successful verification
   useEffect(() => {
     if (isVerified) {
+      // Hiển thị ngay alert thành công và chuyển hướng về Login
       const timer = setTimeout(() => {
         if (type === 'forgot-password') {
           navigation.navigate('ResetPassword', { email });
         } else {
-          // Từ register hoặc login verification
+          // Từ register hoặc login verification - chuyển về trang đăng nhập
           Alert.alert(
             staticData?.messages?.success_title || 'Thành công',
             staticData?.messages?.verification_complete || 'Xác thực email thành công! Vui lòng đăng nhập lại.',
             [
               {
-                text: staticData?.messages?.alert_ok || 'Đồng ý',
+                text: staticData?.messages?.alert_ok || 'Đăng nhập ngay',
                 onPress: () => navigation.navigate('Login'),
               },
             ]
           );
         }
-      }, 1500);
+      }, 500); // Giảm thời gian chờ xuống 500ms
       return () => clearTimeout(timer);
     }
   }, [isVerified, navigation, type, email, staticData, fromLogin]);
@@ -156,10 +157,7 @@ export const VerifyOTPScreen: React.FC<Props> = ({ navigation, route }) => {
       
       if (response.success) {
         setIsVerified(true);
-        Alert.alert(
-          staticData?.messages?.success_title || 'Thành công',
-          staticData?.messages?.verify_success || 'Xác thực thành công!'
-        );
+        // Alert sẽ được hiển thị trong useEffect sau khi setIsVerified
       }
     } catch (err: any) {
       setErrors({ otp: err.message || staticData?.messages?.verify_error || 'Mã OTP không hợp lệ' });

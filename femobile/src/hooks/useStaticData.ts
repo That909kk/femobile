@@ -27,8 +27,6 @@ export const useStaticData = (pageName: StaticDataPageName): UseStaticDataResult
       setLoading(true);
       setError(null);
 
-      console.log(`Loading static data for ${pageName} in language: ${language}`);
-
       // Get static data from registry
       const pageData = staticDataRegistry[pageName];
 

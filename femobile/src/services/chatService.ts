@@ -144,16 +144,7 @@ class ChatService {
 
     const endpoint = `${this.CONVERSATION_PATH}/sender/${params.senderId}${query.toString() ? `?${query.toString()}` : ''}`;
     
-    console.log('🌐 ChatService: Calling API:', endpoint);
-    
     const response = await httpClient.get<Conversation[]>(endpoint);
-
-    console.log('📡 ChatService: API response:', {
-      success: response.success,
-      statusCode: response.status,
-      hasData: !!response.data,
-      dataLength: Array.isArray(response.data) ? response.data.length : 0,
-    });
 
     if (!response.success) {
       throw new Error(response.message || 'Khong the lay danh sach cuoc tro chuyen');
@@ -296,24 +287,15 @@ class ChatService {
   async getUnreadCountByConversation(conversationId: string, receiverId: string): Promise<number> {
     try {
       const endpoint = `${this.MESSAGE_PATH}/conversation/${conversationId}/unread-count?receiverId=${receiverId}`;
-      console.log('[ChatService] getUnreadCountByConversation calling:', endpoint);
       
       const response = await httpClient.get<UnreadCountResponse>(endpoint);
 
-      console.log('[ChatService] getUnreadCountByConversation response:', {
-        success: response.success,
-        hasData: !!response.data,
-        unreadCount: response.data?.data?.unreadCount,
-      });
-
       if (!response.success || !response.data) {
-        console.warn('[ChatService] getUnreadCountByConversation failed:', response.message);
         return 0;
       }
 
       return response.data.data?.unreadCount ?? 0;
     } catch (error) {
-      console.error('[ChatService] getUnreadCountByConversation error:', error);
       return 0;
     }
   }
@@ -325,24 +307,15 @@ class ChatService {
   async getTotalUnreadCount(receiverId: string): Promise<number> {
     try {
       const endpoint = `${this.MESSAGE_PATH}/unread-count?receiverId=${receiverId}`;
-      console.log('[ChatService] getTotalUnreadCount calling:', endpoint);
       
       const response = await httpClient.get<UnreadCountResponse>(endpoint);
 
-      console.log('[ChatService] getTotalUnreadCount response:', {
-        success: response.success,
-        hasData: !!response.data,
-        unreadCount: response.data?.data?.unreadCount,
-      });
-
       if (!response.success || !response.data) {
-        console.warn('[ChatService] getTotalUnreadCount failed:', response.message);
         return 0;
       }
 
       return response.data.data?.unreadCount ?? 0;
     } catch (error) {
-      console.error('[ChatService] getTotalUnreadCount error:', error);
       return 0;
     }
   }

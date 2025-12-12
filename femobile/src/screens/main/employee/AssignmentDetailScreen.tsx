@@ -603,16 +603,7 @@ export const AssignmentDetailScreen: React.FC = () => {
               <Ionicons name="person-circle-outline" size={48} color={COLORS.primary} />
               <View style={styles.customerDetails}>
                 <Text style={styles.customerName}>{assignment.customerName}</Text>
-                <Text style={styles.customerPhone}>{assignment.customerPhone}</Text>
               </View>
-            </View>
-            <View style={styles.customerActions}>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => handleCall(assignment.customerPhone)}
-              >
-                <Ionicons name="call" size={20} color="#fff" />
-              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -638,10 +629,6 @@ export const AssignmentDetailScreen: React.FC = () => {
             <View style={styles.paymentRow}>
               <Text style={styles.paymentLabel}>Đơn giá</Text>
               <Text style={styles.paymentValue}>{formatCurrency(assignment.pricePerUnit)}</Text>
-            </View>
-            <View style={styles.paymentRow}>
-              <Text style={styles.paymentLabel}>Số lượng</Text>
-              <Text style={styles.paymentValue}>{assignment.quantity}</Text>
             </View>
             <View style={styles.paymentDivider} />
             <View style={styles.paymentRow}>
@@ -702,45 +689,20 @@ export const AssignmentDetailScreen: React.FC = () => {
       {(assignment.status === 'PENDING' || assignment.status === 'ASSIGNED' || assignment.status === 'IN_PROGRESS') && (
         <View style={styles.actionContainer}>
           {assignment.status === 'PENDING' && (
-            <TouchableOpacity
-              style={[styles.primaryButton, styles.acceptButton]}
-              onPress={handleAccept}
-              disabled={!!actionLoading}
-            >
-              {actionLoading === 'accept' ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                  <Text style={styles.primaryButtonText}>Nhận việc</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
-
-          {assignment.status === 'ASSIGNED' && (
-            <>
+            <View style={styles.actionButtonsRow}>
               <TouchableOpacity
-                style={[
-                  styles.primaryButton, 
-                  styles.checkInButton,
-                  !canCheckIn() && styles.disabledButton
-                ]}
-                onPress={() => {
-                  if (!canCheckIn()) {
-                    Alert.alert(
-                      'Chưa đến thời gian',
-                      'Bạn chỉ có thể check-in trong khoảng từ 10 phút trước đến 5 phút sau giờ hẹn.',
-                      [{ text: 'OK' }]
-                    );
-                    return;
-                  }
-                  setShowCheckInModal(true);
-                }}
+                style={[styles.primaryButton, styles.acceptButton]}
+                onPress={handleAccept}
                 disabled={!!actionLoading}
               >
-                <Ionicons name="log-in" size={20} color="#fff" />
-                <Text style={styles.primaryButtonText}>Check-in</Text>
+                {actionLoading === 'accept' ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                    <Text style={styles.primaryButtonText}>Nhận việc</Text>
+                  </>
+                )}
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.secondaryButton, styles.cancelButton]}
@@ -750,12 +712,38 @@ export const AssignmentDetailScreen: React.FC = () => {
                 <Ionicons name="close-circle" size={20} color={COLORS.error} />
                 <Text style={[styles.secondaryButtonText, { color: COLORS.error }]}>Hủy</Text>
               </TouchableOpacity>
-            </>
+            </View>
+          )}
+
+          {assignment.status === 'ASSIGNED' && (
+            <TouchableOpacity
+              style={[
+                styles.primaryButton, 
+                styles.checkInButton,
+                styles.fullWidthButton,
+                !canCheckIn() && styles.disabledButton
+              ]}
+              onPress={() => {
+                if (!canCheckIn()) {
+                  Alert.alert(
+                    'Chưa đến thời gian',
+                    'Bạn chỉ có thể check-in trong khoảng từ 10 phút trước đến 5 phút sau giờ hẹn.',
+                    [{ text: 'OK' }]
+                  );
+                  return;
+                }
+                setShowCheckInModal(true);
+              }}
+              disabled={!!actionLoading}
+            >
+              <Ionicons name="log-in" size={20} color="#fff" />
+              <Text style={styles.primaryButtonText}>Check-in</Text>
+            </TouchableOpacity>
           )}
 
           {assignment.status === 'IN_PROGRESS' && (
             <TouchableOpacity
-              style={[styles.primaryButton, styles.checkOutButton]}
+              style={[styles.primaryButton, styles.checkOutButton, styles.fullWidthButton]}
               onPress={() => setShowCheckOutModal(true)}
               disabled={!!actionLoading}
             >
@@ -1199,12 +1187,22 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    gap: 12,
     padding: 16,
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  fullWidthButton: {
+    width: '100%',
   },
   primaryButton: {
     flex: 1,

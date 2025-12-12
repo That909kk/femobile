@@ -450,8 +450,6 @@ class BookingService {
    * POST /api/v1/customer/bookings/preview
    */
   async getBookingPreview(request: BookingPreviewRequest): Promise<BookingPreviewResponse> {
-    console.log('[BookingService] Getting booking preview:', request);
-    
     const response = await httpClient.post<BookingPreviewResponse>(
       `${this.BASE_PATH}/preview`,
       request
@@ -492,7 +490,6 @@ class BookingService {
       };
     }
 
-    console.log('[BookingService] Preview response:', response.data);
     return response.data as BookingPreviewResponse;
   }
 
@@ -501,8 +498,6 @@ class BookingService {
    * POST /api/v1/customer/bookings/preview/multiple
    */
   async getMultipleBookingPreview(request: MultipleBookingPreviewRequest): Promise<MultipleBookingPreviewResponse> {
-    console.log('[BookingService] Getting multiple booking preview:', request);
-    
     const response = await httpClient.post<MultipleBookingPreviewResponse>(
       `${this.BASE_PATH}/preview/multiple`,
       request
@@ -511,7 +506,6 @@ class BookingService {
     // Check for API success
     if (!response.success) {
       const errorMessage = response.message || 'Không thể lấy thông tin preview';
-      console.error('[BookingService] Multiple preview error:', errorMessage);
       throw new Error(errorMessage);
     }
     
@@ -519,7 +513,6 @@ class BookingService {
       throw new Error('Không có dữ liệu preview');
     }
 
-    console.log('[BookingService] Multiple preview response:', response.data);
     return response.data as MultipleBookingPreviewResponse;
   }
 
@@ -528,8 +521,6 @@ class BookingService {
    * POST /api/v1/customer/bookings/preview/recurring
    */
   async getRecurringBookingPreview(request: RecurringBookingPreviewRequest): Promise<RecurringBookingPreviewResponse> {
-    console.log('[BookingService] Getting recurring booking preview:', request);
-    
     const response = await httpClient.post<RecurringBookingPreviewResponse>(
       `${this.BASE_PATH}/preview/recurring`,
       request
@@ -538,7 +529,6 @@ class BookingService {
     // Check for API success
     if (!response.success) {
       const errorMessage = response.message || 'Không thể lấy thông tin preview';
-      console.error('[BookingService] Recurring preview error:', errorMessage);
       throw new Error(errorMessage);
     }
     
@@ -546,7 +536,6 @@ class BookingService {
       throw new Error('Không có dữ liệu preview');
     }
 
-    console.log('[BookingService] Recurring preview response:', response.data);
     return response.data as RecurringBookingPreviewResponse;
   }
 }

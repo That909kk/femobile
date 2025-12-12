@@ -14,9 +14,13 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth, useEnsureValidToken, useUserInfo } from '../../../hooks';
 import { COLORS, UI } from '../../../constants';
 import {
@@ -200,6 +204,8 @@ const getStatusPriority = (status: string): number => {
   }
 };
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 export const MyAssignmentsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const ensureValidToken = useEnsureValidToken();
@@ -212,6 +218,7 @@ export const MyAssignmentsScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<AssignmentStatus | 'ALL'>('ALL');
   const [isFilterLoading, setIsFilterLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   
   // Reject reason modal states
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -222,13 +229,20 @@ export const MyAssignmentsScreen: React.FC = () => {
   const [showAcceptModal, setShowAcceptModal] = useState(false);
   const [acceptingAssignment, setAcceptingAssignment] = useState<EmployeeAssignment | null>(null);
 
+  // Check-in modal states
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [checkInAssignment, setCheckInAssignment] = useState<EmployeeAssignment | null>(null);
+  const [checkInImages, setCheckInImages] = useState<string[]>([]);
+  const [checkInDescription, setCheckInDescription] = useState('');
+
+  // Check-out modal states
+  const [showCheckOutModal, setShowCheckOutModal] = useState(false);
+  const [checkOutAssignment, setCheckOutAssignment] = useState<EmployeeAssignment | null>(null);
+  const [checkOutImages, setCheckOutImages] = useState<string[]>([]);
+  const [checkOutDescription, setCheckOutDescription] = useState('');
+
   const employeeId =
     userInfo?.id || (user && 'employeeId' in user ? (user as any).employeeId : undefined);
-
-  console.log('[MyAssignments] Component rendered, employeeId:', employeeId);
-  console.log('[MyAssignments] Loading:', loading, 'Error:', error);
-  console.log('[MyAssignments] Assignments count:', assignments.length);
-  console.log('[MyAssignments] Selected filter:', selectedFilter);
 
   const fetchAssignments = useCallback(async (isFilterChange = false) => {
     if (!employeeId) {
@@ -247,26 +261,12 @@ export const MyAssignmentsScreen: React.FC = () => {
 
       await ensureValidToken.ensureValidToken();
 
-      console.log('[MyAssignments] Fetching assignments for employeeId:', employeeId);
-      console.log('[MyAssignments] Filter params:', {
-        status: selectedFilter !== 'ALL' ? selectedFilter : undefined,
-        page: 0,
-        size: 50,
-      });
-      
       const data = await employeeAssignmentService.getAssignments(employeeId, {
         status: selectedFilter !== 'ALL' ? selectedFilter : undefined,
         page: 0,
         size: 50,
         sort: 'scheduledTime,desc',
       });
-
-      console.log('[MyAssignments] ===== API Response =====');
-      console.log('[MyAssignments] Total items from API:', data.length);
-      console.log('[MyAssignments] Filter applied:', selectedFilter);
-      console.log('[MyAssignments] First item:', data[0]?.bookingCode);
-      console.log('[MyAssignments] Last item:', data[data.length - 1]?.bookingCode);
-      console.log('[MyAssignments] ========================');
 
       // Sort assignments by status priority
       const sortedData = [...data].sort((a, b) => {
@@ -485,42 +485,56 @@ export const MyAssignmentsScreen: React.FC = () => {
       Alert.alert('Lỗi', 'Không tìm thấy thông tin nhân viên');
       return;
     }
+    
+    // Open modal instead of Alert
+    setCheckInAssignment(assignment);
+    setCheckInImages([]);
+    setCheckInDescription('');
+    setShowCheckInModal(true);
+  };
 
-    Alert.alert(
-      'Check-in',
-      `Bạn có chắc muốn check-in công việc "${assignment.serviceName}"?\n\n` +
-        `Mã booking: ${assignment.bookingCode}\n` +
-        `Khách hàng: ${assignment.customerName}\n` +
-        `Địa chỉ: ${assignment.serviceAddress || 'N/A'}`,
-      [
-        { text: 'Hủy', style: 'cancel' },
+  const confirmCheckIn = async () => {
+    if (!employeeId || !checkInAssignment) return;
+
+    try {
+      setActionLoading('checkin');
+      await ensureValidToken.ensureValidToken();
+
+      // Convert images to blobs for upload
+      const imageBlobs = await Promise.all(
+        checkInImages.map(async (uri) => {
+          const response = await fetch(uri);
+          return response.blob();
+        })
+      );
+
+      await employeeAssignmentService.checkIn(
+        checkInAssignment.assignmentId,
+        employeeId,
+        imageBlobs.length > 0 ? imageBlobs : undefined,
+        checkInDescription || undefined
+      );
+
+      setShowCheckInModal(false);
+      setCheckInAssignment(null);
+      setCheckInImages([]);
+      setCheckInDescription('');
+      
+      Alert.alert('Thành công', 'Check-in thành công! Chúc bạn làm việc hiệu quả.', [
         {
-          text: 'Check-in',
-          onPress: async () => {
-            try {
-              await ensureValidToken.ensureValidToken();
-              await employeeAssignmentService.checkIn(
-                assignment.assignmentId,
-                employeeId,
-              );
-
-              Alert.alert('Thành công', 'Đã check-in thành công!', [
-                {
-                  text: 'OK',
-                  onPress: () => fetchAssignments(),
-                },
-              ]);
-            } catch (error: any) {
-              console.error('Check-in error:', error);
-              Alert.alert(
-                'Lỗi',
-                error?.message || 'Không thể check-in. Vui lòng thử lại.',
-              );
-            }
-          },
+          text: 'OK',
+          onPress: () => fetchAssignments(),
         },
-      ],
-    );
+      ]);
+    } catch (error: any) {
+      console.error('Check-in error:', error);
+      Alert.alert(
+        'Lỗi',
+        error?.message || 'Không thể check-in. Vui lòng thử lại.',
+      );
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleCheckOut = async (assignment: EmployeeAssignment) => {
@@ -529,40 +543,164 @@ export const MyAssignmentsScreen: React.FC = () => {
       return;
     }
 
-    Alert.alert(
-      'Check-out',
-      `Bạn có chắc muốn check-out công việc "${assignment.serviceName}"?\n\n` +
-        `Mã booking: ${assignment.bookingCode}\n` +
-        `Khách hàng: ${assignment.customerName}\n` +
-        `Địa chỉ: ${assignment.serviceAddress || 'N/A'}`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Check-out',
-          onPress: async () => {
-            try {
-              await ensureValidToken.ensureValidToken();
-              await employeeAssignmentService.checkOut(
-                assignment.assignmentId,
-                employeeId,
-              );
+    // Open modal instead of Alert
+    setCheckOutAssignment(assignment);
+    setCheckOutImages([]);
+    setCheckOutDescription('');
+    setShowCheckOutModal(true);
+  };
 
-              Alert.alert('Thành công', 'Đã check-out thành công!', [
-                {
-                  text: 'OK',
-                  onPress: () => fetchAssignments(),
-                },
-              ]);
-            } catch (error: any) {
-              console.error('Check-out error:', error);
-              Alert.alert(
-                'Lỗi',
-                error?.message || 'Không thể check-out. Vui lòng thử lại.',
-              );
-            }
-          },
+  const confirmCheckOut = async () => {
+    if (!employeeId || !checkOutAssignment) return;
+
+    try {
+      setActionLoading('checkout');
+      await ensureValidToken.ensureValidToken();
+
+      // Convert images to blobs for upload
+      const imageBlobs = await Promise.all(
+        checkOutImages.map(async (uri) => {
+          const response = await fetch(uri);
+          return response.blob();
+        })
+      );
+
+      await employeeAssignmentService.checkOut(
+        checkOutAssignment.assignmentId,
+        employeeId,
+        imageBlobs.length > 0 ? imageBlobs : undefined,
+        checkOutDescription || undefined
+      );
+
+      setShowCheckOutModal(false);
+      setCheckOutAssignment(null);
+      setCheckOutImages([]);
+      setCheckOutDescription('');
+      
+      Alert.alert('Thành công', 'Check-out thành công! Cảm ơn bạn đã hoàn thành công việc.', [
+        {
+          text: 'OK',
+          onPress: () => fetchAssignments(),
         },
-      ],
+      ]);
+    } catch (error: any) {
+      console.error('Check-out error:', error);
+      Alert.alert(
+        'Lỗi',
+        error?.message || 'Không thể check-out. Vui lòng thử lại.',
+      );
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Image picker functions
+  const pickImage = async (type: 'checkIn' | 'checkOut') => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Cần quyền truy cập', 'Vui lòng cấp quyền truy cập thư viện ảnh');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        selectionLimit: 5,
+        quality: 0.8,
+      });
+
+      if (result.canceled) return;
+
+      const newImages = result.assets.map(asset => asset.uri);
+      
+      if (type === 'checkIn') {
+        setCheckInImages(prev => [...prev, ...newImages].slice(0, 5));
+      } else {
+        setCheckOutImages(prev => [...prev, ...newImages].slice(0, 5));
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+    }
+  };
+
+  const takePhoto = async (type: 'checkIn' | 'checkOut') => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Cần quyền truy cập', 'Vui lòng cấp quyền sử dụng camera');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 0.8,
+      });
+
+      if (result.canceled) return;
+
+      const newImage = result.assets[0].uri;
+      
+      if (type === 'checkIn') {
+        setCheckInImages(prev => [...prev, newImage].slice(0, 5));
+      } else {
+        setCheckOutImages(prev => [...prev, newImage].slice(0, 5));
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+    }
+  };
+
+  const removeImage = (type: 'checkIn' | 'checkOut', index: number) => {
+    if (type === 'checkIn') {
+      setCheckInImages(prev => prev.filter((_, i) => i !== index));
+    } else {
+      setCheckOutImages(prev => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const renderImagePicker = (type: 'checkIn' | 'checkOut') => {
+    const images = type === 'checkIn' ? checkInImages : checkOutImages;
+    
+    return (
+      <View style={styles.imagePickerContainer}>
+        <Text style={styles.imagePickerLabel}>
+          Ảnh minh chứng (tối đa 5 ảnh)
+        </Text>
+        
+        <View style={styles.imageGrid}>
+          {images.map((uri, index) => (
+            <View key={index} style={styles.imagePreviewContainer}>
+              <Image source={{ uri }} style={styles.imagePreview} />
+              <TouchableOpacity
+                style={styles.removeImageButton}
+                onPress={() => removeImage(type, index)}
+              >
+                <Ionicons name="close-circle" size={24} color="#f44336" />
+              </TouchableOpacity>
+            </View>
+          ))}
+          
+          {images.length < 5 && (
+            <View style={styles.addImageButtons}>
+              <TouchableOpacity
+                style={styles.addImageButton}
+                onPress={() => takePhoto(type)}
+              >
+                <Ionicons name="camera-outline" size={24} color={TEAL_COLOR} />
+                <Text style={styles.addImageText}>Chụp ảnh</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.addImageButton}
+                onPress={() => pickImage(type)}
+              >
+                <Ionicons name="images-outline" size={24} color={TEAL_COLOR} />
+                <Text style={styles.addImageText}>Thư viện</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
     );
   };
 
@@ -620,9 +758,6 @@ export const MyAssignmentsScreen: React.FC = () => {
           <View style={styles.customerRow}>
             <View style={styles.customerInfo}>
               <Text style={styles.customerName}>{item.customerName || 'Khách hàng'}</Text>
-              {item.customerPhone && (
-                <Text style={styles.customerPhone}>{item.customerPhone}</Text>
-              )}
             </View>
           </View>
         </View>
@@ -973,6 +1108,146 @@ export const MyAssignmentsScreen: React.FC = () => {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* Check-in Modal */}
+      <Modal
+        visible={showCheckInModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowCheckInModal(false)}
+      >
+        <SafeAreaView style={styles.checkInOutModalContainer}>
+          <View style={styles.checkInOutModalHeader}>
+            <TouchableOpacity onPress={() => {
+              setShowCheckInModal(false);
+              setCheckInAssignment(null);
+              setCheckInImages([]);
+              setCheckInDescription('');
+            }}>
+              <Ionicons name="close" size={24} color="#1a1a1a" />
+            </TouchableOpacity>
+            <Text style={styles.checkInOutModalTitle}>Check-in</Text>
+            <View style={{ width: 24 }} />
+          </View>
+          
+          <ScrollView style={styles.checkInOutModalContent}>
+            {checkInAssignment && (
+              <View style={styles.assignmentSummary}>
+                <Text style={styles.assignmentSummaryTitle}>{checkInAssignment.serviceName}</Text>
+                <Text style={styles.assignmentSummaryCode}>#{checkInAssignment.bookingCode}</Text>
+                <Text style={styles.assignmentSummaryCustomer}>Khách hàng: {checkInAssignment.customerName}</Text>
+                {checkInAssignment.serviceAddress && (
+                  <Text style={styles.assignmentSummaryAddress}>
+                    <Ionicons name="location-outline" size={14} color="#666" /> {checkInAssignment.serviceAddress}
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {renderImagePicker('checkIn')}
+            
+            <View style={styles.descriptionContainer}>
+              <Text style={styles.descriptionLabel}>Mô tả (tùy chọn)</Text>
+              <TextInput
+                style={styles.descriptionInput}
+                placeholder="Ghi chú khi bắt đầu công việc..."
+                value={checkInDescription}
+                onChangeText={setCheckInDescription}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </View>
+          </ScrollView>
+
+          <View style={styles.checkInOutModalActions}>
+            <TouchableOpacity
+              style={[styles.checkInConfirmButton, actionLoading === 'checkin' && styles.disabledButton]}
+              onPress={confirmCheckIn}
+              disabled={!!actionLoading}
+            >
+              {actionLoading === 'checkin' ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark" size={20} color="#fff" />
+                  <Text style={styles.checkInConfirmButtonText}>Xác nhận Check-in</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Check-out Modal */}
+      <Modal
+        visible={showCheckOutModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowCheckOutModal(false)}
+      >
+        <SafeAreaView style={styles.checkInOutModalContainer}>
+          <View style={styles.checkInOutModalHeader}>
+            <TouchableOpacity onPress={() => {
+              setShowCheckOutModal(false);
+              setCheckOutAssignment(null);
+              setCheckOutImages([]);
+              setCheckOutDescription('');
+            }}>
+              <Ionicons name="close" size={24} color="#1a1a1a" />
+            </TouchableOpacity>
+            <Text style={styles.checkInOutModalTitle}>Check-out</Text>
+            <View style={{ width: 24 }} />
+          </View>
+          
+          <ScrollView style={styles.checkInOutModalContent}>
+            {checkOutAssignment && (
+              <View style={styles.assignmentSummary}>
+                <Text style={styles.assignmentSummaryTitle}>{checkOutAssignment.serviceName}</Text>
+                <Text style={styles.assignmentSummaryCode}>#{checkOutAssignment.bookingCode}</Text>
+                <Text style={styles.assignmentSummaryCustomer}>Khách hàng: {checkOutAssignment.customerName}</Text>
+                {checkOutAssignment.serviceAddress && (
+                  <Text style={styles.assignmentSummaryAddress}>
+                    <Ionicons name="location-outline" size={14} color="#666" /> {checkOutAssignment.serviceAddress}
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {renderImagePicker('checkOut')}
+            
+            <View style={styles.descriptionContainer}>
+              <Text style={styles.descriptionLabel}>Mô tả công việc đã hoàn thành (tùy chọn)</Text>
+              <TextInput
+                style={styles.descriptionInput}
+                placeholder="Mô tả kết quả công việc..."
+                value={checkOutDescription}
+                onChangeText={setCheckOutDescription}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </View>
+          </ScrollView>
+
+          <View style={styles.checkInOutModalActions}>
+            <TouchableOpacity
+              style={[styles.checkOutConfirmButton, actionLoading === 'checkout' && styles.disabledButton]}
+              onPress={confirmCheckOut}
+              disabled={!!actionLoading}
+            >
+              {actionLoading === 'checkout' ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark" size={20} color="#fff" />
+                  <Text style={styles.checkOutConfirmButtonText}>Xác nhận hoàn thành</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );
@@ -1504,5 +1779,167 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#fff',
+  },
+  // Check-in/Check-out Modal Styles
+  checkInOutModalContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  checkInOutModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  checkInOutModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1a1a1a',
+  },
+  checkInOutModalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  checkInOutModalActions: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  assignmentSummary: {
+    backgroundColor: '#f8f9fa',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: TEAL_COLOR,
+  },
+  assignmentSummaryTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 4,
+  },
+  assignmentSummaryCode: {
+    fontSize: 14,
+    color: TEAL_COLOR,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  assignmentSummaryCustomer: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  assignmentSummaryAddress: {
+    fontSize: 13,
+    color: '#888',
+    marginTop: 4,
+  },
+  imagePickerContainer: {
+    marginBottom: 24,
+  },
+  imagePickerLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 12,
+  },
+  imageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  imagePreviewContainer: {
+    position: 'relative',
+  },
+  imagePreview: {
+    width: (SCREEN_WIDTH - 64) / 3,
+    height: (SCREEN_WIDTH - 64) / 3,
+    borderRadius: 12,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+  },
+  addImageButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  addImageButton: {
+    width: (SCREEN_WIDTH - 64) / 3,
+    height: (SCREEN_WIDTH - 64) / 3,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addImageText: {
+    fontSize: 12,
+    color: TEAL_COLOR,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  descriptionContainer: {
+    marginBottom: 24,
+  },
+  descriptionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 8,
+  },
+  descriptionInput: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    color: '#1a1a1a',
+    minHeight: 100,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  checkInConfirmButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    backgroundColor: TEAL_COLOR,
+  },
+  checkInConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  checkOutConfirmButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    backgroundColor: '#4CAF50',
+  },
+  checkOutConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  disabledButton: {
+    backgroundColor: '#9e9e9e',
+    opacity: 0.7,
   },
 });

@@ -100,17 +100,9 @@ export const OrdersScreen = () => {
   // }, [selectedFilter]);
 
   useEffect(() => {
-    console.log('Statistics updated:', statistics);
-    console.log('Orders count:', orders.length);
-    console.log('Current filter:', selectedFilter);
-    
     // Check if we've loaded all orders
     if (!hasMore && orders.length > 0 && totalElements > 0) {
-      if (orders.length < totalElements) {
-        console.error(`🚨 MISSING ORDERS: Loaded ${orders.length} but expected ${totalElements}. Missing: ${totalElements - orders.length}`);
-      } else if (orders.length === totalElements) {
-        console.log(`✅ All orders loaded successfully: ${orders.length}/${totalElements}`);
-      }
+      // Validation check only
     }
   }, [statistics, orders.length, selectedFilter, hasMore, totalElements]);
 
@@ -127,12 +119,9 @@ export const OrdersScreen = () => {
       // Call statistics API - GET /api/v1/customer/{customerId}/bookings/statistics?timeUnit=MONTH
       const response = await bookingService.getBookingStatistics(customerId, 'MONTH');
       
-      console.log('Statistics response:', response);
-      
       // Handle response structure - could be wrapped or direct
       if (response.data?.countByStatus) {
         setStatistics(response.data.countByStatus);
-        console.log('Statistics loaded:', response.data.countByStatus);
       } else if (response.success && response.data) {
         setStatistics(response.data.countByStatus || {});
       } else {
@@ -159,13 +148,11 @@ export const OrdersScreen = () => {
       } else {
         // Don't load if already loading or no more data
         if (loadingMore || !hasMore) {
-          console.log('Skip loading: already loading or no more data');
           return;
         }
         
         // Prevent loading the same page twice (synchronous check)
         if (loadingPageRef.current === pageToLoad) {
-          console.log(`⚠️ Already loading page ${pageToLoad}, skipping duplicate request`);
           return;
         }
         
@@ -177,12 +164,9 @@ export const OrdersScreen = () => {
         userInfo?.id || (user && 'customerId' in user ? (user as any).customerId : undefined);
 
       if (!customerId) {
-        console.warn('Khong co ma khach hang trong he thong');
         setOrders([]);
         return;
       }
-
-      console.log(`Loading orders - page: ${pageToLoad}, reset: ${resetPage}, append: ${append}`);
 
       // Call API: GET /api/v1/customer/bookings/customer/{customerId}
       const response = await bookingService.getCustomerBookings(customerId, {
@@ -262,8 +246,6 @@ export const OrdersScreen = () => {
       const isLastPage = pageInfo.last || false;
       const currentPageNumber = pageInfo.number ?? pageToLoad;
 
-      console.log(`📄 Page ${currentPageNumber}: ${transformedOrders.length} orders, total: ${newTotalElements}, last: ${isLastPage}`);
-
       // Stop loading if response is empty or we've reached the last page
       const shouldStop = isLastPage || transformedOrders.length === 0 || currentPageNumber >= newTotalPages - 1;
 
@@ -276,13 +258,6 @@ export const OrdersScreen = () => {
         setOrders(prev => {
           const existingIds = new Set(prev.map(order => order.bookingId));
           const newOrders = transformedOrders.filter(order => !existingIds.has(order.bookingId));
-          const duplicateCount = transformedOrders.length - newOrders.length;
-          
-          if (duplicateCount > 0) {
-            console.warn(`⚠️ Filtered ${duplicateCount} duplicates from page ${pageToLoad}`);
-          }
-          
-          console.log(`Appending: ${newOrders.length} orders. Total: ${prev.length} → ${prev.length + newOrders.length}/${newTotalElements}`);
           return [...prev, ...newOrders];
         });
         // Update page number after successful load
@@ -309,10 +284,7 @@ export const OrdersScreen = () => {
 
   const handleLoadMore = () => {
     if (!loadingMore && !loading && hasMore) {
-      console.log(`📥 Loading more... Current: ${orders.length}/${totalElements}, Page: ${currentPage}`);
       loadOrders(false, true);
-    } else {
-      console.log(`❌ Cannot load more: loading=${loading}, loadingMore=${loadingMore}, hasMore=${hasMore}`);
     }
   };
 
@@ -484,7 +456,6 @@ export const OrdersScreen = () => {
     // Prefetch next page when user reaches 70% of scroll
     // This makes scrolling feel smoother as data is already loading
     if (scrollPercentage >= 0.7 && !loadingMore && !loading && hasMore) {
-      console.log('Prefetching next page at 70% scroll...');
       handleLoadMore();
     }
   };
@@ -513,7 +484,7 @@ export const OrdersScreen = () => {
         navigation.navigate('OrderDetail', { bookingId: orderId });
         break;
       default:
-        console.log(`${action} order:`, orderId);
+        break;
     }
   };
 
@@ -655,8 +626,6 @@ export const OrdersScreen = () => {
         return;
       }
 
-      console.log('Opening chat with employee:', order.employeeId, 'for booking:', order.bookingId);
-
       let conversation;
       
       try {
@@ -664,9 +633,8 @@ export const OrdersScreen = () => {
         if (order.bookingId) {
           try {
             conversation = await chatService.getConversationByBooking(order.bookingId);
-            console.log('Found conversation by booking:', conversation.conversationId);
           } catch (bookingError) {
-            console.log('No conversation found for booking, will search by participants');
+            // No conversation found for booking, will search by participants
           }
         }
 
@@ -689,21 +657,15 @@ export const OrdersScreen = () => {
           if (!conversation) {
             conversation = conversations.find((conv) => conv.employeeId === order.employeeId);
           }
-
-          if (conversation) {
-            console.log('Found existing conversation:', conversation.conversationId);
-          }
         }
 
         // Nếu vẫn không có, tạo mới với bookingId
         if (!conversation) {
-          console.log('Creating new conversation with booking:', order.bookingId);
           conversation = await chatService.createConversation({
             customerId,
             employeeId: order.employeeId,
             bookingId: order.bookingId,
           });
-          console.log('Created new conversation:', conversation.conversationId);
         }
       } catch (error: any) {
         console.error('Error getting/creating conversation:', error);

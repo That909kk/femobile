@@ -151,7 +151,6 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
       // Skip ONLY for recurring bookings (not yet developed)
       // Allow conversation creation for single bookings and multiple bookings
       if ((bookingData as any).isRecurring) {
-        console.log('✓ Skip conversation creation for recurring bookings (not yet supported)');
         return;
       }
       
@@ -169,37 +168,13 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
       // When user clicks different bookings, they'll see the same conversation
       
       if (!customerId || !employeeId || !bookingId) {
-        console.log('⚠️ Missing required data for conversation creation:', {
-          customerId,
-          employeeId,
-          bookingId,
-          hasAssignedEmployees: !!bookingData.assignedEmployees,
-          assignedEmployeesCount: bookingData.assignedEmployees?.length || 0,
-          userInfoId: userInfo?.id,
-          authUserCustomerId: authUser && 'customerId' in authUser ? authUser.customerId : undefined,
-          bookingDataCustomerId: bookingData.customerId,
-        });
         return;
       }
       
       try {
         setConversationCreating(true);
-        console.log('🔄 Creating conversation for booking:', {
-          customerId,
-          employeeId,
-          bookingId,
-          employeeName: bookingData.assignedEmployees?.[0]?.fullName,
-        });
         
         const conversation = await createConversation(customerId, employeeId, bookingId);
-        
-        console.log('✅ Conversation created successfully!', {
-          conversationId: conversation.conversationId,
-          customerName: conversation.customerName,
-          employeeName: conversation.employeeName,
-          bookingId: conversation.bookingId,
-          lastMessage: conversation.lastMessage,
-        });
         
         setConversationCreated(true);
         setCreatedConversationId(conversation.conversationId);
@@ -211,12 +186,6 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
         //   [{ text: 'OK' }]
         // );
       } catch (error: any) {
-        console.error('❌ Error creating conversation:', {
-          error: error.message || error,
-          customerId,
-          employeeId,
-          bookingId,
-        });
         // Silent fail - don't disrupt booking success experience
       } finally {
         setConversationCreating(false);
@@ -236,7 +205,7 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
         message: `Đặt dịch vụ thành công!\nMã: ${bookingData.bookingCode}\nThời gian: ${bookingData.bookingTime}\nTổng tiền: ${bookingData.formattedTotalAmount}`,
       });
     } catch (error) {
-      console.log('Error sharing:', error);
+      // Silent fail
     }
   };
 
@@ -269,14 +238,13 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
   const formatDateTime = (dateTimeString: string) => {
     try {
       const date = new Date(dateTimeString);
-      return date.toLocaleString('vi-VN', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      const hour = String(date.getHours()).padStart(2, '0');
+      const minute = String(date.getMinutes()).padStart(2, '0');
+      const weekdays = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+      return `${weekdays[date.getDay()]}, ${day}/${month}/${year} ${hour}:${minute}`;
     } catch {
       return dateTimeString;
     }
@@ -314,6 +282,35 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
               ? `Đã tạo thành công ${(bookingData as any).multipleInfo?.successfulBookings || 0} lịch hẹn`
               : 'Chúng tôi đã nhận được yêu cầu của bạn'}
           </Text>
+          
+          {/* Amount Badge - giống web banner */}
+          <View style={{ 
+            alignItems: 'center', 
+            marginTop: 12,
+            backgroundColor: (bookingData as any).isRecurring ? colors.highlight.purple + '15' : colors.feedback.success + '15',
+            paddingHorizontal: 20,
+            paddingVertical: 10,
+            borderRadius: 16,
+            alignSelf: 'center',
+          }}>
+            <Text style={{ fontSize: 12, color: colors.neutral.textSecondary, marginBottom: 4 }}>
+              {(bookingData as any).isRecurring ? 'Thanh toán' : 'Tổng thanh toán'}
+            </Text>
+            <Text style={{ 
+              fontSize: 20, 
+              fontWeight: '700', 
+              color: (bookingData as any).isRecurring ? colors.highlight.purple : colors.feedback.success 
+            }}>
+              {(bookingData as any).isRecurring 
+                ? 'Thanh toán theo từng lần'
+                : (bookingData.formattedTotalAmount || `${(bookingData.totalAmount || 0).toLocaleString('vi-VN')} ₫`)}
+            </Text>
+            {(bookingData as any).isRecurring && (
+              <Text style={{ fontSize: 11, color: colors.highlight.purple, marginTop: 4 }}>
+                Thanh toán sau mỗi lần thực hiện
+              </Text>
+            )}
+          </View>
         </Animated.View>
 
         {/* Quick Info Cards - Similar to Web MetricCards */}
@@ -346,10 +343,10 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
               {(bookingData as any).isRecurring && (bookingData as any).recurringInfo
                 ? (bookingData as any).recurringInfo.startDate
                 : bookingData.bookingTime 
-                  ? new Date(bookingData.bookingTime).toLocaleDateString('vi-VN', { 
-                      day: '2-digit', 
-                      month: '2-digit'
-                    })
+                  ? (() => {
+                      const d = new Date(bookingData.bookingTime);
+                      return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+                    })()
                   : 'N/A'}
             </Text>
           </View>
@@ -509,15 +506,16 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
                     </Text>
                     <Text style={{ fontSize: 13, color: colors.neutral.textSecondary, marginTop: 4 }}>
                       {booking.bookingTime 
-                        ? new Date(booking.bookingTime).toLocaleDateString('vi-VN', {
-                            weekday: 'long',
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric'
-                          }) + ' - ' + new Date(booking.bookingTime).toLocaleTimeString('vi-VN', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })
+                        ? (() => {
+                            const d = new Date(booking.bookingTime);
+                            const day = String(d.getDate()).padStart(2, '0');
+                            const month = String(d.getMonth() + 1).padStart(2, '0');
+                            const year = d.getFullYear();
+                            const hour = String(d.getHours()).padStart(2, '0');
+                            const minute = String(d.getMinutes()).padStart(2, '0');
+                            const weekdays = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+                            return `${weekdays[d.getDay()]}, ${day}/${month}/${year} - ${hour}:${minute}`;
+                          })()
                         : 'N/A'}
                     </Text>
                   </View>
@@ -670,32 +668,65 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
 
         {/* Payment Summary Card - Fee Breakdown */}
         <Animated.View style={[styles.detailsCard, { opacity: fadeAnim }]}>
-          <Text style={styles.sectionTitle}>Tóm tắt thanh toán</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <Text style={styles.sectionTitle}>Tóm tắt thanh toán</Text>
+            {(bookingData as any).isRecurring && (
+              <View style={{ 
+                backgroundColor: colors.highlight.purple + '15', 
+                paddingHorizontal: 10, 
+                paddingVertical: 4, 
+                borderRadius: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+              }}>
+                <Ionicons name="repeat" size={12} color={colors.highlight.purple} style={{ marginRight: 4 }} />
+                <Text style={{ fontSize: 11, fontWeight: '600', color: colors.highlight.purple }}>
+                  Thanh toán theo từng lần
+                </Text>
+              </View>
+            )}
+          </View>
           
           {/* Service Breakdown */}
           <View style={styles.paymentSummarySection}>
             <Text style={styles.paymentSummaryLabel}>Chi tiết dịch vụ</Text>
-            {(bookingData.serviceDetails || bookingData.bookingDetails || []).map((detail: any, index: number) => (
-              <View key={detail.bookingDetailId || index}>
-                <View style={styles.paymentRow}>
-                  <Text style={styles.paymentItemName}>
-                    {detail.service?.name || 'Dịch vụ'} × {detail.quantity || 1}
-                  </Text>
-                  <Text style={styles.paymentItemAmount}>
-                    {detail.formattedSubTotal || `${(detail.subTotal || 0).toLocaleString('vi-VN')} ₫`}
-                  </Text>
+            {/* For recurring booking, use recurringBookingDetails if available */}
+            {(bookingData as any).isRecurring && (bookingData as any).recurringInfo?.recurringBookingDetails ? (
+              (bookingData as any).recurringInfo.recurringBookingDetails.map((detail: any, index: number) => (
+                <View key={index}>
+                  <View style={styles.paymentRow}>
+                    <Text style={styles.paymentItemName}>
+                      {detail.service?.name || 'Dịch vụ'} × {detail.quantity || 1}
+                    </Text>
+                    <Text style={styles.paymentItemAmount}>
+                      {detail.formattedSubTotal || `${(detail.subTotal || 0).toLocaleString('vi-VN')} ₫`}
+                    </Text>
+                  </View>
                 </View>
-                {/* Service Options/Choices */}
-                {detail.selectedChoices && detail.selectedChoices.length > 0 && (
-                  detail.selectedChoices.map((choice: any, choiceIndex: number) => (
-                    <View key={choiceIndex} style={styles.paymentSubRow}>
-                      <Text style={styles.paymentSubItemName}>+ {choice.choiceName}</Text>
-                      <Text style={styles.paymentSubItemAmount}>{choice.formattedPriceAdjustment}</Text>
-                    </View>
-                  ))
-                )}
-              </View>
-            ))}
+              ))
+            ) : (
+              (bookingData.serviceDetails || bookingData.bookingDetails || []).map((detail: any, index: number) => (
+                <View key={detail.bookingDetailId || index}>
+                  <View style={styles.paymentRow}>
+                    <Text style={styles.paymentItemName}>
+                      {detail.service?.name || 'Dịch vụ'} × {detail.quantity || 1}
+                    </Text>
+                    <Text style={styles.paymentItemAmount}>
+                      {detail.formattedSubTotal || `${(detail.subTotal || 0).toLocaleString('vi-VN')} ₫`}
+                    </Text>
+                  </View>
+                  {/* Service Options/Choices */}
+                  {detail.selectedChoices && detail.selectedChoices.length > 0 && (
+                    detail.selectedChoices.map((choice: any, choiceIndex: number) => (
+                      <View key={choiceIndex} style={styles.paymentSubRow}>
+                        <Text style={styles.paymentSubItemName}>+ {choice.choiceName}</Text>
+                        <Text style={styles.paymentSubItemAmount}>{choice.formattedPriceAdjustment}</Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              ))
+            )}
           </View>
           
           {/* Base Amount / Subtotal */}
@@ -749,17 +780,37 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
             </>
           )}
           
-          {/* Grand Total */}
-          <View style={[styles.divider, { marginVertical: 12 }]} />
-          <View style={styles.grandTotalRow}>
-            <Text style={styles.grandTotalLabel}>Tổng cộng</Text>
-            <Text style={styles.grandTotalAmount}>
-              {bookingData.formattedTotalAmount || `${(bookingData.totalAmount || 0).toLocaleString('vi-VN')} ₫`}
-            </Text>
-          </View>
+          {/* Grand Total - Ẩn với recurring booking vì thanh toán theo từng lần */}
+          {!(bookingData as any).isRecurring && (
+            <>
+              <View style={[styles.divider, { marginVertical: 12 }]} />
+              <View style={styles.grandTotalRow}>
+                <Text style={styles.grandTotalLabel}>Tổng cộng</Text>
+                <Text style={styles.grandTotalAmount}>
+                  {bookingData.formattedTotalAmount || `${(bookingData.totalAmount || 0).toLocaleString('vi-VN')} ₫`}
+                </Text>
+              </View>
+            </>
+          )}
+          
+          {/* Recurring Payment Note - Hiển thị thay cho Grand Total */}
+          {(bookingData as any).isRecurring && (
+            <>
+              <View style={[styles.divider, { marginVertical: 12 }]} />
+              <View style={styles.grandTotalRow}>
+                <Text style={styles.grandTotalLabel}>Thanh toán</Text>
+                <Text style={[styles.grandTotalAmount, { color: colors.highlight.purple }]}>
+                  Theo từng lần
+                </Text>
+              </View>
+              <Text style={{ fontSize: 12, color: colors.neutral.textSecondary, textAlign: 'center', marginTop: 4 }}>
+                Thanh toán sau mỗi lần thực hiện dịch vụ
+              </Text>
+            </>
+          )}
           
           {/* Cash Payment Note */}
-          {bookingData.paymentInfo && typeof bookingData.paymentInfo.paymentMethod === 'string' && 
+          {!(bookingData as any).isRecurring && bookingData.paymentInfo && typeof bookingData.paymentInfo.paymentMethod === 'string' && 
            (bookingData.paymentInfo.paymentMethod.toUpperCase().includes('CASH') || 
             bookingData.paymentInfo.paymentMethod.toUpperCase().includes('TIỀN MẶT')) && (
             <View style={styles.cashPaymentNote}>
@@ -800,6 +851,78 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
                 />
               </>
             )}
+            {/* Ngày tạo đơn */}
+            <View style={styles.divider} />
+            <InfoRow
+              icon="time-outline"
+              label="Ngày tạo đơn"
+              value={bookingData.createdAt 
+                ? new Date(bookingData.createdAt).toLocaleString('vi-VN') 
+                : 'N/A'}
+            />
+          </Animated.View>
+        )}
+
+        {/* Payment Info Card - For Recurring Booking (show even without paymentInfo) */}
+        {(bookingData as any).isRecurring && !bookingData.paymentInfo && (
+          <Animated.View style={[styles.detailsCard, { opacity: fadeAnim }]}>
+            <Text style={styles.sectionTitle}>Thông tin thanh toán</Text>
+            
+            {/* Phương thức thanh toán */}
+            <InfoRow
+              icon="card-outline"
+              label="Phương thức"
+              value="Thanh toán theo từng lần"
+            />
+            <View style={styles.divider} />
+            
+            {/* Mã lịch định kỳ */}
+            <InfoRow
+              icon="barcode-outline"
+              label="Mã lịch định kỳ"
+              value={(bookingData as any).recurringInfo?.recurringBookingId || bookingData.bookingId || 'N/A'}
+            />
+            <View style={styles.divider} />
+            
+            {/* Trạng thái thanh toán - với badge giống web */}
+            <View style={styles.infoRow}>
+              <View style={styles.infoIconContainer}>
+                <Ionicons name="checkmark-circle-outline" size={20} color={colors.highlight.teal} />
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Trạng thái thanh toán</Text>
+                <View style={{ 
+                  marginTop: 4,
+                  backgroundColor: colors.highlight.purple + '15',
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 20,
+                  alignSelf: 'flex-start',
+                  borderWidth: 1,
+                  borderColor: colors.highlight.purple + '30',
+                }}>
+                  <Text style={{ 
+                    fontSize: 12, 
+                    fontWeight: '600',
+                    color: colors.highlight.purple
+                  }}>
+                    Thanh toán theo từng lần
+                  </Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.divider} />
+            
+            {/* Ngày tạo đơn */}
+            <InfoRow
+              icon="time-outline"
+              label="Ngày tạo đơn"
+              value={(bookingData as any).recurringInfo?.createdAt
+                ? new Date((bookingData as any).recurringInfo.createdAt).toLocaleString('vi-VN')
+                : (bookingData.createdAt 
+                  ? new Date(bookingData.createdAt).toLocaleString('vi-VN') 
+                  : 'N/A')}
+            />
           </Animated.View>
         )}
 

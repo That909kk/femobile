@@ -26,8 +26,6 @@ interface ProfileScreenProps {
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { user, role, logout } = useAuth();
   const { userInfo, loading: userInfoLoading, error: userInfoError, refetch } = useUserInfo();
-  const [pushNotifications, setPushNotifications] = useState(true);
-  const [emailNotifications, setEmailNotifications] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const handleChangeAvatar = async () => {
@@ -183,79 +181,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       icon: 'lock-closed-outline',
       onPress: () => navigation.navigate('ChangePassword'),
     },
-    {
-      id: 'payment-methods',
-      title: role === 'CUSTOMER' ? 'Phương thức thanh toán' : 'Thông tin ngân hàng',
-      icon: role === 'CUSTOMER' ? 'card-outline' : 'wallet-outline',
-      onPress: () => console.log('Payment methods'),
-    },
-    {
-      id: 'addresses',
-      title: 'Địa chỉ của tôi',
-      icon: 'location-outline',
-      onPress: () => navigation.navigate('AddressManagement'),
-      visible: role === 'CUSTOMER',
-    },
-    {
-      id: 'work-area',
-      title: 'Khu vực làm việc',
-      icon: 'map-outline',
-      onPress: () => console.log('Work area'),
-      visible: role === 'EMPLOYEE',
-    },
-    {
-      id: 'work-schedule',
-      title: 'Khung giờ làm việc',
-      icon: 'time-outline',
-      onPress: () => navigation.navigate('WorkingHours'),
-      visible: role === 'EMPLOYEE',
-    },
-    {
-      id: 'order-history',
-      title: 'Lịch sử đơn hàng',
-      icon: 'time-outline',
-      onPress: () => navigation.navigate('Orders'),
-      visible: role === 'CUSTOMER',
-    },
-    {
-      id: 'job-history',
-      title: 'Lịch sử công việc',
-      icon: 'briefcase-outline',
-      onPress: () => console.log('Job history'),
-      visible: role === 'EMPLOYEE',
-    },
-    {
-      id: 'favorites',
-      title: 'Dịch vụ yêu thích',
-      icon: 'heart-outline',
-      onPress: () => console.log('Favorites'),
-      visible: role === 'CUSTOMER',
-    },
-    {
-      id: 'ratings-reviews',
-      title: role === 'CUSTOMER' ? 'Đánh giá của tôi' : 'Đánh giá nhận được',
-      icon: 'star-outline',
-      onPress: () => console.log('Ratings reviews'),
-    },
-    {
-      id: 'support',
-      title: 'Hỗ trợ',
-      icon: 'help-circle-outline',
-      onPress: () => console.log('Support'),
-    },
-    {
-      id: 'terms',
-      title: 'Điều khoản sử dụng',
-      icon: 'document-text-outline',
-      onPress: () => console.log('Terms'),
-    },
-    {
-      id: 'privacy',
-      title: 'Chính sách bảo mật',
-      icon: 'shield-checkmark-outline',
-      onPress: () => console.log('Privacy'),
-    },
-  ].filter(item => item.visible !== false);
+  ];
 
   const getRatingDisplay = () => {
     if (!userData?.rating) return null;
@@ -560,34 +486,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cài đặt thông báo</Text>
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="notifications-outline" size={24} color={COLORS.primary} />
-              <Text style={styles.settingTitle}>Thông báo đẩy</Text>
-            </View>
-            <Switch
-              value={pushNotifications}
-              onValueChange={setPushNotifications}
-              trackColor={{ false: COLORS.border, true: COLORS.primary + '50' }}
-              thumbColor={pushNotifications ? COLORS.primary : COLORS.text.tertiary}
-            />
-          </View>
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="mail-outline" size={24} color={COLORS.primary} />
-              <Text style={styles.settingTitle}>Thông báo email</Text>
-            </View>
-            <Switch
-              value={emailNotifications}
-              onValueChange={setEmailNotifications}
-              trackColor={{ false: COLORS.border, true: COLORS.primary + '50' }}
-              thumbColor={emailNotifications ? COLORS.primary : COLORS.text.tertiary}
-            />
-          </View>
-        </View>
+
 
         {/* Menu Items */}
         <View style={styles.section}>
