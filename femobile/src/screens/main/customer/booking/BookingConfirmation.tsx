@@ -1873,7 +1873,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                     )}
 
                     {/* Sau giảm giá */}
-                    {(previewData as BookingPreviewResponse).discountAmount && (previewData as BookingPreviewResponse).discountAmount! > 0 && (
+                    {(((previewData as BookingPreviewResponse).discountAmount ?? 0) > 0) && (
                       <View style={[commonStyles.flexRowBetween, { paddingVertical: 6 }]}>
                         <Text style={commonStyles.cardDescription}>Sau giảm giá</Text>
                         <Text style={[commonStyles.cardDescription, { fontWeight: '600' }]}>

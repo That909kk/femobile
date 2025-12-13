@@ -273,10 +273,15 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
           <View style={[commonStyles.flexRow, { marginTop: 4, flexWrap: 'wrap' }]}>
             <Ionicons name="star" size={16} color={colors.feedback.warning} />
             <Text style={[commonStyles.cardDescription, { marginLeft: 4 }]}>
-              {employee.rating === 'HIGHEST' ? '5.0' : employee.rating}
+              {typeof employee.rating === 'number' 
+                ? (employee.rating as number).toFixed(1) 
+                : employee.rating === 'HIGH' ? '5.0' 
+                : employee.rating === 'MEDIUM' ? '4.0' 
+                : employee.rating === 'LOW' ? '3.0' 
+                : 'N/A'}
             </Text>
             <Text style={[commonStyles.cardDescription, { marginLeft: 4 }]}>
-              ({employee.completedJobs} công việc)
+              ({employee.completedJobs ?? 0} công việc)
             </Text>
           </View>
           <Text
@@ -284,12 +289,12 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
               commonStyles.cardDescription,
               {
                 marginTop: 4,
-                color: employee.status === 'AVAILABLE' ? successColor : warningColor,
+                color: employee.employeeStatus === 'AVAILABLE' ? successColor : warningColor,
                 fontWeight: '500',
               },
             ]}
           >
-            {employee.status}
+            {employee.employeeStatus}
           </Text>
         </View>
       </View>
@@ -331,15 +336,6 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
         </View>
       )}
 
-      {/* Working Area */}
-      {employee.workingWards && employee.workingCity && (
-        <View style={{ marginTop: 12 }}>
-          <Text style={[commonStyles.cardDescription, { fontWeight: '500' }]}>Khu vực làm việc:</Text>
-          <Text style={[commonStyles.cardDescription, { marginTop: 2 }]}>
-            {employee.workingWards.join(', ')} - {employee.workingCity}
-          </Text>
-        </View>
-      )}
     </TouchableOpacity>
   );
 
