@@ -1269,9 +1269,9 @@ const VoiceBookingScreen: React.FC<VoiceBookingScreenProps> = () => {
             showsVerticalScrollIndicator={false}
           >
             {/* Messages */}
-            {messages.map((msg) => (
+            {messages.map((msg, index) => (
               <View
-                key={msg.id}
+                key={`${msg.id}-${index}`}
                 style={[
                   styles.messageBubble,
                   msg.type === 'user' ? styles.userBubble : styles.aiBubble,
@@ -1741,6 +1741,10 @@ const styles = StyleSheet.create({
   totalCard: {
     backgroundColor: '#F0FDF4',
     borderColor: '#BBF7D0',
+    borderRadius: 16,
+    padding: responsiveSpacing.md,
+    borderWidth: 1,
+    alignItems: 'center',
   },
   noteCard: {
     backgroundColor: '#F9FAFB',
@@ -1775,17 +1779,19 @@ const styles = StyleSheet.create({
     marginLeft: responsiveSpacing.sm,
   },
   totalAmount: {
-    fontSize: responsiveFontSize.heading2,
-    fontWeight: '700',
-    color: '#15803D',
+    fontSize: responsiveFontSize.heading2 + 2,
+    fontWeight: '800',
+    color: '#047857',
     marginTop: responsiveSpacing.xs,
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   totalLabel: {
     fontSize: responsiveFontSize.caption,
     fontWeight: '600',
-    color: '#fff',
+    color: '#166534',
     textTransform: 'uppercase',
-    opacity: 0.9,
   },
   paymentInfo: {
     fontSize: responsiveFontSize.caption,
@@ -2246,9 +2252,9 @@ const styles = StyleSheet.create({
   
   // Total Value (for preview modal)
   totalValue: {
-    fontSize: responsiveFontSize.heading2,
-    fontWeight: '700',
-    color: '#fff',
+    fontSize: responsiveFontSize.heading2 + 2,
+    fontWeight: '800',
+    color: '#047857',
   },
 
   // Modal Buttons
