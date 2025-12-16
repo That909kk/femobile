@@ -1287,13 +1287,13 @@ const styles = StyleSheet.create({
   },
   legendRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
     marginBottom: 4,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    width: '50%',
   },
   legendDot: {
     width: 12,
