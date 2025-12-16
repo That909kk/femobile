@@ -252,6 +252,12 @@ export const MyAssignmentsScreen: React.FC = () => {
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
+  // Geocoded addresses cache for assignments
+  const [geocodedAddresses, setGeocodedAddresses] = useState<Record<string, {
+    checkInAddress?: string;
+    checkOutAddress?: string;
+  }>>({});
+
   const employeeId =
     userInfo?.id || (user && 'employeeId' in user ? (user as any).employeeId : undefined);
 
@@ -333,6 +339,19 @@ export const MyAssignmentsScreen: React.FC = () => {
         size: 50,
         sort: 'scheduledTime,desc',
       });
+
+      // Debug: Log raw data to check if media is returned from API
+      console.log('[MyAssignments] API returned data count:', data.length);
+      if (data.length > 0) {
+        console.log('[MyAssignments] First assignment media:', JSON.stringify({
+          assignmentId: data[0].assignmentId,
+          bookingCode: data[0].bookingCode,
+          status: data[0].status,
+          media: data[0].media,
+          checkInTime: data[0].checkInTime,
+          checkOutTime: data[0].checkOutTime,
+        }, null, 2));
+      }
 
       // Sort assignments by status priority
       const sortedData = [...data].sort((a, b) => {
@@ -834,6 +853,91 @@ export const MyAssignmentsScreen: React.FC = () => {
     return media?.filter(m => m.mediaType === type) || [];
   };
 
+  // Helper function to reverse geocode coordinates to address
+  const reverseGeocodeAddress = useCallback(async (
+    latitude: number,
+    longitude: number
+  ): Promise<string> => {
+    try {
+      const addressResults = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (addressResults && addressResults.length > 0) {
+        const addr = addressResults[0];
+        const parts = [];
+        if (addr.streetNumber) parts.push(addr.streetNumber);
+        if (addr.street) parts.push(addr.street);
+        if (addr.district || addr.subregion) parts.push(addr.district || addr.subregion);
+        if (addr.city || addr.region) parts.push(addr.city || addr.region);
+        return parts.join(', ') || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+      }
+      return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    } catch (error) {
+      console.warn('Reverse geocode failed:', error);
+      return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    }
+  }, []);
+
+  // Effect to geocode addresses for assignments with coordinates
+  useEffect(() => {
+    const geocodeAssignments = async () => {
+      for (const assignment of assignments) {
+        const cacheKey = assignment.assignmentId;
+        const cached = geocodedAddresses[cacheKey];
+        
+        // Skip if already cached
+        if (cached?.checkInAddress && cached?.checkOutAddress) continue;
+        
+        const updates: { checkInAddress?: string; checkOutAddress?: string } = {};
+        
+        // Geocode check-in coordinates
+        if (assignment.checkInLatitude && assignment.checkInLongitude && !cached?.checkInAddress) {
+          const checkInAddr = await reverseGeocodeAddress(
+            assignment.checkInLatitude,
+            assignment.checkInLongitude
+          );
+          updates.checkInAddress = checkInAddr;
+        }
+        
+        // Geocode check-out coordinates
+        if (assignment.checkOutLatitude && assignment.checkOutLongitude && !cached?.checkOutAddress) {
+          const checkOutAddr = await reverseGeocodeAddress(
+            assignment.checkOutLatitude,
+            assignment.checkOutLongitude
+          );
+          updates.checkOutAddress = checkOutAddr;
+        }
+        
+        if (Object.keys(updates).length > 0) {
+          setGeocodedAddresses(prev => ({
+            ...prev,
+            [cacheKey]: { ...prev[cacheKey], ...updates }
+          }));
+        }
+      }
+    };
+    
+    if (assignments.length > 0) {
+      geocodeAssignments();
+    }
+  }, [assignments, geocodedAddresses, reverseGeocodeAddress]);
+
+  // Helper function to calculate execution duration
+  const calculateExecutionTime = (checkInTime: string, checkOutTime: string): string => {
+    const checkIn = new Date(checkInTime);
+    const checkOut = new Date(checkOutTime);
+    const diffMs = checkOut.getTime() - checkIn.getTime();
+    
+    if (diffMs < 0) return '0 phút';
+    
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const hours = Math.floor(diffMinutes / 60);
+    const minutes = diffMinutes % 60;
+    
+    if (hours > 0) {
+      return `${hours} giờ ${minutes} phút`;
+    }
+    return `${minutes} phút`;
+  };
+
   const renderAssignmentCard = ({ item }: { item: EmployeeAssignment }) => {
     const isPending = item.status === 'PENDING';
     const isAssigned = item.status === 'ASSIGNED';
@@ -843,8 +947,25 @@ export const MyAssignmentsScreen: React.FC = () => {
     // Get check-in/check-out media
     const checkInMedia = getMediaByType(item.media, 'CHECK_IN_IMAGE');
     const checkOutMedia = getMediaByType(item.media, 'CHECK_OUT_IMAGE');
-    const hasCheckInData = item.checkInLatitude && item.checkInLongitude || checkInMedia.length > 0;
-    const hasCheckOutData = item.checkOutLatitude && item.checkOutLongitude || checkOutMedia.length > 0;
+    
+    // Debug log for media - ENABLE THIS TO DEBUG
+    console.log(`[DEBUG] Assignment ${item.bookingCode} - status: ${item.status}, media:`, item.media, 'checkInMedia:', checkInMedia.length, 'checkOutMedia:', checkOutMedia.length);
+    
+    const hasCheckInData = !!(item.checkInLatitude && item.checkInLongitude) || checkInMedia.length > 0 || !!item.checkInTime;
+    const hasCheckOutData = !!(item.checkOutLatitude && item.checkOutLongitude) || checkOutMedia.length > 0 || !!item.checkOutTime;
+    const hasAnyCheckData = hasCheckInData || hasCheckOutData || (item.media && item.media.length > 0);
+    
+    console.log(`[DEBUG] Assignment ${item.bookingCode} - hasCheckInData: ${hasCheckInData}, hasCheckOutData: ${hasCheckOutData}, hasAnyCheckData: ${hasAnyCheckData}`);
+
+    // Get geocoded addresses from cache
+    const geocodedAddr = geocodedAddresses[item.assignmentId] || {};
+    const checkInAddress = geocodedAddr.checkInAddress;
+    const checkOutAddress = geocodedAddr.checkOutAddress;
+
+    // Calculate execution time for completed assignments
+    const executionTime = isCompleted && item.checkInTime && item.checkOutTime
+      ? calculateExecutionTime(item.checkInTime, item.checkOutTime)
+      : null;
 
     // Kiểm tra thời gian check-in (sớm 10 phút, trễ 5 phút)
     const checkCanCheckIn = () => {
@@ -957,13 +1078,24 @@ export const MyAssignmentsScreen: React.FC = () => {
         )}
 
         {/* Check-in/Check-out Data Section */}
-        {(hasCheckInData || hasCheckOutData) && (
+        {/* IN_PROGRESS: Show only check-in info */}
+        {/* COMPLETED: Show both check-in and check-out info */}
+        {(isInProgress || isCompleted) && hasAnyCheckData && (
           <>
             <View style={styles.divider} />
             <View style={styles.checkInOutDataSection}>
+              {/* Execution Time Badge for COMPLETED */}
+              {isCompleted && executionTime && (
+                <View style={styles.executionTimeContainer}>
+                  <Ionicons name="time" size={18} color="#4CAF50" />
+                  <Text style={styles.executionTimeLabel}>Thời gian thực hiện:</Text>
+                  <Text style={styles.executionTimeValue}>{executionTime}</Text>
+                </View>
+              )}
+
               {/* Check-in data */}
-              {hasCheckInData && (
-                <View style={styles.checkDataBlock}>
+              {(hasCheckInData || checkInMedia.length > 0) && (
+                <View style={[styles.checkDataBlock, isCompleted && executionTime ? { marginTop: 12 } : undefined]}>
                   <View style={styles.checkDataHeader}>
                     <Ionicons name="log-in" size={16} color="#2196F3" />
                     <Text style={styles.checkDataTitle}>Check-in</Text>
@@ -971,7 +1103,15 @@ export const MyAssignmentsScreen: React.FC = () => {
                       <Text style={styles.checkDataTime}>{formatDateTime(item.checkInTime)}</Text>
                     )}
                   </View>
-                  {item.checkInLatitude && item.checkInLongitude && (
+                  {/* Display geocoded address */}
+                  {checkInAddress && (
+                    <View style={styles.checkAddressContainer}>
+                      <Ionicons name="location" size={14} color="#2196F3" />
+                      <Text style={styles.checkAddressText}>{checkInAddress}</Text>
+                    </View>
+                  )}
+                  {/* Show coordinates if no address yet */}
+                  {!checkInAddress && item.checkInLatitude && item.checkInLongitude && (
                     <View style={styles.checkCoords}>
                       <Ionicons name="navigate" size={12} color="#666" />
                       <Text style={styles.checkCoordsText}>
@@ -979,27 +1119,36 @@ export const MyAssignmentsScreen: React.FC = () => {
                       </Text>
                     </View>
                   )}
-                  {checkInMedia.length > 0 && (
-                    <ScrollView 
-                      horizontal 
-                      showsHorizontalScrollIndicator={false}
-                      style={styles.checkMediaScroll}
-                    >
-                      {checkInMedia.map((media, index) => (
-                        <Image 
-                          key={media.mediaId || index}
-                          source={{ uri: media.mediaUrl }}
-                          style={styles.checkMediaImage}
-                        />
-                      ))}
-                    </ScrollView>
-                  )}
+                  {/* Check-in media images */}
+                  {checkInMedia.length > 0 ? (
+                    <View style={styles.checkMediaContainer}>
+                      <Text style={styles.mediaLabel}>Ảnh check-in ({checkInMedia.length}):</Text>
+                      <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.checkMediaScroll}
+                        contentContainerStyle={styles.checkMediaScrollContent}
+                      >
+                        {checkInMedia.map((media, index) => (
+                          <TouchableOpacity key={media.mediaId || index} activeOpacity={0.8}>
+                            <Image 
+                              source={{ uri: media.mediaUrl }}
+                              style={styles.checkMediaImage}
+                              resizeMode="cover"
+                            />
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  ) : item.media && item.media.length > 0 ? (
+                    <Text style={styles.debugText}>Media có {item.media.length} ảnh nhưng không có CHECK_IN_IMAGE</Text>
+                  ) : null}
                 </View>
               )}
 
-              {/* Check-out data */}
-              {hasCheckOutData && (
-                <View style={[styles.checkDataBlock, hasCheckInData ? { marginTop: 12 } : undefined]}>
+              {/* Check-out data - Only show for COMPLETED status */}
+              {isCompleted && (hasCheckOutData || checkOutMedia.length > 0) && (
+                <View style={[styles.checkDataBlock, styles.checkOutBlock, { marginTop: 12 }]}>
                   <View style={styles.checkDataHeader}>
                     <Ionicons name="log-out" size={16} color="#4CAF50" />
                     <Text style={styles.checkDataTitle}>Check-out</Text>
@@ -1007,7 +1156,15 @@ export const MyAssignmentsScreen: React.FC = () => {
                       <Text style={styles.checkDataTime}>{formatDateTime(item.checkOutTime)}</Text>
                     )}
                   </View>
-                  {item.checkOutLatitude && item.checkOutLongitude && (
+                  {/* Display geocoded address */}
+                  {checkOutAddress && (
+                    <View style={styles.checkAddressContainer}>
+                      <Ionicons name="location" size={14} color="#4CAF50" />
+                      <Text style={styles.checkAddressText}>{checkOutAddress}</Text>
+                    </View>
+                  )}
+                  {/* Show coordinates if no address yet */}
+                  {!checkOutAddress && item.checkOutLatitude && item.checkOutLongitude && (
                     <View style={styles.checkCoords}>
                       <Ionicons name="navigate" size={12} color="#666" />
                       <Text style={styles.checkCoordsText}>
@@ -1015,20 +1172,27 @@ export const MyAssignmentsScreen: React.FC = () => {
                       </Text>
                     </View>
                   )}
+                  {/* Check-out media images */}
                   {checkOutMedia.length > 0 && (
-                    <ScrollView 
-                      horizontal 
-                      showsHorizontalScrollIndicator={false}
-                      style={styles.checkMediaScroll}
-                    >
-                      {checkOutMedia.map((media, index) => (
-                        <Image 
-                          key={media.mediaId || index}
-                          source={{ uri: media.mediaUrl }}
-                          style={styles.checkMediaImage}
-                        />
-                      ))}
-                    </ScrollView>
+                    <View style={styles.checkMediaContainer}>
+                      <Text style={styles.mediaLabel}>Ảnh check-out ({checkOutMedia.length}):</Text>
+                      <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.checkMediaScroll}
+                        contentContainerStyle={styles.checkMediaScrollContent}
+                      >
+                        {checkOutMedia.map((media, index) => (
+                          <TouchableOpacity key={media.mediaId || index} activeOpacity={0.8}>
+                            <Image 
+                              source={{ uri: media.mediaUrl }}
+                              style={styles.checkMediaImage}
+                              resizeMode="cover"
+                            />
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
                   )}
                 </View>
               )}
@@ -2254,12 +2418,33 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
   },
+  executionTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  executionTimeLabel: {
+    fontSize: 14,
+    color: '#2E7D32',
+    fontWeight: '500',
+  },
+  executionTimeValue: {
+    fontSize: 16,
+    color: '#1B5E20',
+    fontWeight: '700',
+  },
   checkDataBlock: {
     backgroundColor: '#fff',
     padding: 12,
     borderRadius: 8,
     borderLeftWidth: 3,
     borderLeftColor: '#2196F3',
+  },
+  checkOutBlock: {
+    borderLeftColor: '#4CAF50',
   },
   checkDataHeader: {
     flexDirection: 'row',
@@ -2277,6 +2462,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
   },
+  checkAddressContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginBottom: 8,
+    backgroundColor: '#f8f9fa',
+    padding: 8,
+    borderRadius: 6,
+  },
+  checkAddressText: {
+    fontSize: 13,
+    color: '#333',
+    flex: 1,
+    lineHeight: 18,
+  },
   checkCoords: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2288,13 +2488,33 @@ const styles = StyleSheet.create({
     color: '#666',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
+  checkMediaContainer: {
+    marginTop: 8,
+  },
+  mediaLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 6,
+    fontWeight: '500',
+  },
   checkMediaScroll: {
     marginTop: 4,
   },
+  checkMediaScrollContent: {
+    paddingRight: 8,
+    alignItems: 'center',
+  },
   checkMediaImage: {
-    width: 60,
-    height: 60,
+    width: 80,
+    height: 80,
     borderRadius: 8,
-    marginRight: 8,
+    marginRight: 10,
+    backgroundColor: '#e0e0e0',
+  },
+  debugText: {
+    fontSize: 11,
+    color: '#FF5722',
+    fontStyle: 'italic',
+    marginTop: 4,
   },
 });

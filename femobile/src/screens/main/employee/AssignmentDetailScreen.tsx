@@ -627,11 +627,6 @@ export const AssignmentDetailScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Chi tiết thanh toán</Text>
           <View style={styles.paymentCard}>
             <View style={styles.paymentRow}>
-              <Text style={styles.paymentLabel}>Đơn giá</Text>
-              <Text style={styles.paymentValue}>{formatCurrency(assignment.pricePerUnit)}</Text>
-            </View>
-            <View style={styles.paymentDivider} />
-            <View style={styles.paymentRow}>
               <Text style={styles.paymentTotalLabel}>Tổng cộng</Text>
               <Text style={styles.paymentTotalValue}>{formatCurrency(assignment.totalAmount)}</Text>
             </View>
