@@ -303,7 +303,7 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
       {employee.skills && employee.skills.length > 0 && (
         <View style={{ marginTop: 12 }}>
           <Text style={[commonStyles.cardDescription, { marginBottom: 8, fontWeight: '500' }]}>Kỹ năng:</Text>
-          <View style={commonStyles.flexRow}>
+          <View style={[commonStyles.flexRow, { flexWrap: 'wrap', alignItems: 'center' }]}>
             {employee.skills.slice(0, 3).map((skill, index) => (
               <View
                 key={index}
@@ -328,9 +328,17 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
               </View>
             ))}
             {employee.skills.length > 3 && (
-              <Text style={[commonStyles.cardDescription, { alignSelf: 'center' }]}>
-                +{employee.skills.length - 3} khác
-              </Text>
+              <View
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  marginBottom: 4,
+                }}
+              >
+                <Text style={[commonStyles.cardDescription, { fontSize: 12 }]}>
+                  +{employee.skills.length - 3} khác
+                </Text>
+              </View>
             )}
           </View>
         </View>

@@ -4,6 +4,7 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   Alert,
   ActivityIndicator,
   TextInput,
@@ -211,7 +212,6 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
             bookingDetails: bookingDetails,
             note: bookingNote || '',
             promoCode: promoCode || undefined,
-            paymentMethodId: selectedPaymentMethodId,
           };
           const response = await bookingService.getRecurringBookingPreview(request);
           setPreviewData(response);
@@ -223,7 +223,6 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
             bookingDetails: bookingDetails,
             note: bookingNote || '',
             promoCode: promoCode || undefined,
-            paymentMethodId: selectedPaymentMethodId,
           };
           const response = await bookingService.getMultipleBookingPreview(request);
           setPreviewData(response);
@@ -235,7 +234,6 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
             bookingDetails: bookingDetails,
             note: bookingNote || '',
             promoCode: promoCode || undefined,
-            paymentMethodId: selectedPaymentMethodId,
           };
           const response = await bookingService.getBookingPreview(request);
           setPreviewData(response);
@@ -249,7 +247,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
     };
 
     fetchPreview();
-  }, [selectedService, selectedOptions, normalizedQuantity, selectedAddress, selectedDates, selectedTime, bookingMode, recurringConfig, user, bookingNote, promoCode, selectedPaymentMethodId]);
+  }, [selectedService, selectedOptions, normalizedQuantity, selectedAddress, selectedDates, selectedTime, bookingMode, recurringConfig, user, bookingNote, promoCode]);
 
   useEffect(() => {
     if (availablePaymentMethods.length > 0 && !selectedPaymentMethodId) {
@@ -2061,17 +2059,17 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
               {availablePaymentMethods.map((method) => {
                 const isSelected = method.methodId === selectedPaymentMethodId;
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={method.methodId}
-                    style={[
-                      commonStyles.card,
-                      { 
-                        marginBottom: 0,
-                        borderWidth: 2,
-                        borderColor: isSelected ? accentColor : colors.neutral.border,
-                      },
-                      isSelected && { backgroundColor: accentColor + '10' },
-                    ]}
+                    android_ripple={null}
+                    style={({ pressed }) => [{
+                      backgroundColor: isSelected ? accentColor + '10' : colors.neutral.white,
+                      borderRadius: 16,
+                      padding: responsiveSpacing.md,
+                      borderWidth: 2,
+                      borderColor: isSelected ? accentColor : colors.neutral.border,
+                      opacity: pressed ? 0.7 : 1,
+                    }]}
                     onPress={() => onPaymentMethodSelect(method.methodId)}
                   >
                     <View style={commonStyles.flexRowBetween}>
@@ -2115,7 +2113,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
                         />
                       )}
                     </View>
-                  </TouchableOpacity>
+                  </Pressable>
                 );
               })}
             </View>
@@ -2208,6 +2206,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
               />
             </View>
             <TouchableOpacity
+              activeOpacity={0.7}
               style={[
                 commonStyles.secondaryButton, 
                 { 
@@ -2246,6 +2245,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
           </View>
           <View style={commonStyles.card}>
             <TouchableOpacity
+              activeOpacity={0.7}
               style={{ 
                 flexDirection: 'row', 
                 alignItems: 'flex-start',
@@ -2271,6 +2271,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
             <View style={{ height: 1, backgroundColor: dividerColor, marginVertical: 12 }} />
 
             <TouchableOpacity
+              activeOpacity={0.7}
               style={{ 
                 flexDirection: 'row', 
                 alignItems: 'flex-start',
@@ -2296,6 +2297,7 @@ export const BookingConfirmation: React.FC<BookingConfirmationProps> = ({
 
       <View style={commonStyles.buttonContainer}>
         <TouchableOpacity
+          activeOpacity={0.7}
           style={[
             commonStyles.primaryButton,
             { 
