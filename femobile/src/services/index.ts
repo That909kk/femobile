@@ -88,6 +88,7 @@ export type {
 export type {
   EmployeeAssignment,
   AssignmentStatus,
+  AssignmentMedia,
   AvailableBookingDetail,
   AvailableBookingsResponse,
   AcceptBookingResponse,

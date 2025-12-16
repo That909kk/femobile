@@ -3,6 +3,16 @@ import type { BookingResponse } from '../types/booking';
 
 export type AssignmentStatus = 'PENDING' | 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
+export interface AssignmentMedia {
+  mediaId: string;
+  assignmentId: string;
+  mediaUrl: string;
+  publicId?: string;
+  mediaType: 'CHECK_IN_IMAGE' | 'CHECK_OUT_IMAGE';
+  description?: string;
+  uploadedAt: string;
+}
+
 export interface EmployeeAssignment {
   assignmentId: string;
   bookingCode: string;
@@ -20,6 +30,13 @@ export interface EmployeeAssignment {
   assignedAt?: string | null;
   checkInTime?: string | null;
   checkOutTime?: string | null;
+  // Coordinates
+  checkInLatitude?: number | null;
+  checkInLongitude?: number | null;
+  checkOutLatitude?: number | null;
+  checkOutLongitude?: number | null;
+  // Media
+  media?: AssignmentMedia[];
   checkInImages?: Array<{
     imageId: string;
     imageUrl: string;
@@ -244,16 +261,45 @@ class EmployeeAssignmentService {
   async checkIn(
     assignmentId: string,
     employeeId: string,
-    imageFiles?: Array<File | Blob>,
+    imageFiles?: Array<File | Blob | string>,
     imageDescription?: string,
+    latitude?: number,
+    longitude?: number,
   ): Promise<CheckInResponse> {
     const formData = new FormData();
-    const requestData = { employeeId, imageDescription };
+    
+    // Build request data, only include defined values
+    const requestData: Record<string, any> = { employeeId };
+    
+    if (imageDescription) {
+      requestData.imageDescription = imageDescription;
+    }
+    
+    // Add coordinates if both are available
+    if (latitude !== undefined && longitude !== undefined) {
+      requestData.latitude = latitude;
+      requestData.longitude = longitude;
+    }
+    
     formData.append('request', JSON.stringify(requestData));
     
     if (imageFiles && imageFiles.length > 0) {
-      imageFiles.forEach((file) => {
-        formData.append('images', file as any);
+      imageFiles.forEach((file, index) => {
+        if (typeof file === 'string') {
+          // React Native: file is a URI string
+          const fileName = file.split('/').pop() || `image_${index}.jpg`;
+          const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'jpg';
+          const mimeType = fileExtension === 'png' ? 'image/png' : 'image/jpeg';
+          
+          formData.append('images', {
+            uri: file,
+            type: mimeType,
+            name: fileName,
+          } as any);
+        } else {
+          // Web: file is a Blob/File
+          formData.append('images', file as any);
+        }
       });
     }
 
@@ -279,16 +325,45 @@ class EmployeeAssignmentService {
   async checkOut(
     assignmentId: string,
     employeeId: string,
-    imageFiles?: Array<File | Blob>,
+    imageFiles?: Array<File | Blob | string>,
     imageDescription?: string,
+    latitude?: number,
+    longitude?: number,
   ): Promise<CheckOutResponse> {
     const formData = new FormData();
-    const requestData = { employeeId, imageDescription };
+    
+    // Build request data, only include defined values
+    const requestData: Record<string, any> = { employeeId };
+    
+    if (imageDescription) {
+      requestData.imageDescription = imageDescription;
+    }
+    
+    // Add coordinates if both are available
+    if (latitude !== undefined && longitude !== undefined) {
+      requestData.latitude = latitude;
+      requestData.longitude = longitude;
+    }
+    
     formData.append('request', JSON.stringify(requestData));
     
     if (imageFiles && imageFiles.length > 0) {
-      imageFiles.forEach((file) => {
-        formData.append('images', file as any);
+      imageFiles.forEach((file, index) => {
+        if (typeof file === 'string') {
+          // React Native: file is a URI string
+          const fileName = file.split('/').pop() || `image_${index}.jpg`;
+          const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'jpg';
+          const mimeType = fileExtension === 'png' ? 'image/png' : 'image/jpeg';
+          
+          formData.append('images', {
+            uri: file,
+            type: mimeType,
+            name: fileName,
+          } as any);
+        } else {
+          // Web: file is a Blob/File
+          formData.append('images', file as any);
+        }
       });
     }
 

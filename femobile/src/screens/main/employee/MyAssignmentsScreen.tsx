@@ -16,10 +16,12 @@ import {
   Platform,
   Image,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth, useEnsureValidToken, useUserInfo } from '../../../hooks';
 import { COLORS, UI } from '../../../constants';
@@ -241,8 +243,72 @@ export const MyAssignmentsScreen: React.FC = () => {
   const [checkOutImages, setCheckOutImages] = useState<string[]>([]);
   const [checkOutDescription, setCheckOutDescription] = useState('');
 
+  // GPS Location states
+  const [currentLocation, setCurrentLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [currentAddress, setCurrentAddress] = useState<string | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
   const employeeId =
     userInfo?.id || (user && 'employeeId' in user ? (user as any).employeeId : undefined);
+
+  // Function to fetch current GPS location and reverse geocode to address
+  const fetchCurrentLocation = useCallback(async () => {
+    setLocationLoading(true);
+    setLocationError(null);
+    setCurrentLocation(null);
+    setCurrentAddress(null);
+
+    try {
+      // Request permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationError('Vui lòng cấp quyền truy cập vị trí để check-in/check-out');
+        return;
+      }
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const coords = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+      setCurrentLocation(coords);
+
+      // Reverse geocode to get address
+      try {
+        const addressResults = await Location.reverseGeocodeAsync(coords);
+        if (addressResults && addressResults.length > 0) {
+          const addr = addressResults[0];
+          // Build address string: streetNumber street, district, city
+          const parts = [];
+          if (addr.streetNumber) parts.push(addr.streetNumber);
+          if (addr.street) parts.push(addr.street);
+          if (addr.district || addr.subregion) parts.push(addr.district || addr.subregion);
+          if (addr.city || addr.region) parts.push(addr.city || addr.region);
+          
+          const addressString = parts.join(', ') || `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`;
+          setCurrentAddress(addressString);
+        } else {
+          setCurrentAddress(`${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`);
+        }
+      } catch (geocodeError) {
+        console.warn('Reverse geocode failed:', geocodeError);
+        setCurrentAddress(`${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`);
+      }
+    } catch (error: any) {
+      console.error('Error getting location:', error);
+      setLocationError('Không thể lấy vị trí hiện tại. Vui lòng thử lại.');
+    } finally {
+      setLocationLoading(false);
+    }
+  }, []);
 
   const fetchAssignments = useCallback(async (isFilterChange = false) => {
     if (!employeeId) {
@@ -486,11 +552,17 @@ export const MyAssignmentsScreen: React.FC = () => {
       return;
     }
     
-    // Open modal instead of Alert
+    // Open modal and fetch current location
     setCheckInAssignment(assignment);
     setCheckInImages([]);
     setCheckInDescription('');
+    setCurrentLocation(null);
+    setCurrentAddress(null);
+    setLocationError(null);
     setShowCheckInModal(true);
+    
+    // Fetch GPS location
+    fetchCurrentLocation();
   };
 
   const confirmCheckIn = async () => {
@@ -500,25 +572,22 @@ export const MyAssignmentsScreen: React.FC = () => {
       setActionLoading('checkin');
       await ensureValidToken.ensureValidToken();
 
-      // Convert images to blobs for upload
-      const imageBlobs = await Promise.all(
-        checkInImages.map(async (uri) => {
-          const response = await fetch(uri);
-          return response.blob();
-        })
-      );
-
+      // Pass image URIs directly - service will handle the conversion
       await employeeAssignmentService.checkIn(
         checkInAssignment.assignmentId,
         employeeId,
-        imageBlobs.length > 0 ? imageBlobs : undefined,
-        checkInDescription || undefined
+        checkInImages.length > 0 ? checkInImages : undefined,
+        checkInDescription || undefined,
+        currentLocation?.latitude,
+        currentLocation?.longitude,
       );
 
       setShowCheckInModal(false);
       setCheckInAssignment(null);
       setCheckInImages([]);
       setCheckInDescription('');
+      setCurrentLocation(null);
+      setCurrentAddress(null);
       
       Alert.alert('Thành công', 'Check-in thành công! Chúc bạn làm việc hiệu quả.', [
         {
@@ -543,11 +612,17 @@ export const MyAssignmentsScreen: React.FC = () => {
       return;
     }
 
-    // Open modal instead of Alert
+    // Open modal and fetch current location
     setCheckOutAssignment(assignment);
     setCheckOutImages([]);
     setCheckOutDescription('');
+    setCurrentLocation(null);
+    setCurrentAddress(null);
+    setLocationError(null);
     setShowCheckOutModal(true);
+    
+    // Fetch GPS location
+    fetchCurrentLocation();
   };
 
   const confirmCheckOut = async () => {
@@ -557,25 +632,22 @@ export const MyAssignmentsScreen: React.FC = () => {
       setActionLoading('checkout');
       await ensureValidToken.ensureValidToken();
 
-      // Convert images to blobs for upload
-      const imageBlobs = await Promise.all(
-        checkOutImages.map(async (uri) => {
-          const response = await fetch(uri);
-          return response.blob();
-        })
-      );
-
+      // Pass image URIs directly - service will handle the conversion
       await employeeAssignmentService.checkOut(
         checkOutAssignment.assignmentId,
         employeeId,
-        imageBlobs.length > 0 ? imageBlobs : undefined,
-        checkOutDescription || undefined
+        checkOutImages.length > 0 ? checkOutImages : undefined,
+        checkOutDescription || undefined,
+        currentLocation?.latitude,
+        currentLocation?.longitude,
       );
 
       setShowCheckOutModal(false);
       setCheckOutAssignment(null);
       setCheckOutImages([]);
       setCheckOutDescription('');
+      setCurrentLocation(null);
+      setCurrentAddress(null);
       
       Alert.alert('Thành công', 'Check-out thành công! Cảm ơn bạn đã hoàn thành công việc.', [
         {
@@ -704,10 +776,75 @@ export const MyAssignmentsScreen: React.FC = () => {
     );
   };
 
+  // Component to render GPS location info
+  const renderLocationInfo = () => {
+    const openInMaps = () => {
+      if (!currentLocation) return;
+      
+      const url = Platform.select({
+        ios: `maps:0,0?q=${currentLocation.latitude},${currentLocation.longitude}`,
+        android: `geo:${currentLocation.latitude},${currentLocation.longitude}?q=${currentLocation.latitude},${currentLocation.longitude}`,
+      });
+      
+      if (url) {
+        Linking.openURL(url);
+      }
+    };
+
+    return (
+      <View style={styles.locationContainer}>
+        <Text style={styles.locationLabel}>
+          <Ionicons name="location" size={14} color={TEAL_COLOR} /> Vị trí hiện tại
+        </Text>
+        
+        {locationLoading ? (
+          <View style={styles.locationLoadingContainer}>
+            <ActivityIndicator size="small" color={TEAL_COLOR} />
+            <Text style={styles.locationLoadingText}>Đang lấy vị trí...</Text>
+          </View>
+        ) : locationError ? (
+          <View style={styles.locationErrorContainer}>
+            <Ionicons name="warning" size={20} color="#F44336" />
+            <Text style={styles.locationErrorText}>{locationError}</Text>
+            <TouchableOpacity 
+              style={styles.retryLocationButton}
+              onPress={fetchCurrentLocation}
+            >
+              <Text style={styles.retryLocationText}>Thử lại</Text>
+            </TouchableOpacity>
+          </View>
+        ) : currentLocation && currentAddress ? (
+          <View style={styles.locationSuccessContainer}>
+            <View style={styles.locationCoords}>
+              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+              <Text style={styles.locationAddressText}>{currentAddress}</Text>
+            </View>
+            <TouchableOpacity onPress={openInMaps} style={styles.viewMapButton}>
+              <Ionicons name="map-outline" size={16} color={TEAL_COLOR} />
+              <Text style={styles.viewMapText}>Xem trên bản đồ</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </View>
+    );
+  };
+
+  // Helper function to get check-in/check-out images from media array
+  const getMediaByType = (media: EmployeeAssignment['media'], type: 'CHECK_IN_IMAGE' | 'CHECK_OUT_IMAGE') => {
+    return media?.filter(m => m.mediaType === type) || [];
+  };
+
   const renderAssignmentCard = ({ item }: { item: EmployeeAssignment }) => {
     const isPending = item.status === 'PENDING';
     const isAssigned = item.status === 'ASSIGNED';
     const isInProgress = item.status === 'IN_PROGRESS';
+    const isCompleted = item.status === 'COMPLETED';
+
+    // Get check-in/check-out media
+    const checkInMedia = getMediaByType(item.media, 'CHECK_IN_IMAGE');
+    const checkOutMedia = getMediaByType(item.media, 'CHECK_OUT_IMAGE');
+    const hasCheckInData = item.checkInLatitude && item.checkInLongitude || checkInMedia.length > 0;
+    const hasCheckOutData = item.checkOutLatitude && item.checkOutLongitude || checkOutMedia.length > 0;
 
     // Kiểm tra thời gian check-in (sớm 10 phút, trễ 5 phút)
     const checkCanCheckIn = () => {
@@ -815,6 +952,86 @@ export const MyAssignmentsScreen: React.FC = () => {
               <Text style={styles.noteText} numberOfLines={2}>
                 {item.note}
               </Text>
+            </View>
+          </>
+        )}
+
+        {/* Check-in/Check-out Data Section */}
+        {(hasCheckInData || hasCheckOutData) && (
+          <>
+            <View style={styles.divider} />
+            <View style={styles.checkInOutDataSection}>
+              {/* Check-in data */}
+              {hasCheckInData && (
+                <View style={styles.checkDataBlock}>
+                  <View style={styles.checkDataHeader}>
+                    <Ionicons name="log-in" size={16} color="#2196F3" />
+                    <Text style={styles.checkDataTitle}>Check-in</Text>
+                    {item.checkInTime && (
+                      <Text style={styles.checkDataTime}>{formatDateTime(item.checkInTime)}</Text>
+                    )}
+                  </View>
+                  {item.checkInLatitude && item.checkInLongitude && (
+                    <View style={styles.checkCoords}>
+                      <Ionicons name="navigate" size={12} color="#666" />
+                      <Text style={styles.checkCoordsText}>
+                        {item.checkInLatitude.toFixed(6)}, {item.checkInLongitude.toFixed(6)}
+                      </Text>
+                    </View>
+                  )}
+                  {checkInMedia.length > 0 && (
+                    <ScrollView 
+                      horizontal 
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.checkMediaScroll}
+                    >
+                      {checkInMedia.map((media, index) => (
+                        <Image 
+                          key={media.mediaId || index}
+                          source={{ uri: media.mediaUrl }}
+                          style={styles.checkMediaImage}
+                        />
+                      ))}
+                    </ScrollView>
+                  )}
+                </View>
+              )}
+
+              {/* Check-out data */}
+              {hasCheckOutData && (
+                <View style={[styles.checkDataBlock, hasCheckInData ? { marginTop: 12 } : undefined]}>
+                  <View style={styles.checkDataHeader}>
+                    <Ionicons name="log-out" size={16} color="#4CAF50" />
+                    <Text style={styles.checkDataTitle}>Check-out</Text>
+                    {item.checkOutTime && (
+                      <Text style={styles.checkDataTime}>{formatDateTime(item.checkOutTime)}</Text>
+                    )}
+                  </View>
+                  {item.checkOutLatitude && item.checkOutLongitude && (
+                    <View style={styles.checkCoords}>
+                      <Ionicons name="navigate" size={12} color="#666" />
+                      <Text style={styles.checkCoordsText}>
+                        {item.checkOutLatitude.toFixed(6)}, {item.checkOutLongitude.toFixed(6)}
+                      </Text>
+                    </View>
+                  )}
+                  {checkOutMedia.length > 0 && (
+                    <ScrollView 
+                      horizontal 
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.checkMediaScroll}
+                    >
+                      {checkOutMedia.map((media, index) => (
+                        <Image 
+                          key={media.mediaId || index}
+                          source={{ uri: media.mediaUrl }}
+                          style={styles.checkMediaImage}
+                        />
+                      ))}
+                    </ScrollView>
+                  )}
+                </View>
+              )}
             </View>
           </>
         )}
@@ -1124,6 +1341,9 @@ export const MyAssignmentsScreen: React.FC = () => {
               setCheckInAssignment(null);
               setCheckInImages([]);
               setCheckInDescription('');
+              setCurrentLocation(null);
+              setCurrentAddress(null);
+              setLocationError(null);
             }}>
               <Ionicons name="close" size={24} color="#1a1a1a" />
             </TouchableOpacity>
@@ -1144,6 +1364,9 @@ export const MyAssignmentsScreen: React.FC = () => {
                 )}
               </View>
             )}
+
+            {/* GPS Location Info */}
+            {renderLocationInfo()}
 
             {renderImagePicker('checkIn')}
             
@@ -1194,6 +1417,9 @@ export const MyAssignmentsScreen: React.FC = () => {
               setCheckOutAssignment(null);
               setCheckOutImages([]);
               setCheckOutDescription('');
+              setCurrentLocation(null);
+              setCurrentAddress(null);
+              setLocationError(null);
             }}>
               <Ionicons name="close" size={24} color="#1a1a1a" />
             </TouchableOpacity>
@@ -1214,6 +1440,9 @@ export const MyAssignmentsScreen: React.FC = () => {
                 )}
               </View>
             )}
+
+            {/* GPS Location Info */}
+            {renderLocationInfo()}
 
             {renderImagePicker('checkOut')}
             
@@ -1941,5 +2170,131 @@ const styles = StyleSheet.create({
   disabledButton: {
     backgroundColor: '#9e9e9e',
     opacity: 0.7,
+  },
+  // GPS Location Styles
+  locationContainer: {
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: '#f0f8ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e3f2fd',
+  },
+  locationLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 12,
+  },
+  locationLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  locationLoadingText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  locationErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  locationErrorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#F44336',
+  },
+  retryLocationButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: TEAL_COLOR,
+    borderRadius: 6,
+  },
+  retryLocationText: {
+    fontSize: 13,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  locationSuccessContainer: {
+    gap: 8,
+  },
+  locationCoords: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  locationCoordsText: {
+    fontSize: 13,
+    color: '#333',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  locationAddressText: {
+    fontSize: 14,
+    color: '#333',
+    flex: 1,
+    lineHeight: 20,
+  },
+  viewMapButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+  },
+  viewMapText: {
+    fontSize: 13,
+    color: TEAL_COLOR,
+    fontWeight: '500',
+  },
+  // Check-in/Check-out Data Display Styles
+  checkInOutDataSection: {
+    backgroundColor: '#f5f5f5',
+    padding: 12,
+    borderRadius: 8,
+  },
+  checkDataBlock: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2196F3',
+  },
+  checkDataHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  checkDataTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    flex: 1,
+  },
+  checkDataTime: {
+    fontSize: 12,
+    color: '#666',
+  },
+  checkCoords: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  checkCoordsText: {
+    fontSize: 12,
+    color: '#666',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  checkMediaScroll: {
+    marginTop: 4,
+  },
+  checkMediaImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginRight: 8,
   },
 });
