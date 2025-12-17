@@ -98,11 +98,6 @@ export const LocationSelection: React.FC<LocationSelectionProps> = ({
     loadProvinces();
   }, []);
 
-  // Debug auth state changes
-  useEffect(() => {
-    // Auth state monitoring (silent in production)
-  }, [isAuthenticated, accessToken, userInfo]);
-
   useEffect(() => {
     // Use preloaded default address if available
     if (preloadedDefaultAddress) {

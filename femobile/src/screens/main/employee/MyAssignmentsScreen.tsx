@@ -340,19 +340,6 @@ export const MyAssignmentsScreen: React.FC = () => {
         sort: 'scheduledTime,desc',
       });
 
-      // Debug: Log raw data to check if media is returned from API
-      console.log('[MyAssignments] API returned data count:', data.length);
-      if (data.length > 0) {
-        console.log('[MyAssignments] First assignment media:', JSON.stringify({
-          assignmentId: data[0].assignmentId,
-          bookingCode: data[0].bookingCode,
-          status: data[0].status,
-          media: data[0].media,
-          checkInTime: data[0].checkInTime,
-          checkOutTime: data[0].checkOutTime,
-        }, null, 2));
-      }
-
       // Sort assignments by status priority
       const sortedData = [...data].sort((a, b) => {
         const priorityA = getStatusPriority(a.status);
@@ -372,10 +359,6 @@ export const MyAssignmentsScreen: React.FC = () => {
 
       setAssignments(sortedData);
     } catch (error: any) {
-      console.error('[MyAssignments] Fetch error:', error);
-      console.error('[MyAssignments] Error status:', error?.status);
-      console.error('[MyAssignments] Error message:', error?.message);
-      
       // Handle authentication errors
       if (error?.status === 401 || error?.status === 403) {
         setError('Phiên đăng nhập đã hết hạn');
@@ -948,14 +931,9 @@ export const MyAssignmentsScreen: React.FC = () => {
     const checkInMedia = getMediaByType(item.media, 'CHECK_IN_IMAGE');
     const checkOutMedia = getMediaByType(item.media, 'CHECK_OUT_IMAGE');
     
-    // Debug log for media - ENABLE THIS TO DEBUG
-    console.log(`[DEBUG] Assignment ${item.bookingCode} - status: ${item.status}, media:`, item.media, 'checkInMedia:', checkInMedia.length, 'checkOutMedia:', checkOutMedia.length);
-    
     const hasCheckInData = !!(item.checkInLatitude && item.checkInLongitude) || checkInMedia.length > 0 || !!item.checkInTime;
     const hasCheckOutData = !!(item.checkOutLatitude && item.checkOutLongitude) || checkOutMedia.length > 0 || !!item.checkOutTime;
     const hasAnyCheckData = hasCheckInData || hasCheckOutData || (item.media && item.media.length > 0);
-    
-    console.log(`[DEBUG] Assignment ${item.bookingCode} - hasCheckInData: ${hasCheckInData}, hasCheckOutData: ${hasCheckOutData}, hasAnyCheckData: ${hasAnyCheckData}`);
 
     // Get geocoded addresses from cache
     const geocodedAddr = geocodedAddresses[item.assignmentId] || {};

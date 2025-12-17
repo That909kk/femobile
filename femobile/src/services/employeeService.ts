@@ -23,6 +23,12 @@ export interface Employee {
   employeeStatus?: EmployeeStatus;
   completedJobs?: number;
   workingZones?: WorkingZone[];
+  workingWards?: string[];
+  workingCity?: string;
+  hasWorkedWithCustomer?: boolean;
+  recommendation?: {
+    score: number;
+  };
   account?: {
     accountId: string;
     phoneNumber: string;

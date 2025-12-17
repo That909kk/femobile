@@ -269,80 +269,42 @@ export const EmployeeSelection: React.FC<EmployeeSelectionProps> = ({
           defaultSource={{ uri: 'https://picsum.photos/200' }}
         />
         <View style={{ flex: 1, paddingRight: 36 }}>
-          <Text style={commonStyles.cardTitle}>{employee.fullName}</Text>
-          <View style={[commonStyles.flexRow, { marginTop: 4, flexWrap: 'wrap' }]}>
-            <Ionicons name="star" size={16} color={colors.feedback.warning} />
-            <Text style={[commonStyles.cardDescription, { marginLeft: 4 }]}>
-              {typeof employee.rating === 'number' 
-                ? (employee.rating as number).toFixed(1) 
-                : employee.rating === 'HIGH' ? '5.0' 
-                : employee.rating === 'MEDIUM' ? '4.0' 
-                : employee.rating === 'LOW' ? '3.0' 
-                : 'N/A'}
-            </Text>
-            <Text style={[commonStyles.cardDescription, { marginLeft: 4 }]}>
-              ({employee.completedJobs ?? 0} công việc)
-            </Text>
-          </View>
-          <Text
-            style={[
-              commonStyles.cardDescription,
-              {
-                marginTop: 4,
-                color: employee.employeeStatus === 'AVAILABLE' ? successColor : warningColor,
-                fontWeight: '500',
-              },
-            ]}
-          >
-            {employee.employeeStatus}
-          </Text>
-        </View>
-      </View>
-      
-      {/* Skills */}
-      {employee.skills && employee.skills.length > 0 && (
-        <View style={{ marginTop: 12 }}>
-          <Text style={[commonStyles.cardDescription, { marginBottom: 8, fontWeight: '500' }]}>Kỹ năng:</Text>
-          <View style={[commonStyles.flexRow, { flexWrap: 'wrap', alignItems: 'center' }]}>
-            {employee.skills.slice(0, 3).map((skill, index) => (
-              <View
-                key={index}
-                style={{
-                  backgroundColor: 'rgba(27, 181, 166, 0.12)',
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 12,
-                  marginRight: 8,
-                  marginBottom: 4,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: accentColor,
-                    fontWeight: '500',
-                  }}
-                >
-                  {skill}
-                </Text>
-              </View>
-            ))}
-            {employee.skills.length > 3 && (
-              <View
-                style={{
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  marginBottom: 4,
-                }}
-              >
-                <Text style={[commonStyles.cardDescription, { fontSize: 12 }]}>
-                  +{employee.skills.length - 3} khác
+          {/* Name and "Đã từng phục vụ" badge */}
+          <View style={[commonStyles.flexRow, { alignItems: 'center', flexWrap: 'wrap' }]}>
+            <Text style={commonStyles.cardTitle}>{employee.fullName}</Text>
+            {employee.hasWorkedWithCustomer && (
+              <View style={[commonStyles.flexRow, { alignItems: 'center', marginLeft: 8 }]}>
+                <Ionicons name="checkmark-circle" size={16} color={successColor} />
+                <Text style={{ fontSize: 12, color: successColor, marginLeft: 4, fontWeight: '500' }}>
+                  Đã từng phục vụ
                 </Text>
               </View>
             )}
           </View>
+          
+          {/* City location */}
+          {employee.workingCity && (
+            <Text style={[commonStyles.cardDescription, { marginTop: 4 }]}>
+              {employee.workingCity}
+            </Text>
+          )}
+          
+          {/* Rating and Completed Jobs */}
+          <View style={[commonStyles.flexRow, { marginTop: 8, alignItems: 'center', justifyContent: 'space-between' }]}>
+            <View style={[commonStyles.flexRow, { alignItems: 'center' }]}>
+              <Ionicons name="star" size={16} color={colors.feedback.warning} />
+              <Text style={[commonStyles.cardDescription, { marginLeft: 4, fontWeight: '500' }]}>
+                {typeof employee.rating === 'number' 
+                  ? (employee.rating as number).toFixed(2) 
+                  : employee.rating || 'N/A'}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 14, color: accentColor, fontWeight: '500' }}>
+              {employee.completedJobs ?? 0} việc hoàn thành
+            </Text>
+          </View>
         </View>
-      )}
+      </View>
 
     </TouchableOpacity>
   );

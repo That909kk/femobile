@@ -194,6 +194,13 @@ export interface BookingEmployee {
   employeeStatus: string;
   skills: string[];
   bio: string;
+  workingWards?: string[];
+  workingCity?: string;
+  hasWorkedWithCustomer?: boolean;
+  completedJobs?: number;
+  recommendation?: {
+    score: number;
+  };
 }
 
 export interface BookingServiceDetail {

@@ -140,11 +140,6 @@ const CustomerHomeScreen: React.FC<CustomerHomeScreenProps> = () => {
     }, [getUnreadCount]),
   );
 
-  // Debug: Log unreadCount when it changes
-  useEffect(() => {
-    // Unread count updated silently
-  }, [unreadCount]);
-
   const loadInitialData = async () => {
     try {
       setLoading(true);

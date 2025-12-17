@@ -266,16 +266,6 @@ class EmployeeAssignmentService {
     latitude?: number,
     longitude?: number,
   ): Promise<CheckInResponse> {
-    console.log('[CheckIn] Starting check-in with params:', {
-      assignmentId,
-      employeeId,
-      imageFilesCount: imageFiles?.length || 0,
-      imageFiles: imageFiles,
-      imageDescription,
-      latitude,
-      longitude,
-    });
-
     const formData = new FormData();
     
     // Build request data, only include defined values
@@ -294,7 +284,6 @@ class EmployeeAssignmentService {
     formData.append('request', JSON.stringify(requestData));
     
     if (imageFiles && imageFiles.length > 0) {
-      console.log('[CheckIn] Appending images to formData...');
       imageFiles.forEach((file, index) => {
         if (typeof file === 'string') {
           // React Native: file is a URI string
@@ -302,7 +291,6 @@ class EmployeeAssignmentService {
           const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'jpg';
           const mimeType = fileExtension === 'png' ? 'image/png' : 'image/jpeg';
           
-          console.log(`[CheckIn] Appending image ${index}:`, { uri: file, type: mimeType, name: fileName });
           formData.append('images', {
             uri: file,
             type: mimeType,
@@ -310,15 +298,10 @@ class EmployeeAssignmentService {
           } as any);
         } else {
           // Web: file is a Blob/File
-          console.log(`[CheckIn] Appending blob/file ${index}`);
           formData.append('images', file as any);
         }
       });
-    } else {
-      console.log('[CheckIn] No images to upload');
     }
-
-    console.log('[CheckIn] Sending request to API...');
     const response = await httpClient.post<CheckInResponse>(
       `${this.BASE_PATH}/assignments/${assignmentId}/check-in`,
       formData,
@@ -331,8 +314,6 @@ class EmployeeAssignmentService {
 
     // Check-in thành công nếu response.success === true HOẶC có data và status 200/201
     // Điều này xử lý trường hợp API trả về data nhưng không có field "success"
-    console.log('[CheckIn] API Response:', JSON.stringify(response, null, 2));
-    
     if (response.success === false && !response.data) {
       throw new Error(response.message || 'Không thể check-in');
     }
@@ -348,16 +329,6 @@ class EmployeeAssignmentService {
     latitude?: number,
     longitude?: number,
   ): Promise<CheckOutResponse> {
-    console.log('[CheckOut] Starting check-out with params:', {
-      assignmentId,
-      employeeId,
-      imageFilesCount: imageFiles?.length || 0,
-      imageFiles: imageFiles,
-      imageDescription,
-      latitude,
-      longitude,
-    });
-
     const formData = new FormData();
     
     // Build request data, only include defined values
@@ -376,7 +347,6 @@ class EmployeeAssignmentService {
     formData.append('request', JSON.stringify(requestData));
     
     if (imageFiles && imageFiles.length > 0) {
-      console.log('[CheckOut] Appending images to formData...');
       imageFiles.forEach((file, index) => {
         if (typeof file === 'string') {
           // React Native: file is a URI string
@@ -384,7 +354,6 @@ class EmployeeAssignmentService {
           const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'jpg';
           const mimeType = fileExtension === 'png' ? 'image/png' : 'image/jpeg';
           
-          console.log(`[CheckOut] Appending image ${index}:`, { uri: file, type: mimeType, name: fileName });
           formData.append('images', {
             uri: file,
             type: mimeType,
@@ -392,15 +361,10 @@ class EmployeeAssignmentService {
           } as any);
         } else {
           // Web: file is a Blob/File
-          console.log(`[CheckOut] Appending blob/file ${index}`);
           formData.append('images', file as any);
         }
       });
-    } else {
-      console.log('[CheckOut] No images to upload');
     }
-
-    console.log('[CheckOut] Sending request to API...');
     const response = await httpClient.post<CheckOutResponse>(
       `${this.BASE_PATH}/assignments/${assignmentId}/check-out`,
       formData,
@@ -413,8 +377,6 @@ class EmployeeAssignmentService {
 
     // Check-out thành công nếu response.success === true HOẶC có data và status 200/201
     // Điều này xử lý trường hợp API trả về data nhưng không có field "success"
-    console.log('[CheckOut] API Response:', JSON.stringify(response, null, 2));
-    
     if (response.success === false && !response.data) {
       throw new Error(response.message || 'Không thể check-out');
     }

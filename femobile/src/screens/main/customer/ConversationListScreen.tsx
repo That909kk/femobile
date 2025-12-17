@@ -56,16 +56,6 @@ export const ConversationListScreen: React.FC = () => {
     }
   }, [senderId, fetchTotalUnread]);
 
-  // Debug logging
-  useEffect(() => {
-    // Unread count status monitoring (silent in production)
-  }, [senderId, totalUnread]);
-
-  // Debug userInfo
-  useEffect(() => {
-    // UserInfo monitoring (silent in production)
-  }, [userInfo, senderId]);
-
   // Handler cho conversation summary từ WebSocket (giống web)
   const handleConversationSummary = useCallback((summary: ConversationSummaryDTO) => {
     // Cập nhật lastMessage và lastMessageTime
